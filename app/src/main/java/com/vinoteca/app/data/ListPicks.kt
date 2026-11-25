@@ -64,7 +64,12 @@ object ListPicks {
         val rank: Int?,
         /** True when several lines share this rank, so no single bottle is being crowned. */
         val tied: Boolean,
-        val score: Int
+        val score: Int,
+        /**
+         * A fact the card can say when the read placed nothing: "Cheapest" or "Priciest" on the
+         * two ends of a page ranked on price alone. Empty when the read did the ranking.
+         */
+        val note: String = ""
     ) {
         /**
          * The headline a ranked card carries. Every placed line says where it came, not only the
@@ -153,7 +158,7 @@ object ListPicks {
         } else {
             emptyMap()
         }
-        val picks = scores.map { score ->
+        var picks = scores.map { score ->
             val rank = if (score == null || !readSeparated) null else rankOf[score]
             Pick(
                 rank = rank,
@@ -176,6 +181,17 @@ object ListPicks {
             readSeparated -> Basis.READ
             pricedApart -> Basis.PRICE
             else -> Basis.NONE
+        }
+        // No ranking to carry, but the two ends of the price range are facts, not judgments, so
+        // the cards can still be told apart when the read came back level.
+        if (basis == Basis.PRICE && cheap != null && dear != null) {
+            picks = picks.mapIndexed { index, pick ->
+                when (index) {
+                    cheap -> pick.copy(note = "Cheapest")
+                    dear -> pick.copy(note = "Priciest")
+                    else -> pick
+                }
+            }
         }
         return Ranking(
             picks = picks,

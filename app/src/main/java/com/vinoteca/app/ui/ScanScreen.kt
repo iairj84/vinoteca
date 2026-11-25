@@ -809,6 +809,7 @@ private fun VerdictBlock(
         leaving -> advice.verdict.label(restaurant)
         pick?.rank == 1 && !pick.tied -> BuyAdvice.Verdict.BUY.label(restaurant)
         pick != null && pick.rank != null -> pick.label
+        pick != null && pick.note.isNotBlank() -> pick.note
         else -> advice.verdict.label(restaurant)
     }
     val tint = when {

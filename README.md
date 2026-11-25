@@ -214,8 +214,8 @@ the ranking whatever the fit says — second-best of nine is still a recommendat
 broken by invention: when the top score is shared, those cards say `Best pick` instead of crowning
 one. When the read really does come back level, `ListPicks` says which of the three it is in
 (`READ`, `PRICE`, `NONE`) and the banner above the cards changes with it: a price fallback names the
-cheapest and the priciest line instead of crowning a bottle, and a page where nothing differs says
-so. The cards stay in menu order, because the list in the reader's hand is in that order too.
+cheapest and the priciest line instead of crowning a bottle, those two cards carry `Cheapest` and
+`Priciest`, and a page where nothing differs says so. The cards stay in menu order, because the list in the reader's hand is in that order too.
 
 `personal_fit` still exists on the label scan: a model that looked at *that* label against the
 profile is a real per-bottle judgment, and it shows as `AI match N/5` when it arrives. The app no
