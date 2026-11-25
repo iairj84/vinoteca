@@ -52,8 +52,10 @@ fun TasteScreen(
         PairingTable.forContext(profile.choice(QuickStart.Q_CONTEXT))
     }
     val failures = remember(cellar.wines, rules) {
-        cellar.wines.count { wine -> rules.checks(wine).any { it.verdict == GateVerdict.FAIL } }
+        cellar.wines.count { wine -> rules.fails(wine) }
     }
+    // A rule of the user's that fails a bottle the user loves is a contradiction worth one line.
+    val lovedConflict = remember(cellar.wines, rules) { rules.lovedConflict(cellar.wines) }
     val passing = remember(cellar.wines, rules) {
         cellar.wines.count { wine -> rules.checks(wine).any { it.verdict == GateVerdict.PASS } }
     }
@@ -125,9 +127,13 @@ fun TasteScreen(
                         LabeledValue("Oak", it.label)
                     }
                     rules.maxAlcohol?.let {
-                        LabeledValue(
-                            "Alcohol",
-                            "${oneDecimal(it)}%${if (rules.alcoholAssumed) " (assumed)" else ""}"
+                        LabeledValue("Alcohol", "${oneDecimal(it)}% or under")
+                    }
+                    lovedConflict?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
                         )
                     }
                     if (cellar.wines.isNotEmpty()) {

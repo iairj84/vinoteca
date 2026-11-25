@@ -123,15 +123,14 @@ object BuyAdvice {
             }
         }
 
-        val abvUnknown = wine.alcohol == null && rules.maxAlcohol != null
         // A price inside the user's own band is the one fact here that argues for the money. A
         // cleared limit is compliance, so it earns a line under the verdict and not the verdict.
         val arguesForIt = argues.isNotEmpty()
+        // A gate that could not be checked is not a demerit. It used to hedge a bottle with no
+        // printed ABV down to "Maybe", which punished the record for a fact the list never prints.
         val verdict = when {
             hard.isNotEmpty() -> Verdict.LEAVE
-            // A missing ABV is not a reason to leave it, but it is a reason not to say "buy it":
-            // the one limit the user set cannot be checked, so the card asks them to look.
-            against.isNotEmpty() || abvUnknown -> Verdict.LOOK
+            against.isNotEmpty() -> Verdict.LOOK
             arguesForIt -> Verdict.BUY
             // Nothing known and nothing broken: say so, rather than dress it up as a match.
             else -> Verdict.LOOK

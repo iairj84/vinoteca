@@ -32,10 +32,8 @@ data class PalateRules(
     /** Grams per litre. 4.0 for "none, please", 8.0 for "a touch is fine". */
     val maxSugar: Double? = null,
     val oak: OakTolerance? = null,
-    /** Percent alcohol by volume. */
-    val maxAlcohol: Double? = null,
-    /** True when the ceiling came from a chip such as "avoid strong" rather than a typed number. */
-    val alcoholAssumed: Boolean = false
+    /** Percent alcohol by volume. Only ever a number the user gave: no chip becomes a ceiling. */
+    val maxAlcohol: Double? = null
 ) {
     val isEmpty: Boolean get() = maxSugar == null && oak == null && maxAlcohol == null
 
@@ -47,6 +45,28 @@ data class PalateRules(
 
     fun verdictOf(gate: String, wine: Wine): GateVerdict =
         checks(wine).firstOrNull { it.gate == gate }?.verdict ?: GateVerdict.UNKNOWN
+
+    /** True when the bottle breaks one of the user's rules. An unknown answer is never a failure. */
+    fun fails(wine: Wine): Boolean = checks(wine).any { it.verdict == GateVerdict.FAIL }
+
+    /**
+     * A one-line notice when a bottle the user loves breaks a ceiling the user set themselves.
+     *
+     * Worth naming rather than hiding: a rule that fails a 5★ bottle is more likely to be a rule
+     * that arrived without the user's consent than a bottle the app should talk them out of. Only a
+     * numeric ceiling counts — oak is a style note, and a tag that mentions it is not a measurement.
+     */
+    fun lovedConflict(wines: List<Wine>): String? {
+        val broken = wines
+            .filter { it.favorite || (it.rating ?: 0) >= 4 }
+            .firstNotNullOfOrNull { wine ->
+                checks(wine)
+                    .firstOrNull { it.verdict == GateVerdict.FAIL && it.gate != GATE_OAK }
+                    ?.let { wine to it }
+            } ?: return null
+        return "${broken.first.title} is one you loved, but ${broken.second.detail}. " +
+            "Your rating and your rule disagree."
+    }
 
     /**
      * One line for the cellar digest the chat prompt carries: the failures, plus an honest note when
@@ -129,18 +149,11 @@ data class PalateRules(
                 QuickStart.AVOID_OAK in avoids -> OakTolerance.NEUTRAL
                 else -> null
             }
-            // Only what the user actually asked for. "Avoid strong" is a chip, not a number, so the
-            // ceiling it becomes is marked assumed rather than presented as a preference.
-            val ceiling = when {
-                QuickStart.AVOID_STRONG in avoids -> 13.5
-                else -> null
-            }
-            return PalateRules(
-                maxSugar = sugar,
-                oak = oak,
-                maxAlcohol = ceiling,
-                alcoholAssumed = ceiling != null
-            )
+            // "Avoid strong" is a chip, not a number. Turning it into a 13.5% ceiling invented a
+            // rule the assistant then defended, and it contradicted the 5★ Zinfandel in the same
+            // cellar. The preference still reaches the model, worded as a preference; a numeric
+            // ceiling exists only when the user gives one.
+            return PalateRules(maxSugar = sugar, oak = oak)
         }
     }
 }

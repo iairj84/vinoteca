@@ -194,10 +194,11 @@ before it becomes a contract rather than after.
 
 Three things are deliberate:
 
-- **Taps write axes and constraints, not rules.** The only checkable gates a tap can set are sweetness
-  (from "none, please" or "a touch is fine"), oak, and an alcohol ceiling. The ceiling comes from the
-  "avoid strong" chip, is written as a number, and is labelled *assumed* — a chip is not a
-  measurement, and a number the user never gave must not look like one they did.
+- **Taps write axes and preferences, not rules.** The only checkable gates a tap can set are
+  sweetness (from "none, please" or "a touch is fine") and oak. "Avoid strong" is a *preference*,
+  not a ceiling: a chip is not a measurement, and the 13.5% figure it used to invent contradicted
+  the 5★ Zinfandel in the same cellar. A numeric alcohol ceiling exists only when the user gives a
+  number, and a gate that cannot be checked from a record is never counted as broken.
 - **The thresholds are data, and the app checks them.** `PalateRules` compares a bottle record to the
   gates before any prompt is built: `Wine.alcohol == null` yields `UNKNOWN`, never `PASS`, and the
   cellar digest appends `app gate check: alcohol unknown …` so the model is told the fact is missing.

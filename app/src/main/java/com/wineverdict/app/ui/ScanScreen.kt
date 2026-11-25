@@ -1194,9 +1194,9 @@ val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine
                 if (rules.isEmpty && result.bottles.isNotEmpty() && ranking?.separated != true) {
                     Banner(
                         "Your limits are not set, so these picks are the model's own read of the " +
-                            "wines rather than a filter against your taste. Set an alcohol ceiling, " +
-                            "a sweetness or oak preference, or a budget band in Taste and bottles " +
-                            "that break them drop out of the ranking."
+                            "wines rather than a filter against your taste. Set a sweetness or oak " +
+                            "preference, or a budget band in Taste, and bottles that break them drop " +
+                            "out of the ranking."
                     )
                 }
                 if (hideAbvUnknown) {

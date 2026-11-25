@@ -3,7 +3,16 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased: the judgement actually answers
+### Unreleased
+
+**A tap is not a measurement.** "Avoid strong" no longer becomes a 13.5% ceiling — it contradicted
+the 5★ Zinfandel in the same cellar, and the assistant then defended a number nobody typed. The
+preference still reaches the model, worded as a preference; a numeric ceiling exists only when a
+number is given. A gate that cannot be checked from a record is no longer counted as broken, and a
+bottle with no printed ABV is no longer hedged down from *Buy it* to *Worth a look*. When a loved
+(4★+, or favourited) bottle would break a ceiling you set, the Taste screen says so in one line.
+
+**The judgement actually answers.**
 
 `Thinking.OFF` sent `reasoning_effort: "none"`, which Groq rejects with a 400. The retry dropped
 the field, so the model reasoned at its default: on an 800-token list judgement 798 tokens went to
