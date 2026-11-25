@@ -13,4 +13,3 @@ app/build
 !artifacts/*.apk
 *.aab
 .kotlin
-artifacts/*.apk
