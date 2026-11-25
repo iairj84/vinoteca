@@ -313,6 +313,20 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.5: the audit's quick wins
+
+An external read of the scan path, verified against the code and fixed where it checked out:
+the second provider now starts at once when the first fails fast instead of waiting out the
+hedge delay for a dead answer; the rate limiter reserves its slot inside the lock and admits
+reads against three-fifths of the token cap instead of stalling on the worst case; the
+on-device text reader is one shared client running beside the upload instead of ahead of it;
+the label crop encodes during the first request; the preview skips a JPEG round trip; and a
+cut-off answer is retried rather than parsed for its reasoning text.
+
+Streaming replies and on-device ranking stay out: the first is a day's work for perceived
+rather than real speed, the second changes what the cards say. Both are recorded in the
+audit for later.
+
 ### 1.0.4: no more template cards, and a bottle read in one wait
 
 A small model sometimes answers by echoing the schema — a card titled "name · Fields:

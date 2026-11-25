@@ -81,10 +81,13 @@ object ImageUtils {
             out.toByteArray()
         }
 
-    /** Small bitmap used for on-screen previews. */
+    /**
+     * Small bitmap used for on-screen previews. Decoded and scaled once: the old version
+     * JPEG-encoded the bitmap and decoded it straight back, paying a full round trip to show
+     * the same pixels.
+     */
     fun previewBitmap(context: Context, uri: Uri, maxDim: Int = 900): Bitmap? = runCatching {
-        val bytes = jpegBytes(context, uri, maxDim)
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        scaleDown(loadUpright(context, uri, maxDim), maxDim)
     }.getOrNull()
 
     private fun scaleDown(source: Bitmap, maxDim: Int): Bitmap {

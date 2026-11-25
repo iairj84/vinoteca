@@ -65,13 +65,15 @@ class RateLimiter {
                         (live.windowResetAt - now).coerceAtLeast(1_000L)
                     live.requestsRemaining != null && live.requestsRemaining <= 0 ->
                         (live.windowResetAt - now).coerceAtLeast(1_000L)
-                    else -> 0L
+                    else -> {
+                        // The slot is reserved inside the lock: two callers arriving together
+                        // can no longer both see a free window and both go out.
+                        lastUse[key] = now
+                        0L
+                    }
                 }
             }
-            if (waitMs <= 0L) {
-                lastUse[key] = System.currentTimeMillis()
-                return
-            }
+            if (waitMs <= 0L) return
             onWait?.invoke(waitMs)
             delay(waitMs.coerceIn(250L, 120_000L))
         }
@@ -116,9 +118,14 @@ class RateLimiter {
         /** Roughly four characters to a token for English prompts. */
         fun textTokens(text: String): Int = (text.length / 4) + 8
 
-        /** Input estimate plus the output the request is allowed to produce. */
+        /**
+         * Input estimate plus the output the request is likely to produce. Admission uses about
+         * three-fifths of maxTokens rather than the cap: reserving the whole cap against a
+         * minute budget stalls reads that would have fit, and the real usage corrects the books
+         * afterwards through the response headers.
+         */
         fun estimateTokens(promptChars: Int, images: Int, maxTokens: Int): Int =
-            (promptChars / 4) + (images * IMAGE_TOKENS) + maxTokens
+            (promptChars / 4) + (images * IMAGE_TOKENS) + (maxTokens * 6 / 10)
 
         /** "7.66s", "1m2.4s", "350ms", "22" — providers mix formatted durations and plain seconds. */
         fun parseDurationMillis(raw: String?): Long? {

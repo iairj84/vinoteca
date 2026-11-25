@@ -103,7 +103,9 @@ private const val RETRY_TIMEOUT_MS = 20_000L
 private const val SCAN_DEADLINE_MS = 75_000L
 
 /** Wait this long for the primary provider, then ask the second one too and take whichever wins. */
-private const val HEDGE_DELAY_MS = 12_000L
+// A healthy list read is done well before this; past it, asking the second key too is
+// cheaper than waiting out the first provider's full timeout.
+private const val HEDGE_DELAY_MS = 8_000L
 
 private fun abvLabel(value: Double): String =
     String.format(java.util.Locale.US, "%.1f%%", value)
@@ -216,9 +218,17 @@ fun ScanScreen(onReview: () -> Unit) {
             val scanStart = System.currentTimeMillis()
             // On-device text first: ~1s, no network. Shown immediately so a stalled provider
             // never means a blank screen.
+            // On-device text starts at once and runs beside the upload encoding: the network
+            // request used to wait for it. The prompt takes whatever is ready after a short
+            // grace; a late result still updates the on-screen preview.
             stage = "Reading the words on your phone"
-            instantLines = runCatching { LocalOcr.previewLines(context, uri) }.getOrNull()
-                ?.takeIf { it.isNotEmpty() }
+            val ocrJob = async(Dispatchers.Default) {
+                runCatching { LocalOcr.previewLines(context, uri) }.getOrNull()
+            }
+            launch {
+                val late = runCatching { ocrJob.await() }.getOrNull()?.takeIf { it.isNotEmpty() }
+                if (late != null && instantLines == null) instantLines = late
+            }
             // Remaining budget for the network reads; every step below spends from it.
             fun remainingMs(): Long =
                 SCAN_DEADLINE_MS - (System.currentTimeMillis() - scanStart)
@@ -240,6 +250,18 @@ fun ScanScreen(onReview: () -> Unit) {
                         Base64.NO_WRAP
                     )
                 }
+                // The label crop encodes beside the first request: the phone is idle on the
+                // network anyway, and the bottle path used to pay a second full decode after it.
+                val cropDeferred = async(Dispatchers.IO) {
+                    runCatching {
+                        Base64.encodeToString(
+                            ImageUtils.labelCropJpeg(context, uri, maxDim = 1800),
+                            Base64.NO_WRAP
+                        )
+                    }.getOrNull()
+                }
+                instantLines = withTimeoutOrNull(1_500) { ocrJob.await() }
+                    ?.takeIf { it.isNotEmpty() }
                 val photoKb = (full.length * 3 / 4) / 1024
                 // One read, one deadline. Cancelling here cancels the HTTP call as well.
                 suspend fun <T> answer(block: suspend () -> T): T =
@@ -301,7 +323,7 @@ fun ScanScreen(onReview: () -> Unit) {
                                 jsonMode = true,
                                 thinking = Thinking.OFF,
                                 temperature = 0.1,
-                                maxTokens = 600
+                                maxTokens = 400
                             )
                         }
                     }.getOrNull()
@@ -352,8 +374,14 @@ fun ScanScreen(onReview: () -> Unit) {
                         }
                         if (second == null) return@coroutineScope first.await()
                         val late = async {
-                            delay(HEDGE_DELAY_MS)
-                            if (first.isCompleted) return@async null
+                            // A fast failure of the first request completes it with null: the second
+                            // provider starts at once instead of waiting out the full hedge delay
+                            // for an answer that is already dead.
+                            val failedFast = withTimeoutOrNull(HEDGE_DELAY_MS) {
+                                first.join()
+                                first.getCompleted() == null
+                            }
+                            if (failedFast == false && first.isCompleted) return@async null
                             stage = "Still waiting — asking " +
                                 "${second.shortLabel} too and taking whichever answers"
                             withTimeoutOrNull(RETRY_TIMEOUT_MS) {
@@ -447,19 +475,14 @@ fun ScanScreen(onReview: () -> Unit) {
                 var finePrinted = false
                 if (bottle && parsed != null && remainingMs() > 12_000L) {
                     stage = "Reading the label with $who"
-                    val crop = withContext(Dispatchers.IO) {
-                        Base64.encodeToString(
-                            ImageUtils.labelCropJpeg(context, uri, maxDim = 1800),
-                            Base64.NO_WRAP
-                        )
-                    }
+                    val crop = cropDeferred.await()
                     // The rich read and the small-print pass are two independent reads of the same
                     // label, so they go out together: in series they were most of the minute a
                     // bottle scan used to take. Whichever is slower sets the wait, not their sum.
                     finePrinted = true
                     val (rich, fine) = coroutineScope {
                         val richJob = async { readJson() }
-                        val fineJob = async { readFinePrint(crop) }
+                        val fineJob = async { crop?.let { readFinePrint(it) } }
                         richJob.await() to fineJob.await()
                     }
                     if (rich != null && rich.bottles.isNotEmpty()) parsed = rich
@@ -487,13 +510,7 @@ fun ScanScreen(onReview: () -> Unit) {
                     (only.wine.alcohol == null || only.wine.vintage == null) &&
                     remainingMs() > 10_000L
                 ) {
-                    val crop = withContext(Dispatchers.IO) {
-                        Base64.encodeToString(
-                            ImageUtils.labelCropJpeg(context, uri, maxDim = 1800),
-                            Base64.NO_WRAP
-                        )
-                    }
-                    val fine = readFinePrint(crop)
+                    val fine = cropDeferred.await()?.let { readFinePrint(it) }
                     if (fine != null) {
                         parsed = parsed.copy(bottles = listOf(only.withFinePrint(fine)))
                     }

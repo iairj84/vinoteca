@@ -17,15 +17,21 @@ import kotlinx.coroutines.withContext
  */
 object LocalOcr {
 
+    /**
+     * One shared recognizer: building (and closing) a client per scan paid the model setup on
+     * every photo. This object lives for the app, so the client does too.
+     */
+    private val recognizer by lazy {
+        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+    }
+
     suspend fun previewLines(context: Context, uri: Uri): List<String> =
         withContext(Dispatchers.IO) {
             runCatching {
                 val image = InputImage.fromFilePath(context, uri)
-                val client = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                val task = client.process(image)
+                val task = recognizer.process(image)
                 // Blocking wait on IO is fine; the caller already bounds the whole scan.
                 val result = com.google.android.gms.tasks.Tasks.await(task, 10, java.util.concurrent.TimeUnit.SECONDS)
-                client.close()
                 result.textBlocks
                     .flatMap { block -> block.lines.map { it.text.trim() } }
                     .map { it.replace(Regex("\\s+"), " ").trim() }

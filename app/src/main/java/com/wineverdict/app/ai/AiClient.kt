@@ -581,7 +581,15 @@ class AiClient(
     private fun parseContent(provider: AiProvider, body: String): String {
         val root = runCatching { Json.parseToJsonElement(body).jsonObject }.getOrNull()
             ?: throw AiException("${provider.label} returned something that is not JSON.")
-        val message = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject
+        val firstChoice = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+        // A cut-off answer (finish_reason "length") with an empty body is not something to
+        // parse: reasoning text is not the answer, and feeding it to the wine parsers is how a
+        // truncated reply becomes a confident-looking wrong card.
+        val finished = firstChoice?.get("finish_reason")?.jsonPrimitive?.contentOrNull
+        if (finished == "length") {
+            throw AiException("The model ran out of room before finishing. Try again.", retryable = true)
+        }
+        val message = firstChoice?.get("message")?.jsonObject
         val content = message?.get("content")?.jsonPrimitive?.contentOrNull
         val reasoning = message?.get("reasoning")?.jsonPrimitive?.contentOrNull
         val text = content?.takeIf { it.isNotBlank() } ?: reasoning?.takeIf { it.isNotBlank() }
