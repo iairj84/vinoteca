@@ -309,6 +309,12 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.15: the retry uses the other key
+
+The 1.7.14 retry went back to the provider that had just stalled. If a second provider has a key,
+the smaller second attempt now goes there instead, and the progress row says so ("Retrying on
+Groq · …"). One stalled provider no longer decides whether the photo is read at all.
+
 ### 1.7.14: a read that cannot hang
 
 The screen sat at 121 seconds on "Reading the page with Google Gemini" with no answer: one HTTP

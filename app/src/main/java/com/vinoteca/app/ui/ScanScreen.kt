@@ -285,7 +285,14 @@ fun ScanScreen(onReview: () -> Unit) {
                     }
                     if (first != null) return first
                     waitedFor = 0L
-                    stage = "Retrying with a smaller photo on $who"
+                    // A stalled provider is the one thing the retry can route around: the second
+                    // key answers instead, with a third of the upload.
+                    val next = AppGraph.settings.configuredProviders.drop(1).firstOrNull()
+                    stage = if (next != null) {
+                        "Retrying on ${next.shortLabel} · ${AppGraph.settings.visionModel(next)}"
+                    } else {
+                        "Retrying with a smaller photo on $who"
+                    }
                     val small = withContext(Dispatchers.IO) {
                         Base64.encodeToString(
                             ImageUtils.jpegBytes(context, uri, maxDim = 1_200, quality = 75),
@@ -302,6 +309,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             thinking = Thinking.OFF,
                             temperature = 0.1,
                             maxTokens = 1_600,
+                            provider = next,
                             onBudgetWait = hold
                         )
                     } ?: throw AiException(
