@@ -14,9 +14,17 @@ import com.vinoteca.app.model.formatMoney
  * wrong. In a shop or at a restaurant there is money and an evening on the line, the label in your
  * hand actually prints its ABV, and "buy / leave it" plus the reasons is the whole answer.
  *
- * So this says exactly two kinds of thing: which of the user's own thresholds the bottle breaks, and
- * which known facts argue for it. A fact the record does not have is never used as evidence in
- * either direction — no invented demerits, no invented enthusiasm.
+ * The rule that keeps the verdict worth reading: **a limit the bottle clears is not a reason to buy
+ * it, and neither is a gap it would fill.** Being under an alcohol ceiling is a filter passed, and
+ * "your first bottle from Catalonia" is a reason to be curious; treating either as an argument for
+ * the money is what made a nine-bottle wine list come back as nine "Order it" pills. Only a fact
+ * that argues for spending the money — in practice a price inside the band the user gave — can
+ * produce a Buy it. A passed ceiling is not one either: if compliance were an argument, every wine
+ * under the ceiling would say buy, which is the same complaint one layer down.
+ *
+ * So this says three kinds of thing: which of the user's own thresholds the bottle breaks, which
+ * facts argue for it, and what it would add to the cellar. A fact the record does not have is never
+ * used as evidence in either direction — no invented demerits, no invented enthusiasm.
  */
 object BuyAdvice {
 
@@ -35,10 +43,17 @@ object BuyAdvice {
 
     data class Advice(
         val verdict: Verdict,
-        /** Reasons against and for, strongest first. Each one names a fact or a rule. */
+        /** The lines that explain the verdict, strongest first. Each one names a fact or a rule. */
         val reasons: List<String>,
+        /** What the bottle would add to the cellar. Never, on its own, a reason to buy it. */
+        val gaps: List<String>,
         /** What cannot be judged from what the app knows about this bottle. */
-        val unknowns: List<String>
+        val unknowns: List<String>,
+        /**
+         * How strongly the record argues for this bottle, for ranking one list against itself.
+         * Never shown as a score — [ListPicks] sorts cards with it and nothing else reads it.
+         */
+        val strength: Int = 0
     )
 
     fun forBottle(
@@ -48,9 +63,15 @@ object BuyAdvice {
         cellar: List<Wine>,
         occasion: Occasion
     ): Advice {
-        val against = mutableListOf<String>()
+        // Four buckets, because they are four different claims and only one of them can turn into
+        // Buy it. `hard` walks away from the bottle, `against` advises against this evening,
+        // `argues` is a fact that argues for the money, and `clears` is every limit the bottle
+        // passes — compliance, which is shown but never counted as enthusiasm.
         val hard = mutableListOf<String>()
-        val forIt = mutableListOf<String>()
+        val against = mutableListOf<String>()
+        val clears = mutableListOf<String>()
+        val argues = mutableListOf<String>()
+        val gaps = mutableListOf<String>()
         val unknowns = mutableListOf<String>()
 
         rules.checks(wine).forEach { check ->
@@ -62,7 +83,7 @@ object BuyAdvice {
                 } else {
                     hard += check.detail
                 }
-                GateVerdict.PASS -> forIt += check.detail
+                GateVerdict.PASS -> clears += check.detail
                 GateVerdict.UNKNOWN -> Unit
             }
         }
@@ -75,7 +96,7 @@ object BuyAdvice {
         when (wine.drinkStatus()) {
             DrinkStatus.PAST -> hard += "past its ${wine.drinkTo} window"
             DrinkStatus.HOLD -> against += "better from ${wine.drinkFrom} — not for tonight"
-            DrinkStatus.READY, DrinkStatus.PEAK -> forIt += "drinkable now"
+            DrinkStatus.READY, DrinkStatus.PEAK -> clears += "drinkable now"
             DrinkStatus.NONE -> Unit
         }
 
@@ -83,7 +104,7 @@ object BuyAdvice {
         if (owned > 0) {
             against += "you already have $owned of this at home"
         } else if (cellar.isNotEmpty()) {
-            novelty(wine, cellar)?.let { forIt += it }
+            novelty(wine, cellar)?.let { gaps += it }
         }
 
         if (occasion == Occasion.SHOP) {
@@ -95,36 +116,58 @@ object BuyAdvice {
                     band.top != null && price > band.top ->
                         against += "$money — above the ${band.label} you gave me"
                     band.top != null ->
-                        forIt += "$money — inside the ${band.label} you gave me"
-                    price >= 35.0 -> forIt += "$money — the ${band.label} you gave me"
+                        argues += "$money — inside the ${band.label} you gave me"
+                    price >= 35.0 -> argues += "$money — the ${band.label} you gave me"
                     else -> Unit
                 }
             }
         }
 
         val abvUnknown = wine.alcohol == null && rules.maxAlcohol != null
+        // A price inside the user's own band is the one fact here that argues for the money. A
+        // cleared limit is compliance, so it earns a line under the verdict and not the verdict.
+        val arguesForIt = argues.isNotEmpty()
         val verdict = when {
             hard.isNotEmpty() -> Verdict.LEAVE
             // A missing ABV is not a reason to leave it, but it is a reason not to say "buy it":
             // the one limit the user set cannot be checked, so the card asks them to look.
             against.isNotEmpty() || abvUnknown -> Verdict.LOOK
-            forIt.isNotEmpty() -> Verdict.BUY
+            arguesForIt -> Verdict.BUY
             // Nothing known and nothing broken: say so, rather than dress it up as a match.
             else -> Verdict.LOOK
         }
         // "Leave it" with three reasons to buy underneath would argue with itself.
-        val reasons = if (verdict == Verdict.LEAVE) {
-            hard.sortedBy { it.length }.distinct().take(3)
-        } else {
-            (hard.sortedBy { it.length } + against + forIt).distinct().take(3)
+        val ordered = when (verdict) {
+            Verdict.LEAVE -> hard.sortedBy { it.length }
+            // What argues for the bottle first, then what argues against this evening, then the
+            // limits it passes.
+            Verdict.BUY -> argues + against + clears
+            Verdict.LOOK -> against + clears
         }
-        if (reasons.isEmpty()) {
+        val reasons = ordered.distinct().take(3)
+        if (reasons.isEmpty() && gaps.isEmpty()) {
             unknowns += "nothing in the record speaks either way"
         }
-        return Advice(verdict, reasons, unknowns.distinct().take(2))
+        // A fact that argues for the money counts most, a limit passed counts a little, and a bottle
+        // already at home or due a few years' sleep counts against it. A line that breaks a limit is
+        // out of the ranking altogether, which ListPicks handles from the verdict.
+        val strength = if (hard.isNotEmpty()) {
+            0
+        } else {
+            argues.size * 4 + clears.size * 2 - against.size * 3
+        }
+        return Advice(
+            verdict = verdict,
+            reasons = reasons,
+            gaps = gaps.distinct().take(2),
+            unknowns = unknowns.distinct().take(2),
+            strength = strength
+        )
     }
 
-    /** A bottle of the same producer and cuvée is already on the rack. */
+    /**
+     * A bottle of the same producer and cuvée is already on the rack.
+     */
     private fun sameBottle(owned: Wine, candidate: Wine): Boolean {
         val a = owned.producer.trim().lowercase() + "|" + owned.name.trim().lowercase()
         val b = candidate.producer.trim().lowercase() + "|" + candidate.name.trim().lowercase()
@@ -132,7 +175,10 @@ object BuyAdvice {
         return owned.title.equals(candidate.title, ignoreCase = true)
     }
 
-    /** The one genuinely useful thing a cellar can add to a buying decision: it is a gap. */
+    /**
+     * The one genuinely useful thing a cellar can add to a buying decision, minus the claim it is
+     * worth the money: a gap. It is read out here and shown quietly; the verdict does not move.
+     */
     private fun novelty(wine: Wine, cellar: List<Wine>): String? {
         val grape = wine.grapes.firstOrNull()?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
         if (grape != null) {

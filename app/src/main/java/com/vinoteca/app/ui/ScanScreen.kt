@@ -61,6 +61,7 @@ import com.vinoteca.app.ai.digest
 import com.vinoteca.app.ai.withFinePrint
 import com.vinoteca.app.data.BuyAdvice
 import com.vinoteca.app.data.ImportRow
+import com.vinoteca.app.data.ListPicks
 import com.vinoteca.app.data.PendingScan
 import com.vinoteca.app.data.ScanQueue
 import com.vinoteca.app.model.ChatMessage
@@ -537,7 +538,58 @@ fun ScanScreen(onReview: () -> Unit) {
                 }
                 // A list is not a shop: its prices carry a markup, so the verdict is about the wine.
                 val restaurant = result.scene == Scene.LIST
-                result.bottles.forEach { bottle ->
+                val rules = AppGraph.palate.rules
+                // A list is ranked against itself. Nine cards all saying the same word is not an
+                // answer to "which one do I order"; the model read a fit for every line off the
+                // taste file and the user's limits rule some of them out, so the page can be sorted.
+                val ranking = if (restaurant && result.bottles.size > 1) {
+                    ListPicks.rank(
+                        candidates = result.bottles.map {
+                            ListPicks.Candidate(wine = it.wine, fit = it.fitScore)
+                        },
+                        rules = rules,
+                        profile = AppGraph.palate.profile.value,
+                        cellar = AppGraph.cellar.data.value.wines
+                    )
+                } else {
+                    null
+                }
+                if (ranking != null) {
+                    if (ranking.separated) {
+                        val shortlist = ranking.top.map { index ->
+                            val title = result.bottles[index].wine.title.take(44)
+                            "${ranking.picks[index].rank}. $title"
+                        }
+                        Banner("Worth ordering, best first: " + shortlist.joinToString("  \u00b7  "))
+                    } else {
+                        Banner(
+                            "Nothing in this read separates one line from another: every wine " +
+                                "came back with the same fit and none of your limits rules one out, " +
+                                "so the list is left in menu order. Set a limit in Taste and scan it " +
+                                "again and the ranking starts working."
+                        )
+                    }
+                }
+                // Nothing on a printed list prints an ABV, so "the ceiling cannot be checked" under
+                // every single card is a fact about the list, not about the wines: said once, here.
+                val noAbvAtAll = result.bottles.isNotEmpty() &&
+                    result.bottles.none { it.wine.alcohol != null }
+                val hideAbvUnknown = restaurant && noAbvAtAll && rules.maxAlcohol != null
+                if (rules.isEmpty && result.bottles.isNotEmpty()) {
+                    Banner(
+                        "Your limits are not set — no alcohol ceiling, no sweetness or oak " +
+                            "preference and no budget band — so nothing here can be checked against " +
+                            "your taste: every card can only say that nothing is against it. Set them " +
+                            "in Taste and the cards start ruling bottles out."
+                    )
+                }
+                if (hideAbvUnknown) {
+                    Banner(
+                        "No ABV is printed on this list, so the ${rules.maxAlcohol}% ceiling cannot " +
+                            "be checked on any of these bottles. That is the list, not the wines."
+                    )
+                }
+                result.bottles.forEachIndexed { index, bottle ->
                     if (result.scene == Scene.BOTTLE) {
                         LabelResult(
                             result = bottle,
@@ -556,6 +608,8 @@ fun ScanScreen(onReview: () -> Unit) {
                             result = bottle,
                             restaurant = restaurant,
                             currency = currency,
+                            hideAbvUnknown = hideAbvUnknown,
+                            pick = ranking?.picks?.getOrNull(index),
                             onAdd = {
                                 scope.launch {
                                     AppGraph.cellar.upsert(record)
@@ -710,7 +764,12 @@ private fun LabelResult(
  * price band only enters when a price tag was actually read, and at a restaurant it never enters.
  */
 @Composable
-private fun VerdictBlock(wine: Wine, restaurant: Boolean) {
+private fun VerdictBlock(
+    wine: Wine,
+    restaurant: Boolean,
+    hideAbvUnknown: Boolean = false,
+    pick: ListPicks.Pick? = null
+) {
     val rules = AppGraph.palate.rules
     val profile = AppGraph.palate.profile.value
     val cellar = AppGraph.cellar.data.value.wines
@@ -723,17 +782,26 @@ private fun VerdictBlock(wine: Wine, restaurant: Boolean) {
             occasion = if (restaurant) BuyAdvice.Occasion.RESTAURANT else BuyAdvice.Occasion.SHOP
         )
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Pill(
-            advice.verdict.label(restaurant),
-            color = when (advice.verdict) {
-                BuyAdvice.Verdict.BUY -> MaterialTheme.colorScheme.primaryContainer
-                BuyAdvice.Verdict.LOOK -> MaterialTheme.colorScheme.secondaryContainer
-                BuyAdvice.Verdict.LEAVE -> MaterialTheme.colorScheme.errorContainer
-            }
-        )
-    }
     val leaving = advice.verdict == BuyAdvice.Verdict.LEAVE
+    // On a list the useful headline is the ranking, not the same "nothing wrong with it" nine times:
+    // the best line is called out, the runners-up are numbered, and a line that breaks one of the
+    // user's limits keeps its warning whatever the ranking says.
+    val headline = when {
+        leaving -> advice.verdict.label(restaurant)
+        pick?.rank == 1 && !pick.tied -> BuyAdvice.Verdict.BUY.label(restaurant)
+        pick != null && pick.rank != null -> pick.label
+        else -> advice.verdict.label(restaurant)
+    }
+    val tint = when {
+        leaving -> MaterialTheme.colorScheme.errorContainer
+        pick?.rank == 1 -> MaterialTheme.colorScheme.primaryContainer
+        pick != null && pick.rank != null -> MaterialTheme.colorScheme.secondaryContainer
+        advice.verdict == BuyAdvice.Verdict.BUY -> MaterialTheme.colorScheme.primaryContainer
+        else -> MaterialTheme.colorScheme.secondaryContainer
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Pill(headline, color = tint)
+    }
     advice.reasons.forEach { line ->
         Text(
             text = (if (leaving) "\u2715  " else "\u00b7  ") + line,
@@ -745,13 +813,24 @@ private fun VerdictBlock(wine: Wine, restaurant: Boolean) {
             }
         )
     }
-    advice.unknowns.forEach { line ->
+    // The gap a bottle would fill sits below the reasons, quieter: it is a reason to be curious
+    // about the bottle, not a reason to buy it, and it never lifts the verdict on its own.
+    advice.gaps.forEach { line ->
         Text(
-            text = "?  $line",
+            text = "\u00b7  $line",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.outline
         )
     }
+    advice.unknowns
+        .filterNot { hideAbvUnknown && it.startsWith("no ABV") }
+        .forEach { line ->
+            Text(
+                text = "?  $line",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
 }
 
 /** One wine out of a shelf or a list, with its verdict. No ranking across the others. */
@@ -760,6 +839,8 @@ private fun BottleVerdictCard(
     result: ScannedLabel,
     restaurant: Boolean,
     currency: String,
+    hideAbvUnknown: Boolean = false,
+    pick: ListPicks.Pick? = null,
     onAdd: () -> Unit,
     onReview: () -> Unit
 ) {
@@ -794,14 +875,14 @@ private fun BottleVerdictCard(
                 result.wine.alcohol?.let { Pill(abvLabel(it)) }
                 if (result.wine.drinkWindowLabel != "unknown") Pill(result.wine.drinkWindowLabel)
             }
-            VerdictBlock(result.wine, restaurant)
+            VerdictBlock(result.wine, restaurant, hideAbvUnknown, pick)
             if (result.fitReason.isNotBlank()) {
                 Text(result.fitReason, style = MaterialTheme.typography.bodyMedium)
             }
             val shelfDoubt = buildList {
                 if (result.uncertainFields.isNotEmpty()) add("Unsure: " + result.uncertainFields.joinToString(", "))
                 if (result.nextTip.isNotBlank()) add(result.nextTip)
-                else if (result.wine.alcohol == null) add("ABV not visible — the alcohol rule cannot be checked from this photo.")
+                else if (result.wine.alcohol == null && !hideAbvUnknown) add("ABV not visible — the alcohol rule cannot be checked from this photo.")
             }
             shelfDoubt.forEach { line ->
                 Text(

@@ -177,6 +177,36 @@ wine, not the deal), whether the cellar already holds that producer and cuvée, 
 the gap it fills ("no Cabernet Franc in your cellar"). Missing facts are listed as unknown and never
 counted in either direction.
 
+The gap and the cleared limit are reported, not counted. `BuyAdvice` fills four buckets — what rules
+the bottle out, what argues against this evening, what argues for the money, and what the bottle
+simply passes — and only the third can produce a `Buy it`: a price inside the band the user gave.
+Passing the alcohol ceiling is a filter cleared and "your first bottle from Catalonia" is a reason to
+be curious; counting either as an argument for the money is what made a nine-wine restaurant list come
+back as nine `Order it` pills, and counting the ceiling would only move the bug one layer down, to
+"every wine under 13.5% is a buy". A bottle's gap is printed under the reasons in a quieter line and
+never lifts the verdict. A list, whose prices carry a markup and whose wines are never ranked against
+each other, therefore answers `Maybe` for a bottle that breaks nothing and `Skip it` for one that
+does — and when no limits are set at all, the top of the list says so once instead of every card
+guessing in the same voice.
+
+### A list is ranked, not graded
+
+Nine cards carrying the same word is not an answer to "which one do I order", and that is what a
+list produced: with nothing printed about alcohol or oak, a per-bottle verdict has the same inputs on
+every line and therefore the same output. So a list is ranked against itself in `ListPicks`, from the
+two things there are. The model already reads `personal_fit` (1-5) for each wine on the page against
+`mytaste.md` — a real per-bottle judgment that the card used to ignore — and the app adds what it can
+check locally: a limit of the user's the bottle clears or breaks, its window, whether it is already
+at home. `BuyAdvice` exposes that case as `strength`, which nothing displays.
+
+The best line is called out as `Order it`, two runners-up are numbered `2nd pick` and `3rd pick`, and
+a summary above the cards names the ones worth ordering so the answer is visible without scrolling
+nine identical cards. A line that breaks one of the user's limits keeps `Skip it` and stays out of
+the ranking whatever the fit says — second-best of nine is still a recommendation. A tie is not
+broken by invention: when the top score is shared, those cards say `Best pick` instead of crowning
+one, and when every line scores the same the ranking says so rather than picking a bottle at random.
+The cards stay in menu order, because the list in the reader's hand is in that order too.
+
 `personal_fit` still exists on the label scan: a model that looked at *that* label against the
 profile is a real per-bottle judgment, and it shows as `AI match N/5` when it arrives. The app no
 longer manufactures a substitute for it.
