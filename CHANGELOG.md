@@ -25,6 +25,14 @@ wines you loved and why, one you didn't and why, anything you're curious to try 
 taste brief verbatim, capped at 200 characters, and never turned into a rule. The Taste screen also
 takes "what links the wines you love?", which the brief had a slot for but nothing to fill it.
 
+**A list gets advice, not a spreadsheet.** The list now asks for two or three bottles with a reason
+and a couple of tempting ones to skip, instead of a rank for every line — the answer that kept
+putting the first three sparkling wines first. The advice call thinks before it answers, has its own
+60-second timeout, and gets the cellar summary and taste brief. The per-wine judgement is kept for
+one release as the fallback, used only when the advice answer carries no usable pick, and the debug
+panel labels it. Picks are matched by line number; the reason text arrives on the cards in a later
+step.
+
 **The list gets long enough to answer.** The judgement on a photographed wine list now asks for
 4,000 tokens (plus a reasoning reserve on the way out) instead of 800, gets 130 seconds instead of
 the 95-second scan budget, and shows "Thinking about the list…" while it works. The judge's own

@@ -125,9 +125,12 @@ private const val RETRY_TIMEOUT_MS = 20_000L
  * what left a page of wines ranked on price alone.
  */
 /**
- * The list judgement thinks before it answers, so it needs longer than a read: 4,000 tokens of
- * answer with reasoning on is not a 45-second request.
+ * The advice call thinks before it answers, so it needs longer than a read: a few explained picks
+ * with reasoning on is not a 45-second request.
  */
+private const val ADVICE_TIMEOUT_MS = 60_000L
+
+/** The per-wine judgement, kept as the fallback for one release. */
 private const val JUDGE_TIMEOUT_MS = 75_000L
 
 /** The whole scan never outlives this: first byte to last card. No scan takes minutes. */
@@ -279,7 +282,14 @@ fun ScanScreen(onReview: () -> Unit) {
             // for, and that call is the expensive one.
             var deadlineMs = SCAN_DEADLINE_MS
             fun remainingMs(): Long =
-                deadlineMs - (System.currentTimeMillis() - scanStart)
+                (deadlineMs - (System.currentTimeMillis() - scanStart)).coerceAtLeast(0L)
+
+            /**
+             * A timeout to hand a coroutine. `withTimeout` throws on a non-positive value instead of
+             * waiting, so a scan that has already spent its budget would fail here with an
+             * argument error rather than the timeout the user can understand.
+             */
+            fun budgetMs(cap: Long): Long = minOf(cap, remainingMs()).coerceAtLeast(1_000L)
             try {
                 val taste = AppGraph.taste.brief()
                 val known = AppGraph.cellar.data.value.wines.map { it.title }.distinct()
@@ -387,7 +397,7 @@ fun ScanScreen(onReview: () -> Unit) {
                     var fineWho = ""
                     var fineModel = ""
                     val fineRaw = runCatching {
-                        withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
+                        withTimeoutOrNull(budgetMs(RETRY_TIMEOUT_MS)) {
                             AppGraph.ai.complete(
                                 system = Prompts.finePrint(currency),
                                 turns = listOf(
@@ -413,17 +423,67 @@ fun ScanScreen(onReview: () -> Unit) {
                     return fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
                 }
 
-                // The judgement on a list the phone read: text in, ranks out, no image. A short
-                // text answer is what a free tier is fastest at, and the lines match the wines by
-                // number, so the model's spelling changes nothing on the cards. This is the answer
-                // for a list — what the wines are and which to order — so it gets the longest
-                // budget of any text call.
+                // The advice on a list the phone read: text in, a few explained picks out, no
+                // image. This replaced a rank for every line, which a small model answered by
+                // keeping the page's own order — the first three sparkling lines came back as
+                // "best first". The per-wine judgement is kept below for one release, and is only
+                // reached when the advice answer carries no usable pick.
                 suspend fun judgeList(read: SceneScan): SceneScan? {
                     val judgeStart = System.currentTimeMillis()
                     var judgeWho = ""
                     var judgeModel = ""
+                    val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
+
+                    // Thinking.MEDIUM here and not OFF: this is the one call where the model's own
+                    // knowledge is the product, so it is allowed to reason about it.
+                    val advice = runCatching {
+                        withTimeoutOrNull(budgetMs(ADVICE_TIMEOUT_MS)) {
+                            AppGraph.ai.complete(
+                                system = Prompts.listAdvice(
+                                    brief = taste,
+                                    cellarSummary = owned,
+                                    currency = currency,
+                                    bottles = read.bottles
+                                ),
+                                turns = listOf(
+                                    ChatMessage(
+                                        role = "user",
+                                        text = "What should I order from this list?"
+                                    )
+                                ),
+                                vision = false,
+                                jsonMode = false,
+                                thinking = Thinking.MEDIUM,
+                                temperature = 0.4,
+                                maxTokens = 4_000,
+                                onBudgetWait = hold,
+                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
+                            )
+                        } ?: throw AiException("The advice did not arrive in time.")
+                    }
+                    advice.getOrNull()?.let { raw ->
+                        waitedFor = 0L
+                        trace.answer = raw
+                        trace.answerStep = "advice"
+                        trace.request(
+                            "advice", judgeWho, judgeModel, raw.length,
+                            System.currentTimeMillis() - judgeStart, true
+                        )
+                        ScanParsing.applyAdvice(read, raw)?.let { return it }
+                    }
+                    advice.exceptionOrNull()?.let {
+                        lastProblem = it.message
+                        trace.request(
+                            "advice", judgeWho, judgeModel, 0,
+                            System.currentTimeMillis() - judgeStart, false, it.message.orEmpty()
+                        )
+                    }
+
+                    val fallbackStart = System.currentTimeMillis()
+                    judgeWho = ""
+                    judgeModel = ""
                     return runCatching {
-                        val raw = withTimeoutOrNull(minOf(JUDGE_TIMEOUT_MS, remainingMs())) {
+                        val raw = withTimeoutOrNull(budgetMs(JUDGE_TIMEOUT_MS)) {
                             AppGraph.ai.complete(
                                 system = Prompts.listJudge(taste, currency, read.bottles),
                                 turns = listOf(
@@ -448,16 +508,16 @@ fun ScanScreen(onReview: () -> Unit) {
                         waitedFor = 0L
                         // The whole point of the panel: whether this answer was cut off.
                         trace.answer = raw
-                        trace.answerStep = "judgement"
+                        trace.answerStep = "judgement (fallback)"
                         trace.request(
-                            "judge", judgeWho, judgeModel, raw.length,
-                            System.currentTimeMillis() - judgeStart, true
+                            "judge (fallback)", judgeWho, judgeModel, raw.length,
+                            System.currentTimeMillis() - fallbackStart, true
                         )
                         ScanParsing.applyJudgement(read, raw)
                     }.onFailure {
                         trace.request(
-                            "judge", judgeWho, judgeModel, 0,
-                            System.currentTimeMillis() - judgeStart, false, it.message.orEmpty()
+                            "judge (fallback)", judgeWho, judgeModel, 0,
+                            System.currentTimeMillis() - fallbackStart, false, it.message.orEmpty()
                         )
                         lastProblem = it.message
                     }.getOrNull()
@@ -577,7 +637,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             Base64.NO_WRAP
                         )
                     }
-                    val retried = withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, left)) {
+                    val retried = withTimeoutOrNull(budgetMs(RETRY_TIMEOUT_MS)) {
                         AppGraph.ai.complete(
                             system = system,
                             turns = ask,

@@ -315,6 +315,99 @@ object Prompts {
     }
 
     /**
+     * The advice question a photographed wine list gets now.
+     *
+     * The judgement before this asked for one line per wine — 26 rows of five fields — which is a
+     * spreadsheet rather than an answer. A diner wants two or three bottles explained, a couple of
+     * tempting ones declined, and a glass if the list has one. Advice also survives a small model,
+     * where ranking every line spreads the attention thin and the top of the page wins by default —
+     * which is why the first three sparkling lines came back as "best first".
+     *
+     * Wines are referred to by number and never by name: the numbers come from the phone's reading
+     * of the page, so the model cannot merge two lines or impose a spelling the cards have to live
+     * with, and a pick that names no line is simply wrong.
+     */
+    fun listAdvice(
+        brief: String,
+        cellarSummary: String,
+        currency: String,
+        bottles: List<ScannedLabel>,
+        food: String? = null
+    ): String {
+        val wines = bottles.mapIndexed { index, label ->
+            val wine = label.wine
+            buildString {
+                append("${index + 1}. ${wine.title}")
+                append(" — ").append(wine.type.label.lowercase())
+                val place = listOf(wine.appellation, wine.region, wine.country)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(", ")
+                if (place.isNotBlank()) append(" — ").append(place)
+                if (wine.grapes.isNotEmpty()) {
+                    append(" (").append(wine.grapes.joinToString(", ")).append(")")
+                }
+                wine.price?.let {
+                    append(" — bottle ").append(currency).append(' ')
+                        .append("%.0f".format(java.util.Locale.US, it))
+                }
+                label.glassPrice?.let {
+                    append(", glass ").append(currency).append(' ')
+                        .append("%.0f".format(java.util.Locale.US, it))
+                }
+            }
+        }.joinToString("\n")
+        val taste = brief.trim().ifBlank {
+            "(I have not told you what I like — recommend on the wines themselves)"
+        }
+        val owned = cellarSummary.trim().ifBlank { "(nothing yet)" }
+        val dish = food?.trim().orEmpty().ifBlank { "(none given)" }
+        return """
+        You are an experienced sommelier helping one diner order from a restaurant wine list.
+        Read the WHOLE list before deciding. Then recommend what this diner should order.
+
+        Knowledge rules:
+        - Use your general knowledge of regions, grapes, styles, vintages and producers.
+          When something is typical rather than printed on the list, say "typically".
+        - Do not state producer-specific specifics you cannot be sure of (months in oak,
+          blend percentages, exact alcohol, scores, awards). Region- and grape-level
+          reasoning is preferred: climate, elevation, soils, grape character, ageing style.
+        - Never invent a wine, price or vintage. Refer to wines ONLY by their line number.
+        - A wine's colour/style is the section it is listed under. A wine listed under
+          ROSADO is a rosé even if the grape is usually red.
+
+        Taste: read MY TASTE below. Treat oak, alcohol and sweetness as preferences.
+        Connect your reasons to the bottles I loved when you can.
+        Budget: prefer bottles inside my restaurant range; go above it only with a reason.
+
+        Reply in exactly this format, nothing before or after:
+
+        PICK 1 | <line number> | <one-line headline>
+        WHY: <2-4 sentences: what it is, why it tastes that way, why it suits me>
+        PICK 2 | <line number> | <headline>
+        WHY: <2-4 sentences>
+        PICK 3 | <line number> | <headline>          (optional)
+        WHY: <2-4 sentences>
+        GLASS | <line number> | <one sentence>        (best by-the-glass option, if any)
+        SKIP | <line number> | <one sentence why>     (2-4 lines, the tempting wrong choices)
+        NOTE: <optional one sentence, e.g. a splurge worth knowing about>
+
+        MY TASTE
+        $taste
+
+        WHAT I ALREADY OWN (summary)
+        $owned
+
+        FOOD (if given)
+        $dish
+
+        WINES
+        $wines
+        """.trimIndent()
+    }
+
+    /**
      * The recovery pass for the one failure that matters in a restaurant: a legible wine list that
      * came back with nothing. It asks for the wines and only the wines, with no scene decision and no
      * transcription to hide behind, and it is sent only after an empty first answer — one extra

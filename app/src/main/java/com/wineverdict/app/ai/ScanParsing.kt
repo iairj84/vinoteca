@@ -236,6 +236,36 @@ object ScanParsing {
 
 
     /**
+     * The advice answer's PICK lines, in order, as the page's ranks.
+     *
+     * Step 5's stop-gap until the validated reader lands: only the picks are placed — two or three
+     * explained bottles, which is what the answer is for — and the rest of the page stays unranked
+     * until someone asks about it. Validation here is deliberately shallow: a line number that
+     * exists on the page, no duplicates, three at most. Colour, glass price and the WHY text come
+     * with the real parser, so nothing is shown that has not been checked.
+     */
+    fun applyAdvice(read: SceneScan, raw: String): SceneScan? {
+        val count = read.bottles.size
+        val picks = raw.lines()
+            .map { it.trim().removePrefix("- ").removePrefix("* ").removePrefix("• ").trim() }
+            .mapNotNull { line ->
+                val parts = line.split('|').map { it.trim() }
+                if (parts.size < 2 || !parts[0].uppercase().startsWith("PICK")) return@mapNotNull null
+                parts[1].replace(Regex("[^0-9]"), "").toIntOrNull()?.minus(1)
+                    ?.takeIf { it in 0 until count }
+            }
+            .distinct()
+            .take(3)
+        if (picks.isEmpty()) return null
+        val rankOf = picks.mapIndexed { position, index -> index to position + 1 }.toMap()
+        return read.copy(
+            bottles = read.bottles.mapIndexed { index, label ->
+                rankOf[index]?.let { label.copy(listRank = it) } ?: label
+            }
+        )
+    }
+
+    /**
      * The text-only judgement on a list the phone read: "index | rank | fit | what | why" lines
      * matched to the wines by number. A line that does not parse, a rank outside the page, or a
      * template echo for the reason is dropped. Null when fewer than two lines survived, because
