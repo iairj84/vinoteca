@@ -309,6 +309,15 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.13: the pick says why
+
+The ranked banner named three bottles and stopped there: a shortlist with no case for the top one,
+and cards carrying a bare "Best pick" pill over empty space. The line reader now returns a `why`
+with every wine — one short line, twelve words at most, saying what puts it where it is on that
+page, and for rank 1 why it beats the rest. `ScanParsing` reads it into `fitReason`, `VerdictBlock`
+shows it directly under the pill, and the banner above the cards is a `SectionCard` listing the
+numbered picks with the read's reason for each, instead of one wrapped line of truncated titles.
+
 ### 1.7.12: one request for a list, and a wait that says what it is
 
 A scan that sat on "Reading carefully — a few extra seconds…" for over a minute was doing two

@@ -300,7 +300,7 @@ object Prompts {
         Then one line per wine, in the order printed: down the left column, then the right. Separate
         the fields with " | " in this exact order:
 
-        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence | rank
+        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence | rank | why
 
         Rules:
         - Write "-" for any field the page does not print. Never guess and never estimate.
@@ -317,6 +317,10 @@ object Prompts {
           second, and so on. Use every number from 1 to the number of wines exactly once — no ties,
           no repeats, never blank. Rank on what the page says about the wines: grape, region,
           vintage, style and price. Where my taste file below says something, it decides.
+        - "why" is one short line, at most twelve words, saying what puts this wine where it is on
+          this page: the grape, the region, the vintage, the style, the price, or the one thing that
+          sets it apart. For rank 1 it says why it beats the rest. Never "good wine", never
+          "nice", never blank.
         - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.

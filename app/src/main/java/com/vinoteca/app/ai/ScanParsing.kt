@@ -175,6 +175,9 @@ object ScanParsing {
         val glass = number(7)?.takeIf { it < 5000.0 }?.takeIf { bottle == null || it < bottle }
         val declared = text(8).lowercase()
         val rank = text(9).replace(Regex("[^0-9]"), "").toIntOrNull()?.takeIf { it in 1..24 }
+        // The read's one-line case for this bottle's place on the page. It is what makes a ranked
+        // card explain itself instead of carrying a bare "Best pick".
+        val why = text(10).take(160)
         val confidence = when {
             declared.startsWith("hi") -> "high"
             declared.startsWith("lo") -> "low"
@@ -194,7 +197,7 @@ object ScanParsing {
         return ScannedLabel(
             wine = wine,
             fitScore = null,
-            fitReason = "",
+            fitReason = why,
             flavorTags = emptyList(),
             priceEstimate = bottle,
             confidence = confidence,

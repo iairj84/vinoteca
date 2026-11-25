@@ -606,12 +606,21 @@ fun ScanScreen(onReview: () -> Unit) {
                 }
                 if (ranking != null) {
                     when (ranking.basis) {
-                        ListPicks.Basis.READ -> {
-                            val shortlist = ranking.top.map { index ->
-                                val title = result.bottles[index].wine.title.take(44)
-                                "${ranking.picks[index].rank}. $title"
+                        // Three names and nothing else is not an answer either: the best line gets
+                        // the read's own reason, and every place after it keeps its number.
+                        ListPicks.Basis.READ -> SectionCard("Worth ordering, best first") {
+                            ranking.top.forEach { index ->
+                                val bottle = result.bottles[index]
+                                val why = bottle.fitReason.trim()
+                                Text(
+                                    buildString {
+                                        append(ranking.picks[index].rank).append(". ")
+                                        append(bottle.wine.title)
+                                        if (why.isNotBlank()) append(" \u2014 ").append(why)
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
-                            Banner("Worth ordering, best first: " + shortlist.joinToString("  \u00b7  "))
                         }
                         // The read came back level, which is what an empty taste file produces. Say
                         // so, and say the one thing the page does separate, rather than sending the
@@ -745,7 +754,7 @@ private fun LabelResult(
                 )
             }
             // The same verdict a shelf card gets: a bottle in your hand is the usual shop moment.
-            VerdictBlock(result.wine, restaurant = false)
+            VerdictBlock(result.wine, restaurant = false, why = result.fitReason)
             if (result.wine.drinkWindowLabel != "unknown") {
                 LabeledValue("Drinking window", result.wine.drinkWindowLabel)
             }
@@ -755,9 +764,6 @@ private fun LabelResult(
                     if (result.priceEstimate != null) "Typical price" else "Price on the tag",
                     formatMoney(price, result.wine.currency)
                 )
-            }
-            if (result.fitReason.isNotBlank()) {
-                Text(result.fitReason, style = MaterialTheme.typography.bodyMedium)
             }
             if (result.wine.expertNotes.isNotBlank()) {
                 Text(result.wine.expertNotes, style = MaterialTheme.typography.bodyMedium)
@@ -834,7 +840,8 @@ private fun VerdictBlock(
     wine: Wine,
     restaurant: Boolean,
     hideAbvUnknown: Boolean = false,
-    pick: ListPicks.Pick? = null
+    pick: ListPicks.Pick? = null,
+    why: String = ""
 ) {
     val rules = AppGraph.palate.rules
     val profile = AppGraph.palate.profile.value
@@ -868,6 +875,11 @@ private fun VerdictBlock(
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Pill(headline, color = tint)
+    }
+    // Why this one sits where it does, in the read's own words: a pill on its own ("Best pick")
+    // tells the reader nothing about the bottle under it.
+    if (why.isNotBlank()) {
+        Text(why, style = MaterialTheme.typography.bodyMedium)
     }
     advice.reasons.forEach { line ->
         Text(
@@ -942,10 +954,7 @@ private fun BottleVerdictCard(
                 result.wine.alcohol?.let { Pill(abvLabel(it)) }
                 if (result.wine.drinkWindowLabel != "unknown") Pill(result.wine.drinkWindowLabel)
             }
-            VerdictBlock(result.wine, restaurant, hideAbvUnknown, pick)
-            if (result.fitReason.isNotBlank()) {
-                Text(result.fitReason, style = MaterialTheme.typography.bodyMedium)
-            }
+            VerdictBlock(result.wine, restaurant, hideAbvUnknown, pick, result.fitReason)
             val shelfDoubt = buildList {
                 if (result.uncertainFields.isNotEmpty()) add("Unsure: " + result.uncertainFields.joinToString(", "))
                 if (result.nextTip.isNotBlank()) add(result.nextTip)
