@@ -34,6 +34,14 @@ timeout or a rate limit, because a second 4,000-token request cannot fit in the 
 debug panel labels it. Picks are matched by line number; the reason text arrives on the cards in a later
 step.
 
+**A list now answers with picks, not pills.** The advice is the result: up to three bottles with
+"Order this"/"Second"/"Third", each with the name and prices the phone read off the page, the
+headline, and the reason in full — then a by-the-glass line, a compact Skip list and an optional
+note. The rest of the page follows as the wines that were read, without ranks. The Buy/Leave chip
+is gone from list cards (a shelf and a single bottle keep it); a ranked line keeps its place, and a
+line that breaks one of your limits still says why. When the advice answer did not come back, the
+older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
+
 **Advice is checked before it is shown.** Every line the model writes about a list is verified
 against the page: the line number has to exist, a glass has to be a wine the menu pours by the
 glass, a wine cannot be called red when its section says rosado (or the reverse), and one bottle is

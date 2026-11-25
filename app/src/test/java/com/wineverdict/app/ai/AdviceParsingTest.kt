@@ -157,6 +157,28 @@ class AdviceParsingTest {
     }
 
     @Test
+    fun aRedThatDrinksLikeAWhiteIsNotDropped() {
+        val raw = """
+            PICK 1 | 22 | Ultreia
+            WHY: It drinks like a white — lifted, cool, no weight — but with the tannin of a red.
+        """.trimIndent()
+        val advice = ScanParsing.parseAdvice(raw, page())!!
+        assertEquals(listOf(21), advice.picks.map { it.index })
+        assertTrue(advice.dropped.isEmpty())
+    }
+
+    @Test
+    fun aWhiteComparedToARedIsNotDropped() {
+        val raw = """
+            PICK 1 | 11 | Lagar de Pintos
+            WHY: Salt and acid, less tannic than a red, and the only Albariño with age on it here.
+        """.trimIndent()
+        val advice = ScanParsing.parseAdvice(raw, page())!!
+        assertEquals(listOf(10), advice.picks.map { it.index })
+        assertTrue(advice.dropped.isEmpty())
+    }
+
+    @Test
     fun aBottleIsPickedOnce() {
         val raw = "PICK 1 | 22 | Ultreia\nPICK 2 | 22 | Ultreia again\nPICK 3 | 26 | Tondonia"
         val advice = ScanParsing.parseAdvice(raw, page())!!

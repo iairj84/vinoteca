@@ -53,6 +53,7 @@ import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ScanHandoff
 import com.wineverdict.app.ai.AiException
+import com.wineverdict.app.ai.ListAdvice
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.ScanParsing
 import com.wineverdict.app.ai.ScannedLabel
@@ -1080,7 +1081,11 @@ fun ScanScreen(onReview: () -> Unit) {
                 // A list is ranked against itself. Nine cards all saying the same word is not an
                 // answer to "which one do I order"; the model read a fit for every line off the
                 // taste file and the user's limits rule some of them out, so the page can be sorted.
-                val ranking = if (restaurant && result.bottles.size > 1) {
+                // The advice answer, when it came back, is the result: two or three bottles
+                // explained. The ranking below it is the fallback, and the rest of the page is the
+                // list of what was read, without ranks.
+                val advice = result.advice
+                val ranking = if (restaurant && result.bottles.size > 1 && advice == null) {
                     ListPicks.rank(
                         candidates = result.bottles.map {
                             ListPicks.Candidate(
@@ -1096,7 +1101,18 @@ fun ScanScreen(onReview: () -> Unit) {
                 } else {
                     null
                 }
+                if (restaurant && advice != null) {
+                    AdviceBlock(advice = advice, bottles = result.bottles)
+                }
                 if (ranking != null) {
+                    // The older per-wine judgement looks the same on screen, so say which one this
+                    // is when the advice answer did not survive.
+                    Text(
+                        "Basic ranking — the advice answer did not come back, so this is the " +
+                            "model's order for the wines it could judge.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                     when (ranking.basis) {
                         // Three names and nothing else is not an answer either: the best line gets
                         // the read's own reason, and every place after it keeps its number.
@@ -1470,6 +1486,107 @@ private fun LabelResult(
 }
 
 /**
+ * What to order, from the advice answer.
+ *
+ * The name and the prices come from the label the phone read — the advice carries line numbers,
+ * never text — so a pick cannot show a wine or a price the page does not print. The reason is the
+ * model's own words, in full: it is the part of the answer worth reading.
+ */
+@Composable
+private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
+    if (advice.picks.isEmpty()) return
+    SectionCard("What to order") {
+        advice.picks.forEachIndexed { position, pick ->
+            val bottle = bottles.getOrNull(pick.index)
+            if (bottle != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Pill(
+                        when (position) {
+                            0 -> "Order this"
+                            1 -> "Second"
+                            else -> "Third"
+                        },
+                        color = if (position == 0) MaterialTheme.colorScheme.primaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    )
+                    Text(bottle.wine.title, style = MaterialTheme.typography.titleMedium)
+                    priceLine(bottle)?.let { prices ->
+                        Text(
+                            prices,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (pick.headline.isNotBlank()) {
+                        Text(pick.headline, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    if (pick.why.isNotBlank()) {
+                        Text(pick.why, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+
+        advice.glass?.let { glass ->
+            val bottle = bottles.getOrNull(glass.index)
+            if (bottle != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text("By the glass", style = MaterialTheme.typography.labelMedium)
+                    Text(bottle.wine.title, style = MaterialTheme.typography.titleSmall)
+                    priceLine(bottle)?.let { prices ->
+                        Text(
+                            prices,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val sentence = glass.why.ifBlank { glass.headline }
+                    if (sentence.isNotBlank()) {
+                        Text(
+                            sentence,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (advice.skips.isNotEmpty()) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text("Skip", style = MaterialTheme.typography.labelMedium)
+                advice.skips.forEach { skip ->
+                    val bottle = bottles.getOrNull(skip.index)
+                    if (bottle != null) {
+                        Text(
+                            "${bottle.wine.title} — ${skip.why.ifBlank { skip.headline }}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        if (advice.note.isNotBlank()) {
+            Text(
+                advice.note,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+    }
+}
+
+/** The prices the menu prints for this line, in the record's own currency. */
+private fun priceLine(label: ScannedLabel): String? {
+    val parts = mutableListOf<String>()
+    label.wine.price?.let { parts += "${formatMoney(it, label.wine.currency)} bottle" }
+    label.glassPrice?.let { parts += "${formatMoney(it, label.wine.currency)} glass" }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString("  ·  ")
+}
+
+/**
  * The buy-or-leave verdict, shared by the single-bottle card and the shelf and list cards.
  *
  * A lone bottle photographed is the ordinary shop case, so it gets the same verdict as a shelf. The
@@ -1513,8 +1630,13 @@ private fun VerdictBlock(
         advice.verdict == BuyAdvice.Verdict.BUY -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.secondaryContainer
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Pill(headline, color = tint)
+    // A list is not a shop: "Order the bottle" under every line is the noise the ranking replaced,
+    // so the Buy/Leave chip stays for a shelf and for a bottle in the hand. A ranked line keeps its
+    // place, and a line that breaks one of the user's limits still says why below.
+    if (!restaurant || pick?.rank != null) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Pill(headline, color = tint)
+        }
     }
     // Why this one sits where it does, in the read's own words: a pill on its own ("Best pick")
     // tells the reader nothing about the bottle under it.

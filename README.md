@@ -19,8 +19,10 @@ Gemini or Groq — with your own key.
   1–5 match against your taste profile. Everything is shown for review before it is saved.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price, and each one gets a buy-or-leave verdict built from your own limits (alcohol ceiling,
-  sweetness, oak), your price band and what the cellar is missing. A restaurant mode reads a wine
-  list and skips the price-band judgment, because list prices carry a markup.
+  sweetness), your price band and what the cellar is missing. A restaurant mode reads a wine list
+  and answers the diner's question instead: two or three bottles with a reason each, a glass if the
+  list pours one, and a few tempting lines to skip — every line checked against the page before it
+  is shown. List prices carry a markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and a 1–5 star

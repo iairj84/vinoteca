@@ -107,7 +107,9 @@ enum class Scene {
 data class SceneScan(
     val scene: Scene,
     val bottles: List<ScannedLabel>,
-    val notes: String
+    val notes: String,
+    /** The validated advice answer, when one came back. Null means a ranking is the fallback. */
+    val advice: ListAdvice? = null
 )
 
 /** One bottle the advice points at, by its position on the page. */
@@ -425,6 +427,9 @@ object ScanParsing {
         "onion", "onions", "pepper", "peppers", "flowers", "floral", "peel", "citrus", "liquorice"
     )
 
+    /** "Drinks like a white", "lighter than a red": a comparison, not a claim about this wine. */
+    private val SIMILE_BEFORE_COLOUR = setOf("like", "than", "as", "unlike")
+
     private fun colourClaims(text: String): Set<String> {
         val words = text.lowercase()
             .replace(Regex("[^\\p{L}\\s-]"), " ")
@@ -434,6 +439,9 @@ object ScanParsing {
         words.forEachIndexed { index, word ->
             val colour = COLOUR_WORDS[word] ?: return@forEachIndexed
             if (words.getOrNull(index + 1).orEmpty() in FLAVOUR_AFTER_COLOUR) return@forEachIndexed
+            // "like a white" puts one word between the simile and the colour; two back covers it.
+            if (words.getOrNull(index - 1).orEmpty() in SIMILE_BEFORE_COLOUR) return@forEachIndexed
+            if (words.getOrNull(index - 2).orEmpty() in SIMILE_BEFORE_COLOUR) return@forEachIndexed
             out += colour
         }
         return out
@@ -450,7 +458,8 @@ object ScanParsing {
         return read.copy(
             bottles = read.bottles.mapIndexed { index, label ->
                 rankOf[index]?.let { label.copy(listRank = it) } ?: label
-            }
+            },
+            advice = advice
         )
     }
 
