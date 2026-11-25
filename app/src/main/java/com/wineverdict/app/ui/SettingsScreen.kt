@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -479,6 +480,26 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 )
                 OutlinedButton(onClick = onOpenAdvancedTaste) {
                     Text("Edit mytaste.md")
+                }
+                // Debug builds show the scan panel unconditionally; this is the switch that makes
+                // it readable on a sideloaded release build, where there is no log to pull.
+                var showScanDetails by remember { mutableStateOf(AppGraph.settings.showScanDetails) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show scan details", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "After a scan, show what was read, which provider and model answered each request, the raw judgement and its length, and whether the cards came from the model or the price fallback. Held in memory only.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showScanDetails,
+                        onCheckedChange = {
+                            showScanDetails = it
+                            AppGraph.settings.showScanDetails = it
+                        }
+                    )
                 }
             }
 

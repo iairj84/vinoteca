@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ScanHandoff
 import com.wineverdict.app.ai.AiException
 import com.wineverdict.app.ai.Prompts
@@ -78,6 +79,9 @@ import com.wineverdict.app.data.validatedText
 import com.wineverdict.app.data.toCatalogRow
 import com.wineverdict.app.data.PendingScan
 import com.wineverdict.app.data.ScanQueue
+import com.wineverdict.app.data.ScanDebug
+import com.wineverdict.app.data.ScanTrace
+import com.wineverdict.app.data.TraceBuilder
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.formatMoney
@@ -150,6 +154,8 @@ fun ScanScreen(onReview: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var scan by remember { mutableStateOf<SceneScan?>(null) }
+    // What the last scan did: in memory only, for the debug panel below the cards.
+    var debugTrace by remember { mutableStateOf<ScanTrace?>(null) }
     var reReading by remember { mutableStateOf(false) }
     var batch by remember { mutableStateOf(false) }
     // What the read is doing, how long it has been doing it, and any wait the free tier has
@@ -242,6 +248,7 @@ fun ScanScreen(onReview: () -> Unit) {
         work?.cancel()
         work = scope.launch {
             val scanStart = System.currentTimeMillis()
+            val trace = TraceBuilder()
             // On-device text first: ~1s, no network. Shown immediately so a stalled provider
             // never means a blank screen.
             // On-device text starts at once and runs beside the upload encoding: the network
@@ -288,6 +295,15 @@ fun ScanScreen(onReview: () -> Unit) {
                 }
                 instantLines = withTimeoutOrNull(1_500) { ocrJob.await() }
                     ?.takeIf { it.isNotEmpty() }
+                trace.lines = instantLines.orEmpty()
+                trace.request(
+                    "on-device OCR",
+                    "ML Kit (on the phone)",
+                    "",
+                    instantLines.orEmpty().sumOf { it.length },
+                    0L,
+                    instantLines != null
+                )
                 // The phone's own reading of a printed list, shown as real cards while the model
                 // works: names, prices and the order down the page are all on the photo already,
                 // and a provider that times out must not take them down with it.
@@ -313,7 +329,11 @@ fun ScanScreen(onReview: () -> Unit) {
 
                 // The structured reader: richer per bottle (notes, window, fit), and the only path
                 // that gets those. Any failure here is survivable now.
+                var readWho = ""
+                var readModel = ""
+                var readStart = 0L
                 val readJson: suspend () -> SceneScan? = {
+                    readStart = System.currentTimeMillis()
                     runCatching {
                         val raw = answer {
                             AppGraph.ai.complete(
@@ -330,10 +350,15 @@ fun ScanScreen(onReview: () -> Unit) {
                             thinking = Thinking.LOW,
                             temperature = 0.1,
                             maxTokens = 3600,
-                            onBudgetWait = hold
+                            onBudgetWait = hold,
+                            onAnswer = { p, m -> readWho = p.shortLabel; readModel = m }
                         )
                         }
                         waitedFor = 0L
+                        trace.request(
+                            "structured read", readWho, readModel, raw.length,
+                            System.currentTimeMillis() - readStart, true
+                        )
                         ScanParsing.parseScene(raw, currency)
                     }.onFailure { lastProblem = it.message }.getOrNull()
                 }
@@ -342,6 +367,9 @@ fun ScanScreen(onReview: () -> Unit) {
                 // A dozen short fields, so it is the cheapest request in the scan — and the one
                 // that decides the alcohol rule and the drinking window.
                 suspend fun readFinePrint(crop: String): ScannedLabel? {
+                    val fineStart = System.currentTimeMillis()
+                    var fineWho = ""
+                    var fineModel = ""
                     val fineRaw = runCatching {
                         withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
                             AppGraph.ai.complete(
@@ -357,10 +385,15 @@ fun ScanScreen(onReview: () -> Unit) {
                                 jsonMode = true,
                                 thinking = Thinking.OFF,
                                 temperature = 0.1,
-                                maxTokens = 400
+                                maxTokens = 400,
+                                onAnswer = { p, m -> fineWho = p.shortLabel; fineModel = m }
                             )
                         }
                     }.getOrNull()
+                    trace.request(
+                        "small print", fineWho, fineModel, fineRaw?.length ?: 0,
+                        System.currentTimeMillis() - fineStart, fineRaw != null
+                    )
                     return fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
                 }
 
@@ -370,6 +403,9 @@ fun ScanScreen(onReview: () -> Unit) {
                 // for a list — what the wines are and which to order — so it gets the longest
                 // budget of any text call.
                 suspend fun judgeList(read: SceneScan): SceneScan? {
+                    val judgeStart = System.currentTimeMillis()
+                    var judgeWho = ""
+                    var judgeModel = ""
                     return runCatching {
                         val raw = withTimeoutOrNull(minOf(JUDGE_TIMEOUT_MS, remainingMs())) {
                             AppGraph.ai.complete(
@@ -385,12 +421,26 @@ fun ScanScreen(onReview: () -> Unit) {
                                 thinking = Thinking.OFF,
                                 temperature = 0.3,
                                 maxTokens = 800,
-                                onBudgetWait = hold
+                                onBudgetWait = hold,
+                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
                             )
                         } ?: throw AiException("The ranking did not arrive in time.")
                         waitedFor = 0L
+                        // The whole point of the panel: whether this answer was cut off.
+                        trace.answer = raw
+                        trace.answerStep = "judgement"
+                        trace.request(
+                            "judge", judgeWho, judgeModel, raw.length,
+                            System.currentTimeMillis() - judgeStart, true
+                        )
                         ScanParsing.applyJudgement(read, raw)
-                    }.onFailure { lastProblem = it.message }.getOrNull()
+                    }.onFailure {
+                        trace.request(
+                            "judge", judgeWho, judgeModel, 0,
+                            System.currentTimeMillis() - judgeStart, false, it.message.orEmpty()
+                        )
+                        lastProblem = it.message
+                    }.getOrNull()
                 }
 
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
@@ -400,6 +450,7 @@ fun ScanScreen(onReview: () -> Unit) {
                 // asked too and whichever answers first wins — one stalled provider no longer
                 // costs its full timeout before the other is tried.
                 suspend fun readPage(): String {
+                    val pageStart = System.currentTimeMillis()
                     val ocrHint = instantLines
                         ?.takeIf { it.isNotEmpty() }
                         ?.joinToString("\n") { "- $it" }
@@ -477,7 +528,20 @@ fun ScanScreen(onReview: () -> Unit) {
                         late.cancel()
                         winner
                     }
-                    if (hedged != null) return hedged
+                    if (hedged != null) {
+                        trace.answer = hedged
+                        trace.answerStep = "page read"
+                        trace.request(
+                            "read the page",
+                            if (second != null) "${primary?.shortLabel}/${second.shortLabel} (hedged)"
+                            else primary?.shortLabel.orEmpty(),
+                            "",
+                            hedged.length,
+                            System.currentTimeMillis() - pageStart,
+                            true
+                        )
+                        return hedged
+                    }
                     waitedFor = 0L
                     // Neither answered in time: one smaller retry on whatever budget is left.
                     val left = remainingMs()
@@ -493,7 +557,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             Base64.NO_WRAP
                         )
                     }
-                    return withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, left)) {
+                    val retried = withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, left)) {
                         AppGraph.ai.complete(
                             system = system,
                             turns = ask,
@@ -506,7 +570,16 @@ fun ScanScreen(onReview: () -> Unit) {
                             provider = second,
                             onBudgetWait = hold
                         )
-                    } ?: throw AiException(
+                    }
+                    trace.request(
+                        "read the page (smaller photo)",
+                        second?.shortLabel ?: who,
+                        "",
+                        retried?.length ?: 0,
+                        System.currentTimeMillis() - pageStart,
+                        retried != null
+                    )
+                    return retried ?: throw AiException(
                         "$who did not answer in ${READ_TIMEOUT_MS / 1000}s on the full photo, " +
                             "nor the backup in ${RETRY_TIMEOUT_MS / 1000}s on a smaller one " +
                             "($photoKb KB, then a third of that). Nothing was saved. Try again on " +
@@ -610,6 +683,14 @@ fun ScanScreen(onReview: () -> Unit) {
                     scan = parsed
                     localOnly = false
                 }
+                // Freeze what this scan did for the debug panel. The ranking basis is added by
+                // the panel itself, because the ranking is computed where the cards are drawn.
+                val shown = parsed ?: scan
+                trace.scene = shown?.scene?.name.orEmpty()
+                trace.wineCount = shown?.bottles?.size ?: 0
+                if (trace.lines.isEmpty()) trace.lines = instantLines.orEmpty()
+                ScanDebug.last = trace.finish()
+                debugTrace = ScanDebug.last
             } catch (e: Exception) {
                 if (scan?.bottles?.isNotEmpty() == true) localOnly = true
                 else error = e.message ?: "Scan failed. Try again."
@@ -1166,6 +1247,7 @@ val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                ScanDetailsPanel(trace = debugTrace, basis = ranking?.basis?.name)
             }
 
             Text(
@@ -1587,5 +1669,65 @@ private fun Countdown(until: Long) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.tertiary
         )
+    }
+}
+/**
+ * What the last scan did, so a wrong answer can be diagnosed on the phone itself.
+ *
+ * Debug builds always show it; a release build (including the sideload APK) shows it only after
+ * Settings → Show scan details. Nothing here is persisted — it is the scan that just ran, held in
+ * memory, and it is gone when the process dies.
+ */
+@Composable
+private fun ScanDetailsPanel(trace: ScanTrace?, basis: String?) {
+    if (!BuildConfig.DEBUG && !AppGraph.settings.showScanDetails) return
+    SectionCard("Scan details") {
+        if (trace == null) {
+            Text(
+                "No scan recorded in this session yet.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            return@SectionCard
+        }
+        Text(
+            "${trace.wineCount} wines read · scene ${trace.scene.ifBlank { "unknown" }} · " +
+                "ranking ${basis ?: "not ranked"}",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        // One row per request: who answered, with which model, how long the answer was. A step
+        // with no row did not complete, which is the fact worth seeing.
+        trace.requests.forEach { request ->
+            Text(
+                request.summary,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (request.ok) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.error
+            )
+        }
+        if (trace.answerStep.isNotBlank()) {
+            Text(
+                "${trace.answerStep}: ${trace.answerChars} characters",
+                style = MaterialTheme.typography.labelMedium
+            )
+            Text(
+                trace.answer.take(4_000),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (trace.lines.isNotEmpty()) {
+            Text(
+                "Lines read on the phone (${trace.lines.size})",
+                style = MaterialTheme.typography.labelMedium
+            )
+            trace.lines.take(30).forEach { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }

@@ -111,6 +111,14 @@ class SettingsStore(context: Context) {
                 )
             }
 
+    /**
+     * Show the scan debug panel in a release build too. Debug builds always show it; this is the
+     * switch for a phone running the sideload APK, where there is no adb to read a log from.
+     */
+    var showScanDetails: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_SCAN_DETAILS, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_SCAN_DETAILS, value).apply()
+
     var currency: String
         get() = prefs.getString(KEY_CURRENCY, "").orEmpty().ifBlank { DEFAULT_CURRENCY }
         set(value) = prefs.edit()
@@ -134,6 +142,7 @@ class SettingsStore(context: Context) {
     companion object {
         private const val KEY_PRIMARY = "primary.provider"
         private const val KEY_CURRENCY = "currency"
+        private const val KEY_SHOW_SCAN_DETAILS = "scan.details"
 
         private const val LEGACY_API_KEY = "groq_api_key"
         private const val LEGACY_VISION_MODEL = "vision_model"

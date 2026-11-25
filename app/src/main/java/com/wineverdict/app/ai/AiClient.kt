@@ -94,7 +94,9 @@ class AiClient(
         maxTokens: Int = 1400,
         provider: AiProvider? = null,
         model: String? = null,
-        onBudgetWait: ((Long) -> Unit)? = null
+        onBudgetWait: ((Long) -> Unit)? = null,
+        /** Reports who actually answered, after the fallback walk has settled. */
+        onAnswer: ((AiProvider, String) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         val images = buildList {
             imageBase64?.takeIf { it.isNotBlank() }?.let { add(it) }
@@ -115,7 +117,7 @@ class AiClient(
         var allRetryable = true
         targets.forEach { target ->
             try {
-                return@withContext attempt(
+                val answer = attempt(
                     target = target,
                     system = system,
                     turns = turns,
@@ -126,6 +128,8 @@ class AiClient(
                     maxTokens = maxTokens,
                     onBudgetWait = onBudgetWait
                 )
+                onAnswer?.invoke(target.provider, target.model)
+                return@withContext answer
             } catch (e: AiException) {
                 failures += target to e
                 allRetryable = allRetryable && e.retryable
