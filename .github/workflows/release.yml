@@ -6,15 +6,46 @@ name: Release APK
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  # The app keeps provider keys on the device, so no key should ever be committed.
+  # Private repos on this plan have no GitHub secret scanning, so guard here instead.
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Refuse committed credentials
+        run: |
+          # Only real key shapes, not the word "key" in prose. Placeholders are ignored.
+          PATTERN='AIza[0-9A-Za-z_-]{30,}|gsk_[0-9A-Za-z]{40,}|sk-ant-[0-9A-Za-z_-]{20,}|sk-[A-Za-z0-9]{32,}|gh[pousr]_[0-9A-Za-z]{30,}|github_pat_[0-9A-Za-z_]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          if git grep -nIE "$PATTERN" -- . ':!.github/workflows'; then
+            echo "::error::A credential-shaped string is committed. Revoke it at the provider and remove it before merging."
+            exit 1
+          fi
+          echo "No credential patterns found."
+
+      - name: Refuse credential files
+        run: |
+          BAD=$(git ls-files | grep -iE '(^|/)(local\.properties|google-services\.json|\.env(\..*)?)$|\.(jks|keystore|p12|pem)$' || true)
+          if [ -n "$BAD" ]; then
+            echo "::error::These files hold secrets or signing material and must not be committed:"
+            echo "$BAD"
+            exit 1
+          fi
+          echo "No credential files tracked."
+
   build:
+    needs: secret-scan
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -333,6 +333,12 @@ limited or fails.
 Each provider keeps its own key, base URL, model ids and pace, all editable in Settings — point the
 base URL at any other OpenAI-compatible endpoint and it works too.
 
+Keys are typed into the app at runtime and stored only in its private `SharedPreferences`
+(`vinoteca_settings`). Nothing is read from the build and nothing is written to this repository: there
+is no `local.properties` key, no `.env`, no checked-in `google-services.json`, and the release
+workflow needs no provider secrets. Keep it that way — a key pasted into an issue, a commit or a
+workflow file is a leaked key, and the fix is to revoke it at the provider, not to delete the commit.
+
 | | Gemini | Groq |
 | --- | --- | --- |
 | Base URL | `generativelanguage.googleapis.com/v1beta/openai` | `api.groq.com/openai/v1` |
