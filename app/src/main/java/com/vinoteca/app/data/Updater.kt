@@ -15,7 +15,6 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -51,7 +50,7 @@ class Updater(private val context: Context) {
     /** The newest release when it is newer than this build; null when this build is current. */
     suspend fun check(): Release? = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("https://api.github.com/repos/$OWNER/$REPO/releases/latest")
+            .url("https://api.github.com/repos/$OWNER/$REPO/releases?per_page=20")
             .addHeader("Accept", "application/vnd.github+json")
             .addHeader("User-Agent", userAgent)
             .get()
@@ -60,7 +59,6 @@ class Updater(private val context: Context) {
             if (!response.isSuccessful) {
                 throw IOException(
                     when (response.code) {
-                        404 -> "No release has been published yet."
                         403 -> "GitHub is limiting requests from this phone. Try again later."
                         else -> "GitHub answered HTTP ${response.code}."
                     }
@@ -68,7 +66,7 @@ class Updater(private val context: Context) {
             }
             response.body?.string().orEmpty()
         }
-        val release = parse(body) ?: throw IOException("The latest release has no APK attached.")
+        val release = parseList(body) ?: throw IOException("No update is published for this app yet.")
         release.takeIf { isNewer(it.version, BuildConfig.VERSION_NAME) }
     }
 
@@ -188,24 +186,42 @@ class Updater(private val context: Context) {
 
     private fun directory(): File = File(context.cacheDir, "updates").apply { mkdirs() }
 
-    private fun parse(body: String): Release? = runCatching {
-        val root = Json.parseToJsonElement(body).jsonObject
+    /**
+     * The newest non-draft release carrying this app's own APK. The repo now publishes the
+     * Wine Verdict line too, so /releases/latest can point at it — a Vinoteca build must never
+     * offer a Wine Verdict APK as its own update, whatever the version numbers say.
+     */
+    private fun parseList(body: String): Release? = runCatching {
+        val releases = Json.parseToJsonElement(body) as? JsonArray ?: return null
+        releases.firstNotNullOfOrNull { element ->
+            val root = element as? JsonObject ?: return@firstNotNullOfOrNull null
+            if (root.boolean("draft")) return@firstNotNullOfOrNull null
+            parseRelease(root)
+        }
+    }.getOrNull()
+
+    private fun parseRelease(root: JsonObject): Release? {
         val version = root.string("tag_name")?.removePrefix("v") ?: return null
         val apk = (root["assets"] as? JsonArray)
             ?.mapNotNull { it as? JsonObject }
             ?.firstOrNull { asset ->
-                asset.string("name")?.endsWith(".apk", ignoreCase = true) == true
+                val name = asset.string("name") ?: return@firstOrNull false
+                name.startsWith(ASSET_PREFIX, ignoreCase = true) &&
+                    name.endsWith(".apk", ignoreCase = true)
             } ?: return null
-        Release(
+        return Release(
             version = version,
             notes = root.string("body").orEmpty(),
             url = apk.string("browser_download_url") ?: return null,
             fileName = apk.string("name") ?: return null,
             bytes = apk.long("size")
         )
-    }.getOrNull()
+    }
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonObject.boolean(key: String): Boolean =
+        (this[key] as? JsonPrimitive)?.contentOrNull == "true"
 
     private fun JsonObject.long(key: String): Long =
         when (val value = this[key]) {
@@ -237,6 +253,7 @@ class Updater(private val context: Context) {
 
     companion object {
         private const val OWNER = "iairj84"
-        private const val REPO = "vinoteca"
+        private const val REPO = "wine-verdict"
+        private const val ASSET_PREFIX = "vinoteca-"
     }
 }

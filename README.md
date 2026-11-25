@@ -309,6 +309,12 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.19: the updater learns its own name
+
+Mirror of the Wine Verdict 1.0.2 fix: the check walks the release list and takes the newest
+release carrying a vinoteca APK, so the Wine Verdict line can never show up as a Vinoteca
+update. It also asks the renamed repo directly instead of relying on the redirect.
+
 ### 1.7.18: one tap to take your key to Wine Verdict
 
 The rename strands one thing: the API key, which lives in this app's private storage and
