@@ -13,8 +13,8 @@ android {
         applicationId = "com.vinoteca.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 31
-        versionName = "1.7.16"
+        versionCode = 32
+        versionName = "1.7.17"
         resourceConfigurations += listOf("en")
     }
 
@@ -93,8 +93,10 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
-    // v1 bundles the Latin model on-device: instant OCR with no download, no network.
-    implementation("com.google.mlkit:text-recognition:16.0.0")
+    // The Play-services variant ships no native libraries of its own: the bundled model added
+    // 40 MB (four ABIs of the OCR pipeline) to a 1.7 MB APK, and every update would carry it.
+    // Play Services fetches the Latin model once, on first use, and shares it across apps.
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

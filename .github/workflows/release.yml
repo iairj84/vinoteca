@@ -103,8 +103,48 @@ jobs:
       - name: Collect the APK
         run: cp app/build/outputs/apk/sideload/app-sideload.apk "vinoteca-${GITHUB_REF_NAME}.apk"
 
+      - name: Write the release notes
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          awk -v tag="### $TAG:" 'index($0, tag) == 1 { on = 1; next } /^### / { on = 0 } on' README.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Vinoteca $TAG." > release-notes.md
+          fi
+          cat release-notes.md
+
+      # GitHub's release API returns 500s often enough that a single call is not a release:
+      # v1.7.16 failed twice on exactly this step. `generate_release_notes` calls a second
+      # endpoint that 500s too, so the notes are written here and the call is retried.
       - name: Publish the release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: vinoteca-*.apk
-          generate_release_notes: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          FILE="vinoteca-${TAG}.apk"
+          ok=0
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              if gh release upload "$TAG" "$FILE" --clobber &&
+                 gh release edit "$TAG" --draft=false --prerelease=false; then
+                ok=1
+                break
+              fi
+            elif gh release create "$TAG" "$FILE" --title "$TAG" \
+                   --notes-file release-notes.md --verify-tag; then
+              ok=1
+              break
+            fi
+            echo "Attempt $attempt failed; retrying in $((attempt * 15))s."
+            sleep $((attempt * 15))
+          done
+          test "$ok" = "1" || { echo "::error::The release could not be published."; exit 1; }
+
+      # A green run means the APK is downloadable, not just uploaded.
+      - name: Check the release is live
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" --json isDraft,assets \
+            -q '"draft=\(.isDraft) assets=\([.assets[].name] | join(","))"' | tee release-check.txt
+          grep -q 'draft=false' release-check.txt
+          grep -q "vinoteca-${GITHUB_REF_NAME}.apk" release-check.txt

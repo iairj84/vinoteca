@@ -309,6 +309,22 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.17: a small APK, and a release that survives GitHub
+
+v1.7.16 shipped a 41.7 MB APK: the bundled ML Kit text recogniser carries its OCR pipeline four
+times over (`lib/x86`, `lib/x86_64`, `lib/arm64-v8a`, `lib/armeabi-v7a`, ~10 MB each). The app
+itself is 1.7 MB. Switching to `play-services-mlkit-text-recognition` removes those libraries —
+Play Services fetches the Latin model once on first use and shares it across apps — and the
+sideload APK is back to 2.2 MB. `LocalOcr` is unchanged; if Play Services has not got the model
+yet the preview is simply empty and the provider read carries on.
+
+The v1.7.16 release workflow also failed twice, both times on GitHub's release API returning 500:
+once creating the release, once finalising it. `softprops/action-gh-release` retries internally but
+`generate_release_notes` is a second API call that 500s too. The publish step is now plain `gh`
+with a five-attempt loop (create, or upload and un-draft an existing release), the notes are written
+from this README instead of generated, and a final step fails the run unless the release is
+non-draft with the APK attached — a green run now means the file is downloadable.
+
 ### 1.7.16: hedged reads and an on-device preview
 
 Two changes for the scan that hung 121 seconds and the wait that showed nothing until then.
