@@ -2,7 +2,9 @@ package com.vinoteca.app.data
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import com.vinoteca.app.BuildConfig
@@ -76,6 +78,7 @@ class Updater(private val context: Context) {
             val request = Request.Builder()
                 .url(release.url)
                 .addHeader("User-Agent", userAgent)
+                .addHeader("Accept", "application/octet-stream")
                 .get()
                 .build()
             http.newCall(request).execute().use { response ->
@@ -84,35 +87,88 @@ class Updater(private val context: Context) {
                 }
                 val body = response.body ?: throw IOException("The download was empty.")
                 val total = body.contentLength().takeIf { it > 0 } ?: release.bytes
-                val part = File(directory(), "${release.fileName}.part")
+                val dir = directory()
+                // Drop interrupted downloads and APKs from earlier checks so the installer
+                // never picks up a stale file.
+                dir.listFiles()?.forEach { file ->
+                    if (file.name.endsWith(".part") || (file.name.endsWith(".apk") && file.name != release.fileName)) {
+                        file.delete()
+                    }
+                }
+                val part = File(dir, "${release.fileName}.part")
+                part.delete()
                 var copied = 0L
                 var reported = -1
-                body.byteStream().use { input ->
-                    part.outputStream().use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        while (true) {
-                            val read = input.read(buffer)
-                            if (read < 0) break
-                            output.write(buffer, 0, read)
-                            copied += read
-                            if (total > 0) {
-                                val percent = (copied * 100 / total).toInt()
-                                if (percent != reported) {
-                                    reported = percent
-                                    onProgress((copied.toFloat() / total).coerceIn(0f, 1f))
+                try {
+                    body.byteStream().use { input ->
+                        part.outputStream().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                output.write(buffer, 0, read)
+                                copied += read
+                                if (total > 0) {
+                                    val percent = (copied * 100 / total).toInt()
+                                    if (percent != reported) {
+                                        reported = percent
+                                        onProgress((copied.toFloat() / total).coerceIn(0f, 1f))
+                                    }
                                 }
                             }
                         }
                     }
+                } catch (e: Exception) {
+                    part.delete()
+                    throw e
                 }
-                val apk = File(directory(), release.fileName)
+                if (release.bytes > 0 && copied != release.bytes) {
+                    part.delete()
+                    throw IOException("The download was cut off ($copied of ${release.bytes} bytes). Try again.")
+                }
+                val apk = File(dir, release.fileName)
+                if (apk.exists()) apk.delete()
                 if (!part.renameTo(apk)) {
                     part.copyTo(apk, overwrite = true)
                     part.delete()
                 }
+                if (!signaturesMatch(apk)) {
+                    apk.delete()
+                    throw IOException("That file was not signed by Vinoteca, so Android would refuse it. Try again later.")
+                }
+                onProgress(1f)
                 apk
             }
         }
+
+    /** True when a downloaded APK carries this app's own signature and Android will accept it. */
+    fun signaturesMatch(apk: File): Boolean = runCatching {
+        val pm = context.packageManager
+        val current = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            info.signingInfo?.apkContentsSigners
+        } else {
+            @Suppress("DEPRECATION")
+            pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES).signatures
+        } ?: return false
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val archive = pm.getPackageArchiveInfo(apk.absolutePath, flags) ?: return false
+        val candidate = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            archive.signingInfo?.apkContentsSigners
+        } else {
+            @Suppress("DEPRECATION")
+            archive.signatures
+        } ?: return false
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val ours = current.map { digest.digest(it.toByteArray()).toList() }.toSet()
+        val theirs = candidate.map { digest.digest(it.toByteArray()).toList() }.toSet()
+        ours.isNotEmpty() && ours == theirs
+    }.getOrDefault(false)
 
     /** True when Android will let this app hand an APK to its installer. */
     fun canInstall(): Boolean = context.packageManager.canRequestPackageInstalls()
@@ -145,11 +201,19 @@ class Updater(private val context: Context) {
             notes = root.string("body").orEmpty(),
             url = apk.string("browser_download_url") ?: return null,
             fileName = apk.string("name") ?: return null,
-            bytes = apk.string("size")?.toLongOrNull() ?: 0L
+            bytes = apk.long("size")
         )
     }.getOrNull()
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
+
+    private fun JsonObject.long(key: String): Long =
+        when (val value = this[key]) {
+            is JsonPrimitive -> value.contentOrNull?.toLongOrNull()
+                ?: value.toString().trim('"').toLongOrNull()
+                ?: 0L
+            else -> 0L
+        }
 
     /**
      * Releases are tagged with the versionName the APK was built with, so the two are directly
