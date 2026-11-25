@@ -99,6 +99,9 @@ object ListPicks {
          */
         val topIds: List<String> = emptyList(),
         val basis: Basis,
+        /** Same ends of the price range as stable row ids; the UI resolves these, never indexes. */
+        val cheapestId: String? = null,
+        val priciestId: String? = null,
         /** The cheapest and priciest lines, only when their prices really differ. */
         val cheapest: Int? = null,
         val priciest: Int? = null
@@ -224,6 +227,8 @@ object ListPicks {
             picks = picks,
             top = top,
             topIds = top.map { candidates[it].wine.id },
+            cheapestId = cheap?.let { candidates[it].wine.id },
+            priciestId = dear?.let { candidates[it].wine.id },
             basis = basis,
             cheapest = if (pricedApart) cheap else null,
             priciest = if (pricedApart) dear else null

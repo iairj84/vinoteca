@@ -275,7 +275,7 @@ object ScanParsing {
         fun namesProducer(text: String, producer: String): Boolean {
             val clean = producer.trim()
             if (clean.length < 3) return false
-            return Regex("\b${Regex.escape(clean)}\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+            return Regex("\\b${Regex.escape(clean)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
         }
         fun prefixSibling(a: String, b: String): Boolean {
             val x = a.lowercase()
@@ -283,13 +283,30 @@ object ScanParsing {
             return x.startsWith(y) || y.startsWith(x)
         }
         val pageProducers = read.bottles.map { it.wine.producer }
+        val pageCuvees = read.bottles.map { it.wine.name }
+        fun cuveeWords(s: String): List<String> =
+            s.uppercase().split(Regex("[^À-ÞA-Z]+")).filter { it.length >= 3 }
+        // Two-word phrases: single generic words like CAVA appear in legitimate
+        // descriptions, so only a shared phrase means the `what` belongs elsewhere.
+        fun cuveePhrases(other: String, own: String): List<String> {
+            fun bigrams(words: List<String>): Set<String> =
+                words.zipWithNext { a, b -> a + " " + b }.toSet()
+            return (bigrams(cuveeWords(other)) - bigrams(cuveeWords(own))).toList()
+        }
         fun foreignWhat(index: Int, what: String): Boolean {
             if (what.isBlank()) return false
             return pageProducers.indices.any { j ->
-                j != index &&
-                    pageProducers[j].isNotBlank() &&
+                if (j == index) return@any false
+                // Different producer named outright (the Nov 25 shape).
+                if (pageProducers[j].isNotBlank() &&
                     !prefixSibling(pageProducers[j], pageProducers[index]) &&
-                    namesProducer(what, pageProducers[j])
+                    namesProducer(what, pageProducers[j])) return@any true
+                // Same-producer blind spot: the sibling's cuvee is the tell when the
+                // producer matches (two Castell d'Or rows). A two-word phrase of the
+                // sibling's cuvee inside `what` means it belongs to the sibling.
+                cuveePhrases(pageCuvees[j], pageCuvees[index]).any { phrase ->
+                    what.uppercase().replace(Regex("[^À-ÞA-Z]+"), " ").contains(phrase) && phrase.length >= 8
+                }
             }
         }
         val byIndex = placed.associateBy { it.index }

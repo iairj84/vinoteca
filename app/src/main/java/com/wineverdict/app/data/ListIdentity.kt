@@ -141,6 +141,25 @@ object ListIdentity {
         return Regex("\\b${Regex.escape(clean)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
     }
 
+    /** Normalized words (A-Z plus accented caps) of a cuvee, dropping short glue words. */
+    private fun cuveeWords(s: String?): List<String> =
+        s.orEmpty().uppercase().split(Regex("[^À-ÞA-Z]+"))
+            .filter { it.length >= 3 }
+
+    /** Two-word phrases of [other] that [own] does not share. Single generic words like
+     *  CAVA match legitimate descriptions, so only a shared phrase borrows an identity. */
+    private fun siblingPhrases(other: String?, own: String?): List<String> {
+        fun bigrams(words: List<String>): Set<String> =
+            words.zipWithNext { a, b -> " ".let { a + it + b } }.toSet()
+        return (bigrams(cuveeWords(other)) - bigrams(cuveeWords(own))).toList()
+    }
+
+    private fun namesPhrase(text: String, phrase: String): Boolean {
+        if (phrase.length < 8) return false
+        val norm = text.uppercase().replace(Regex("[^À-ÞA-Z]+"), " ")
+        return norm.contains(phrase)
+    }
+
     /**
      * Hard checks throw [IdentityMismatch]; a leading-year mismatch only warns,
      * because descriptions legitimately contain other years ("founded 1901").
@@ -170,6 +189,29 @@ object ListIdentity {
                 "detail names ${foreign.map { it.producer }.distinct().joinToString(", ")} but card is ${row.producer}",
                 card.rowId
             )
+        }
+
+        // Same-producer blind spot: two Castell d'Or rows share a producer, so the check
+        // above skips them. A detail that names the sibling's cuvee, or that IS the
+        // sibling's description, is still a borrowed description.
+        val siblings = catalog.filter { it.id != row.id && prefixSibling(it.producer, row.producer) }
+        for (sib in siblings) {
+            for (phrase in siblingPhrases(sib.cuvee, row.cuvee)) {
+                if (namesPhrase(card.detail, phrase)) {
+                    throw IdentityMismatch(
+                        "detail names sibling phrase " + phrase + " of ${sib.cuvee} but card is ${row.id}",
+                        card.rowId
+                    )
+                }
+            }
+            val borrowed = sib.description.trim()
+            if (borrowed.length >= 24 && borrowed != row.description.trim() &&
+                (card.detail.trim() == borrowed || card.detail.contains(borrowed))) {
+                throw IdentityMismatch(
+                    "detail matches ${sib.id}'s description but card is ${row.id}",
+                    card.rowId
+                )
+            }
         }
         if (card.detail != row.description) {
             throw IdentityMismatch("detail is not this row's own description", card.rowId)

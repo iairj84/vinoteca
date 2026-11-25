@@ -147,6 +147,46 @@ class ListIdentityTest {
     }
 
     @Test
+    fun rejectsSameProducerSwapViaSiblingCuvee() {
+        // Blind spot: both rows are Castell d'Or, so the producer check skips. The
+        // brut row's description carries CAVA, distinctive against the rosat cuvee.
+        val rows = catalog()
+        val byId = rows.associateBy { it.id }
+        val rosat = byId["cdor-flama-rosat"]!!
+        val brut = byId["cdor-flama-brut"]!!
+        val card = ListIdentity.buildCard(rosat, "why").copy(detail = brut.description)
+        try {
+            ListIdentity.assertIdentity(card, rosat, rows)
+            fail("expected IdentityMismatch for same-producer swap")
+        } catch (e: IdentityMismatch) {
+            assertTrue(e.message!!.contains("cdor-flama-rosat"))
+        }
+    }
+
+    @Test
+    fun nov25SlotsRenderFromOwnRowsAfterRepair() {
+        // Post-fix picture for the Nov 25 payload: the import repair blanks the
+        // foreign `what`, so each stored row keeps its own description and every
+        // rendered card is built from its own row only. This prints the cards.
+        val rows = catalog()
+        val rendered = ListIdentity.renderCards(
+            listOf(
+                Scored("mp-brut", "estate-grown Penedes at half the Naveran price"),
+                Scored("cdor-flama-rosat", "the only Trepat rose here"),
+                Scored("cdor-flama-brut", "citrus and fine bubble, dry finish")
+            ),
+            rows, log = {}
+        )
+        assertTrue(rendered.dropped.isEmpty())
+        assertEquals(3, rendered.cards.size)
+        for (c in rendered.cards) {
+            println("CARD " + c.rowId + " | " + c.title + " || " + c.detail + " // " + c.reason)
+            val row = rows.associateBy { it.id }[c.rowId]!!
+            ListIdentity.assertIdentity(c, row, rows)
+        }
+    }
+
+    @Test
     fun catchesMismatchedPrice() {
         val rows = catalog()
         val row = rows.associateBy { it.id }["mp-brut"]!!

@@ -923,10 +923,10 @@ fun ScanScreen(onReview: () -> Unit) {
                             val catalog = remember(result) {
                                 result.bottles.map { it.wine.toCatalogRow() }
                             }
-                            val scored = remember(ranking, result) {
-                                ranking.topIds.ifEmpty {
-                                    ranking.top.mapNotNull { bottleById.values.elementAtOrNull(it)?.wine?.id }
-                                }.map { id ->
+                            val scored = remember(ranking) {
+                                // Ids are the source of the ranking: no index fallback. If the
+                                // shortlist is empty there is nothing to render.
+                                ranking.topIds.map { id ->
                                     Scored(id, bottleById[id]?.fitReason.orEmpty())
                                 }
                             }
@@ -971,8 +971,9 @@ fun ScanScreen(onReview: () -> Unit) {
                         // so, and say the one thing the page does separate, rather than sending the
                         // user to another screen before the list will say anything.
                         ListPicks.Basis.PRICE -> if (!localOnly) {
-                            val cheap = ranking.cheapest?.let { result.bottles[it].wine }
-                            val dear = ranking.priciest?.let { result.bottles[it].wine }
+val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine } }
+                            val cheap = ranking.cheapestId?.let { idWine[it] }
+                            val dear = ranking.priciestId?.let { idWine[it] }
                             Banner(
                                 "The judgement came back level, so no bottle is crowned here. The " +
                                     "one thing the page separates is price: " +
