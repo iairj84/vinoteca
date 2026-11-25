@@ -13,8 +13,8 @@ android {
         applicationId = "com.wineverdict.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.0.9"
+        versionCode = 11
+        versionName = "1.0.10"
         resourceConfigurations += listOf("en")
     }
 
@@ -97,6 +97,8 @@ dependencies {
     // 40 MB (four ABIs of the OCR pipeline) to a 1.7 MB APK, and every update would carry it.
     // Play Services fetches the Latin model once, on first use, and shares it across apps.
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+
+    testImplementation("junit:junit:4.13.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

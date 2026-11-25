@@ -91,6 +91,13 @@ object ListPicks {
         val picks: List<Pick>,
         /** Indexes worth ordering, best first, three at most. */
         val top: List<Int>,
+        /**
+         * The same shortlist as stable row ids ([com.wineverdict.app.model.Wine.id]).
+         * The recommendation section resolves these through a Map and never indexes
+         * back into the bottle list, so a title can never borrow a neighbour's price
+         * or description. Kept alongside [top] so the ranking itself is unchanged.
+         */
+        val topIds: List<String> = emptyList(),
         val basis: Basis,
         /** The cheapest and priciest lines, only when their prices really differ. */
         val cheapest: Int? = null,
@@ -119,7 +126,7 @@ object ListPicks {
         profile: PalateProfile,
         cellar: List<Wine>
     ): Ranking {
-        if (candidates.isEmpty()) return Ranking(emptyList(), emptyList(), Basis.NONE)
+        if (candidates.isEmpty()) return Ranking(picks = emptyList(), top = emptyList(), basis = Basis.NONE)
 
         val advice = candidates.map { candidate ->
             BuyAdvice.forBottle(
@@ -216,6 +223,7 @@ object ListPicks {
         return Ranking(
             picks = picks,
             top = top,
+            topIds = top.map { candidates[it].wine.id },
             basis = basis,
             cheapest = if (pricedApart) cheap else null,
             priciest = if (pricedApart) dear else null

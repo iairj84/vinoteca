@@ -267,9 +267,35 @@ object ScanParsing {
             }
             .distinctBy { it.index }
         if (placed.size < 2) return null
+        // Data repair for the Nov 25 misbinding: the judgement's `what` sometimes echoes a
+        // neighbouring wine's title ("2021 'DAMA' ... · BODEGAS NAVERAN" attached to a Miquel
+        // Pons row). A `what` that names a different wine on this page is a merged row, not a
+        // description, so it is dropped here rather than stored on the record. The renderer
+        // guard below is the backstop; this keeps the stored row clean.
+        fun namesProducer(text: String, producer: String): Boolean {
+            val clean = producer.trim()
+            if (clean.length < 3) return false
+            return Regex("\b${Regex.escape(clean)}\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+        fun prefixSibling(a: String, b: String): Boolean {
+            val x = a.lowercase()
+            val y = b.lowercase()
+            return x.startsWith(y) || y.startsWith(x)
+        }
+        val pageProducers = read.bottles.map { it.wine.producer }
+        fun foreignWhat(index: Int, what: String): Boolean {
+            if (what.isBlank()) return false
+            return pageProducers.indices.any { j ->
+                j != index &&
+                    pageProducers[j].isNotBlank() &&
+                    !prefixSibling(pageProducers[j], pageProducers[index]) &&
+                    namesProducer(what, pageProducers[j])
+            }
+        }
         val byIndex = placed.associateBy { it.index }
         val bottles = read.bottles.mapIndexed { index, label ->
             val hit = byIndex[index] ?: return@mapIndexed label
+            val what = if (foreignWhat(index, hit.what)) "" else hit.what
             label.copy(
                 fitScore = hit.fit,
                 fitReason = hit.why,
@@ -277,10 +303,10 @@ object ScanParsing {
                 // "what it is" belongs on the record as well as the card: it is the line that
                 // tells someone who has never heard of the wine what they are looking at, and it
                 // is worth keeping when the bottle is added to the cellar.
-                wine = if (hit.what.isBlank()) {
+                wine = if (what.isBlank()) {
                     label.wine
                 } else {
-                    label.wine.copy(expertNotes = hit.what)
+                    label.wine.copy(expertNotes = what)
                 }
             )
         }

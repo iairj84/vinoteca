@@ -62,7 +62,10 @@ import com.wineverdict.app.ai.digest
 import com.wineverdict.app.ai.withFinePrint
 import com.wineverdict.app.data.BuyAdvice
 import com.wineverdict.app.data.ImportRow
+import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
+import com.wineverdict.app.data.Scored
+import com.wineverdict.app.data.toCatalogRow
 import com.wineverdict.app.data.PendingScan
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.model.ChatMessage
@@ -910,30 +913,43 @@ fun ScanScreen(onReview: () -> Unit) {
                         // Three names and nothing else is not an answer either: the best line gets
                         // the read's own reason, and every place after it keeps its number.
                         ListPicks.Basis.READ -> SectionCard("Worth ordering, best first") {
-                            ranking.top.forEachIndexed { position, index ->
-                                val bottle = result.bottles[index]
-                                val why = bottle.fitReason.trim()
-                                val what = bottle.wine.expertNotes.trim()
+                            // Identity binding: the shortlist carries row ids only, and every
+                            // field on a card comes from the one catalog row behind that id.
+                            // buildCard (ListIdentity) is the only constructor; a card that
+                            // fails the guard is dropped with its rowId, never repaired.
+                            val bottleById = remember(result) {
+                                result.bottles.associateBy { it.wine.id }
+                            }
+                            val catalog = remember(result) {
+                                result.bottles.map { it.wine.toCatalogRow() }
+                            }
+                            val scored = remember(ranking, result) {
+                                ranking.topIds.ifEmpty {
+                                    ranking.top.mapNotNull { bottleById.values.elementAtOrNull(it)?.wine?.id }
+                                }.map { id ->
+                                    Scored(id, bottleById[id]?.fitReason.orEmpty())
+                                }
+                            }
+                            val rendered = remember(scored, catalog) {
+                                ListIdentity.renderCards(
+                                    scored = scored,
+                                    catalog = catalog,
+                                    log = { message -> android.util.Log.w("WineVerdict", message) },
+                                    warn = { message -> android.util.Log.w("WineVerdict", message) }
+                                )
+                            }
+                            rendered.cards.forEachIndexed { position, card ->
+                                val why = card.reason.trim()
+                                val what = card.detail.trim()
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
-                                        buildString {
-                                            // Numbered by where the line sits, not by the score it
-                                            // was sorted on: a repeated number ("1. 2. 2.") is the
-                                            // one thing a best-first list must never print.
-                                            append(position + 1).append(". ")
-                                            append(bottle.wine.title)
-                                            // The price is half the decision at a table. A bottle
-                                            // can win on quality and still be the wrong order at
-                                            // 260, so the number belongs next to the name.
-                                            if (bottle.wine.price != null) {
-                                                append(" \u2014 ").append(
-                                                    formatMoney(
-                                                        bottle.wine.price,
-                                                        bottle.wine.currency.ifBlank { currency }
-                                                    )
-                                                )
-                                            }
-                                        },
+                                        // Numbered by where the line sits, not by the score it
+                                        // was sorted on: a repeated number ("1. 2. 2.") is the
+                                        // one thing a best-first list must never print.
+                                        // The price is half the decision at a table, so it
+                                        // belongs next to the name; both come from the same
+                                        // row behind card.rowId.
+                                        "${position + 1}. ${card.title}",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     // What it is, then why it is first: a name and a producer blurb

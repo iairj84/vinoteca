@@ -313,6 +313,25 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.10: one card, one wine — no more mixed bottles
+
+A recommendation card could show one wine's name and price next to another
+wine's description (Miquel Pons on top, Naveran's Chardonnay underneath).
+Diagnosis: (b) import bug — the renderer always built each line from a single
+row object, but the judgement's `what` (which echoes wine titles) could land
+on the wrong row at import, so the stored row itself was merged.
+
+- **One card from one row.** `ListIdentity.buildCard` is now the only card
+  constructor; the shortlist carries row ids only and the section resolves
+  them through a Map. No positional indexing across lists in card assembly.
+- **Guard before render.** Title, price and detail are checked against the
+  row; a card naming a foreign producer is dropped with its rowId (logged via
+  `Log.w`) instead of showing a mixed bottle. The importer also refuses to
+  attach a `what` that names a different wine on the page.
+- **Ranking unchanged.** Same wines, same order, same reasons — only the
+  binding changed. Seven identity tests (the three Nov 25 cards rejected,
+  order-shuffle stability, unknown-id drop, price check) pass.
+
 ### 1.0.9: the ranking says why this bottle, and what it costs
 
 1.0.8 stopped ranking by price, but the answer was still thin: three names, three producer blurbs
