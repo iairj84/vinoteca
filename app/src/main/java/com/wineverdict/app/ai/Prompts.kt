@@ -3,6 +3,7 @@ package com.wineverdict.app.ai
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Wine
+import com.wineverdict.app.model.WineType
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.locationName
 import java.time.LocalDate
@@ -207,6 +208,49 @@ object Prompts {
         MY TASTE PROFILE (mytaste.md):
         $tasteMd
     """.trimIndent()
+    }
+
+    /**
+     * The judgement on a list the phone already read. No image goes up: the wines, regions and
+     * prices are given as text, and the model only ranks and explains — a short text answer at a
+     * fraction of the tokens, in the shape a free tier answers fastest. The lines it returns are
+     * matched to the wines by number, so a garbled name changes nothing.
+     */
+    fun listJudge(tasteMd: String, currency: String, bottles: List<ScannedLabel>): String {
+        val menu = bottles.mapIndexed { index, label ->
+            val wine = label.wine
+            buildString {
+                append("${index + 1}. ${wine.title}")
+                if (wine.region.isNotBlank()) append(" — ${wine.region}")
+                if (wine.grapes.isNotEmpty()) append(" (${wine.grapes.joinToString(", ")})")
+                append(" — ${wine.type.label.lowercase()}")
+                wine.price?.let { append(", bottle $currency ${"%.0f".format(java.util.Locale.US, it)}") }
+                label.glassPrice?.let { append(", glass $currency ${"%.0f".format(java.util.Locale.US, it)}") }
+            }
+        }.joinToString("\n")
+        return """
+        Rank these wines from a restaurant list against MY TASTE FILE below. The names and prices
+        were read off the page by the phone and are correct: do not change, correct or re-read
+        any of them, and invent no wine, price or vintage.
+
+        For every numbered wine reply with exactly one line:
+        number | rank | fit | why
+
+        - "number" is the wine's number from the list above.
+        - "rank" is 1 for the bottle to order first from this page down to ${bottles.size}, with
+          every number from 1 to ${bottles.size} used exactly once. Rank the wines against each
+          other: the grape, the region, the vintage, the style and the price. Where the taste
+          file decides, it decides.
+        - "fit" is 1-5 for how well this wine suits MY TASTE FILE (3 = neutral).
+        - "why" is one short reason, at most twelve words, naming what sets this bottle apart on
+          this page. Never empty, never "good wine", never "nice".
+
+        WINES
+        $menu
+
+        MY TASTE FILE
+        $tasteMd
+        """.trimIndent()
     }
 
     /**

@@ -232,6 +232,43 @@ object ScanParsing {
     }
 
 
+    /**
+     * The text-only judgement on a list the phone read: "index | rank | fit | why" lines matched
+     * to the wines by number. A line that does not parse, a rank outside the page, or a template
+     * echo for the reason is dropped. Null when fewer than two lines survived, because one
+     * placed wine is not a ranking — the phone's price order then stands as it is.
+     */
+    fun applyJudgement(read: SceneScan, raw: String): SceneScan? {
+        val count = read.bottles.size
+        val placed = raw.lines()
+            .map { it.trim().removePrefix("- ").removePrefix("* ").removePrefix("• ").trim() }
+            .mapNotNull { line ->
+                val parts = line.split('|').map { it.trim() }
+                if (parts.size < 4) return@mapNotNull null
+                val index = parts[0].replace(Regex("[^0-9]"), "").toIntOrNull()?.minus(1)
+                    ?.takeIf { it in 0 until count } ?: return@mapNotNull null
+                val rank = parts[1].replace(Regex("[^0-9]"), "").toIntOrNull()
+                    ?.takeIf { it in 1..count } ?: return@mapNotNull null
+                val fit = parts[2].replace(Regex("[^0-9]"), "").toIntOrNull()
+                    ?.takeIf { it in 1..5 }
+                val why = parts[3].take(160).trim()
+                if (why.isBlank() || placeholder(why)) return@mapNotNull null
+                Triple(index, rank, fit to why)
+            }
+            .distinctBy { it.first }
+        if (placed.size < 2) return null
+        val byIndex = placed.associate { it.first to it }
+        val bottles = read.bottles.mapIndexed { index, label ->
+            val hit = byIndex[index] ?: return@mapIndexed label
+            label.copy(
+                fitScore = hit.third.first,
+                fitReason = hit.third.second,
+                listRank = hit.second
+            )
+        }
+        return read.copy(bottles = bottles)
+    }
+
     fun parseLabel(raw: String, currencyFallback: String): ScannedLabel =
         labelFrom(AiJson.objectFrom(raw), currencyFallback)
 

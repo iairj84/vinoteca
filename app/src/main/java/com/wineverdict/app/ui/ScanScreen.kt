@@ -344,6 +344,33 @@ fun ScanScreen(onReview: () -> Unit) {
                     return fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
                 }
 
+                // The judgement on a list the phone read: text in, ranks out, no image. A short
+                // text answer is what a free tier is fastest at, and the lines match the wines by
+                // number, so the model's spelling changes nothing on the cards.
+                suspend fun judgeList(read: SceneScan): SceneScan? {
+                    return runCatching {
+                        val raw = withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
+                            AppGraph.ai.complete(
+                                system = Prompts.listJudge(taste, currency, read.bottles),
+                                turns = listOf(
+                                    ChatMessage(
+                                        role = "user",
+                                        text = "Rank these wines against my taste and explain each place."
+                                    )
+                                ),
+                                vision = false,
+                                jsonMode = false,
+                                thinking = Thinking.OFF,
+                                temperature = 0.3,
+                                maxTokens = 800,
+                                onBudgetWait = hold
+                            )
+                        } ?: throw AiException("The ranking did not arrive in time.")
+                        waitedFor = 0L
+                        ScanParsing.applyJudgement(read, raw)
+                    }.onFailure { lastProblem = it.message }.getOrNull()
+                }
+
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
                 // half-written, and the scene and the order come back in the same answer. That is
                 // one round trip for a list instead of a cheap question followed by a real one.
@@ -466,20 +493,35 @@ fun ScanScreen(onReview: () -> Unit) {
                     )
                 }
 
-                stage = "Reading the page with $who"
                 var scene: Scene? = null
-                var parsed = runCatching {
-                    val raw = readPage()
-                    waitedFor = 0L
-                    scene = ScanParsing.sceneLine(raw)?.takeIf { it != Scene.OTHER }
-                    val labels = ScanParsing.parseListLines(raw, currency)
-                    if (labels.isEmpty()) null
-                    else SceneScan(
-                        scene = scene ?: if (labels.size == 1) Scene.BOTTLE else Scene.SHELF,
-                        bottles = labels,
-                        notes = ""
-                    )
-                }.onFailure { lastProblem = it.message }.getOrNull()
+                var parsed: SceneScan? = null
+                if (onPhone != null) {
+                    // The phone read this list itself, so no image goes up: the model only ranks
+                    // and explains from the text, which is the shape a free tier answers fastest.
+                    // A bottle the phone could not read never arrives here — it takes the vision
+                    // path below, unchanged.
+                    stage = "Ranking the list"
+                    parsed = judgeList(onPhone)
+                    if (parsed != null) {
+                        scan = parsed
+                        localOnly = false
+                    }
+                }
+                if (parsed == null && onPhone == null) {
+                    stage = "Reading the page with $who"
+                    parsed = runCatching {
+                        val raw = readPage()
+                        waitedFor = 0L
+                        scene = ScanParsing.sceneLine(raw)?.takeIf { it != Scene.OTHER }
+                        val labels = ScanParsing.parseListLines(raw, currency)
+                        if (labels.isEmpty()) null
+                        else SceneScan(
+                            scene = scene ?: if (labels.size == 1) Scene.BOTTLE else Scene.SHELF,
+                            bottles = labels,
+                            notes = ""
+                        )
+                    }.onFailure { lastProblem = it.message }.getOrNull()
+                }
                 waitedFor = 0L
 
                 // A bottle is worth the richer read on top: notes, window and the model's own fit.
@@ -506,7 +548,9 @@ fun ScanScreen(onReview: () -> Unit) {
                     }
                 }
                 // Nothing came out of the line read: try the structured one on the same photo.
-                if (parsed == null) {
+                // Skipped when the phone already read the page — its cards are on screen, and a
+                // second, slower vision read would only repeat them.
+                if (parsed == null && onPhone == null) {
                     stage = "Trying a closer read with $who"
                     parsed = readJson()?.takeIf { it.bottles.isNotEmpty() }
                 }

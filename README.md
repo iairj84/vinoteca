@@ -313,6 +313,14 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.7: lists are judged from text, not shown to a vision model
+
+The phone reads the names and prices; judging them never needed eyes. A list the phone
+reads now goes to a text-only judgement — rank, fit and a one-line why per wine, matched by
+number — at a fraction of the tokens and in the shape a free tier answers fastest. No image
+goes up for a list at all. Bottles and photos the phone cannot read still take the vision
+path, unchanged.
+
 ### 1.0.6: the phone reads the list, so a stalled model no longer empties the screen
 
 The on-device text reader was already pulling every wine and its prices off a printed list
