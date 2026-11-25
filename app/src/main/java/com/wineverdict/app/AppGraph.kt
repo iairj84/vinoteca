@@ -6,6 +6,8 @@ import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.NotesBackfill
 import com.wineverdict.app.data.PalateFile
+import com.wineverdict.app.data.PalateProfile
+import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.PalateStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
@@ -78,6 +80,28 @@ object AppGraph {
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
         }
+    }
+
+    /**
+     * Saves a palate change and rewrites `mytaste.md` from it, in one place.
+     *
+     * The file is generated prose about the same thresholds the app checks, so saving a ceiling or a
+     * note without regenerating it left the Taste screen showing a file that said "no gate is set"
+     * beside a gate the app was enforcing. A file the user wrote or imported is kept below the new
+     * one, exactly as the quick start does it.
+     */
+    fun savePalateProfile(profile: PalateProfile) {
+        palate.save(profile)
+        val wines = cellar.data.value.wines
+        val body = PalateFile.build(
+            profile = profile,
+            rules = PalateRules.from(profile),
+            ratings = wines.count { it.rating != null }
+        )
+        val current = taste.text.value
+        val keep = palate.handEdited || !current.contains(PalateFile.MARKER)
+        taste.writeFromQuickStart(body, keepExisting = keep)
+        taste.rebuildLovedSection(wines)
     }
 }
 

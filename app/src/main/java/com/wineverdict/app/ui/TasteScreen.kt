@@ -159,7 +159,7 @@ fun TasteScreen(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
-                        onClick = { AppGraph.palate.save(profile.withAlcoholCeiling(ceilingTyped)) },
+                        onClick = { AppGraph.savePalateProfile(profile.withAlcoholCeiling(ceilingTyped)) },
                         enabled = ceilingValid && ceilingTyped != profile.alcoholCeiling
                     ) {
                         Text("Save ceiling")
@@ -167,7 +167,7 @@ fun TasteScreen(
                     if (profile.alcoholCeiling != null) {
                         TextButton(onClick = {
                             ceilingText = ""
-                            AppGraph.palate.save(profile.withAlcoholCeiling(null))
+                            AppGraph.savePalateProfile(profile.withAlcoholCeiling(null))
                         }) {
                             Text("Remove")
                         }
@@ -190,7 +190,7 @@ fun TasteScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
                 Button(
-                    onClick = { AppGraph.palate.save(profile.withLinks(linksText)) },
+                    onClick = { AppGraph.savePalateProfile(profile.withLinks(linksText)) },
                     enabled = linksText.trim() != profile.links
                 ) {
                     Text("Save")

@@ -25,6 +25,15 @@ wines you loved and why, one you didn't and why, anything you're curious to try 
 taste brief verbatim, capped at 200 characters, and never turned into a rule. The Taste screen also
 takes "what links the wines you love?", which the brief had a slot for but nothing to fill it.
 
+**The list gets long enough to answer.** The judgement on a photographed wine list now asks for
+4,000 tokens (plus a reasoning reserve on the way out) instead of 800, gets 130 seconds instead of
+the 95-second scan budget, and shows "Thinking about the list…" while it works. The judge's own
+timeout rises to 75 seconds so the longer deadline is not cancelled before it is reached.
+
+**mytaste.md cannot contradict the gates.** Saving a ceiling or a "what links them" line on the
+Taste screen now regenerates the file from the profile, the same way the quick start does, so the
+file no longer says "no gate is set" beside a gate the app is enforcing.
+
 **The judgement actually answers.**
 
 `Thinking.OFF` sent `reasoning_effort: "none"`, which Groq rejects with a 400. The retry dropped

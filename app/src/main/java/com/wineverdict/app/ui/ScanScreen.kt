@@ -124,10 +124,22 @@ private const val RETRY_TIMEOUT_MS = 20_000L
  * than a retry. A free tier queues a text request for tens of seconds; cutting it at twenty was
  * what left a page of wines ranked on price alone.
  */
-private const val JUDGE_TIMEOUT_MS = 45_000L
+/**
+ * The list judgement thinks before it answers, so it needs longer than a read: 4,000 tokens of
+ * answer with reasoning on is not a 45-second request.
+ */
+private const val JUDGE_TIMEOUT_MS = 75_000L
 
 /** The whole scan never outlives this: first byte to last card. No scan takes minutes. */
 private const val SCAN_DEADLINE_MS = 95_000L
+
+/**
+ * A list gets longer than a label or a shelf. The phone reads the page itself, and the one call
+ * after it — the judgement — is asked for 4,000 tokens and has to think first; clipping it at the
+ * 95-second scan budget is what threw the ranking away. Measured with `openai/gpt-oss-120b`: 3,979
+ * completion tokens, 2,777 of them reasoning.
+ */
+private const val LIST_DEADLINE_MS = 130_000L
 
 /** Wait this long for the primary provider, then ask the second one too and take whichever wins. */
 // A healthy list read is done well before this; past it, asking the second key too is
@@ -262,9 +274,12 @@ fun ScanScreen(onReview: () -> Unit) {
                 val late = runCatching { ocrJob.await() }.getOrNull()?.takeIf { it.isNotEmpty() }
                 if (late != null && instantLines == null) instantLines = late
             }
-            // Remaining budget for the network reads; every step below spends from it.
+            // Remaining budget for the network reads; every step below spends from it. A page the
+            // phone read as a wine list moves the deadline out: it still has the judgement to pay
+            // for, and that call is the expensive one.
+            var deadlineMs = SCAN_DEADLINE_MS
             fun remainingMs(): Long =
-                SCAN_DEADLINE_MS - (System.currentTimeMillis() - scanStart)
+                deadlineMs - (System.currentTimeMillis() - scanStart)
             try {
                 val taste = AppGraph.taste.brief()
                 val known = AppGraph.cellar.data.value.wines.map { it.title }.distinct()
@@ -308,6 +323,7 @@ fun ScanScreen(onReview: () -> Unit) {
                 // works: names, prices and the order down the page are all on the photo already,
                 // and a provider that times out must not take them down with it.
                 val onPhone = instantLines?.let { LocalListRead.wines(it, currency) }
+                if (onPhone != null) deadlineMs = LIST_DEADLINE_MS
                 if (onPhone != null && scan == null) {
                     scan = onPhone
                     localOnly = true
@@ -420,7 +436,11 @@ fun ScanScreen(onReview: () -> Unit) {
                                 jsonMode = false,
                                 thinking = Thinking.OFF,
                                 temperature = 0.3,
-                                maxTokens = 800,
+                                // One line per wine, five fields, two of them prose: at 800 tokens
+                                // the answer was cut off and nothing was placed at all. 4,000 is a
+                                // measured floor for 26 wines (3,979 used), plus the reserve the
+                                // payload adds so reasoning cannot eat it.
+                                maxTokens = 4_000,
                                 onBudgetWait = hold,
                                 onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
                             )
@@ -595,7 +615,7 @@ fun ScanScreen(onReview: () -> Unit) {
                     // and explains from the text, which is the shape a free tier answers fastest.
                     // A bottle the phone could not read never arrives here — it takes the vision
                     // path below, unchanged.
-                    stage = "Judging the wines — what they are and which to order"
+                    stage = "Thinking about the list…"
                     parsed = judgeList(onPhone)
                     if (parsed != null) {
                         scan = parsed

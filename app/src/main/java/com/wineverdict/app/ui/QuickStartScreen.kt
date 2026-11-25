@@ -47,7 +47,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
-import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.QuickStart
 import com.wineverdict.app.data.QuickStartQuestion
 import com.wineverdict.app.data.Shortlist
@@ -65,23 +64,14 @@ import kotlinx.coroutines.launch
 fun QuickStartScreen(onDone: () -> Unit) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
     var profile by remember { mutableStateOf(AppGraph.palate.profile.value) }
     var index by remember { mutableIntStateOf(0) }
     val steps = remember { buildSteps() }
 
     fun finish() {
-        val finished = profile.completed()
-        AppGraph.palate.save(finished)
-        val body = PalateFile.build(
-            finished,
-            PalateRules.from(finished),
-            ratings = cellar.wines.count { it.rating != null }
-        )
-        val current = AppGraph.taste.text.value
-        val keep = AppGraph.palate.handEdited || !current.contains(PalateFile.MARKER)
-        AppGraph.taste.writeFromQuickStart(body, keepExisting = keep)
-        AppGraph.taste.rebuildLovedSection(cellar.wines)
+        // One place saves a profile and rewrites the file, so the Taste screen's edits and these
+        // cannot drift apart.
+        AppGraph.savePalateProfile(profile.completed())
         scope.launch {
             snackbar.showSnackbar("Saved mytaste.md")
             onDone()

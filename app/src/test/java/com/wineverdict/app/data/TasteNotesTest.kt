@@ -88,6 +88,18 @@ class TasteNotesTest {
     }
 
     @Test
+    fun theFileAndTheRulesAgreeOnTheCeiling() {
+        // Saving a ceiling regenerates the file, so it can no longer say "no gate is set" beside a
+        // gate the app is enforcing.
+        val typed = profile().copy(alcoholCeiling = 13.0)
+        val rules = PalateRules.from(typed)
+        val text = PalateFile.build(typed, rules, ratings = 0)
+        assertFalse(rules.isEmpty)
+        assertTrue(text.contains("13.0% or under"))
+        assertFalse(text.contains("No gate is set yet"))
+    }
+
+    @Test
     fun aCeilingIsWrittenAsTheUsersNumber() {
         val rules = PalateRules(maxAlcohol = 13.5)
         val text = PalateFile.build(profile(), rules, ratings = 2)

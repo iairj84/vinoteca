@@ -295,6 +295,10 @@ These supersede the steps above where they conflict.
    places 26 of 26. 4,000 is a floor, not a comfortable margin: 3,979 of it was used.
    Consequence for Step 8: `Thinking.OFF` must map to something Groq accepts (or omit the field),
    and every `maxTokens` must budget for reasoning tokens.
+9. **Step 5's budget, shipped.** `judgeList` asks for `maxTokens = 4_000` (the payload sends 4,600
+   with the reserve). `LIST_DEADLINE_MS = 130 s` applies only when the phone read the page as a
+   list, and `JUDGE_TIMEOUT_MS` went 45 s → 75 s so the longer deadline is not undone by the judge
+   being cancelled first. The stage reads "Thinking about the list…".
 8. **Fixed, and re-measured.** `Thinking.OFF` now maps to `low` for Groq, and the payload adds a
    reasoning reserve to `maxTokens` (600 / 900 / 1,800 by level, ceiling 8,000). Same prompt,
    `openai/gpt-oss-120b`, `reasoning_effort=low`, `max_tokens` 1,400: reasoning **133** tokens
