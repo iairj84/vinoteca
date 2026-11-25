@@ -65,6 +65,17 @@ import com.wineverdict.app.data.ImportRow
 import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
 import com.wineverdict.app.data.Scored
+import com.wineverdict.app.data.Service
+import com.wineverdict.app.data.assertUniformUnit
+import com.wineverdict.app.data.cheapestPourLine
+import com.wineverdict.app.data.effectiveService
+import com.wineverdict.app.data.enforceProducerCap
+import com.wineverdict.app.data.orderButtonLabel
+import com.wineverdict.app.data.rankForService
+import com.wineverdict.app.data.strip
+import com.wineverdict.app.data.toServiceRow
+import com.wineverdict.app.data.unitLine
+import com.wineverdict.app.data.validatedText
 import com.wineverdict.app.data.toCatalogRow
 import com.wineverdict.app.data.PendingScan
 import com.wineverdict.app.data.ScanQueue
@@ -912,16 +923,24 @@ fun ScanScreen(onReview: () -> Unit) {
                     when (ranking.basis) {
                         // Three names and nothing else is not an answer either: the best line gets
                         // the read's own reason, and every place after it keeps its number.
+                        // D5: the unit is chosen first and the number actually paid is ranked.
                         ListPicks.Basis.READ -> SectionCard("Worth ordering, best first") {
                             // Identity binding: the shortlist carries row ids only, and every
                             // field on a card comes from the one catalog row behind that id.
                             // buildCard (ListIdentity) is the only constructor; a card that
                             // fails the guard is dropped with its rowId, never repaired.
+                            var service by remember(result) { mutableStateOf<Service?>(null) }
                             val bottleById = remember(result) {
                                 result.bottles.associateBy { it.wine.id }
                             }
                             val catalog = remember(result) {
                                 result.bottles.map { it.wine.toCatalogRow() }
+                            }
+                            val serviceRows = remember(result) {
+                                result.bottles.map { it.toServiceRow() }
+                            }
+                            val serviceById = remember(serviceRows) {
+                                serviceRows.associateBy { it.id }
                             }
                             val scored = remember(ranking) {
                                 // Ids are the source of the ranking: no index fallback. If the
@@ -930,17 +949,91 @@ fun ScanScreen(onReview: () -> Unit) {
                                     Scored(id, bottleById[id]?.fitReason.orEmpty())
                                 }
                             }
-                            val rendered = remember(scored, catalog) {
+                            // D1: at most one wine per producer. Drops, never substitutes.
+                            val capped = remember(scored) {
+                                enforceProducerCap(scored, serviceById)
+                            }
+                            // D5: re-rank by the unit that will actually be paid. Glass
+                            // eligibility comes from a menu glass price only — never inferred.
+                            val ranked = remember(capped, service) {
+                                rankForService(capped, serviceById, service)
+                            }
+                            val rendered = remember(ranked, catalog) {
                                 ListIdentity.renderCards(
-                                    scored = scored,
+                                    scored = ranked,
                                     catalog = catalog,
                                     log = { message -> android.util.Log.w("WineVerdict", message) },
                                     warn = { message -> android.util.Log.w("WineVerdict", message) }
                                 )
                             }
+                            // D5: a glass answer may not contain a bottle-only wine.
+                            val chosen = service
+                            val unitError = remember(rendered, chosen) {
+                                runCatching {
+                                    if (chosen == Service.GLASS || chosen == Service.BOTTLE) {
+                                        assertUniformUnit(
+                                            rendered.cards.map { Scored(it.rowId, "") },
+                                            serviceById,
+                                            chosen
+                                        )
+                                    }
+                                }.exceptionOrNull()?.message
+                            }
+                            Text(
+                                unitLine(service),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { service = Service.GLASS }) {
+                                    Text("Glass" + if (service == Service.GLASS) " ✓" else "")
+                                }
+                                OutlinedButton(onClick = { service = Service.BOTTLE }) {
+                                    Text("Bottle" + if (service == Service.BOTTLE) " ✓" else "")
+                                }
+                                OutlinedButton(onClick = { service = Service.UNSURE }) {
+                                    Text("Not sure" + if (service == Service.UNSURE) " ✓" else "")
+                                }
+                            }
+                            if (service == Service.GLASS && serviceRows.none { it.glassUsd != null }) {
+                                Text(
+                                    "This list is bottle-only — no glass prices are printed. " +
+                                        "Showing the bottle answer instead.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            if (unitError != null) {
+                                Text(
+                                    "Unit check failed ($unitError). Showing only wines with a " +
+                                        "${service?.name?.lowercase()} price.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                            if (service == Service.UNSURE) {
+                                cheapestPourLine(serviceRows)?.let { line ->
+                                    Text(
+                                        line + ".",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            val eff = effectiveService(service)
+                            val pool = serviceRows
                             rendered.cards.forEachIndexed { position, card ->
-                                val why = card.reason.trim()
-                                val what = card.detail.trim()
+                                val row = serviceById[card.rowId]
+                                // D2/D3: every description and reason is validated in code.
+                                // A portable or superlative line fails closed to facts.
+                                // The card itself is untouched (identity); what renders is
+                                // the validated text.
+                                val shownWhat = row?.let {
+                                    validatedText(card.detail.trim(), it, pool, eff)
+                                }.orEmpty()
+                                val shownWhy = row?.let {
+                                    validatedText(card.reason.trim(), it, pool, eff)
+                                }.orEmpty()
                                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(
                                         // Numbered by where the line sits, not by the score it
@@ -952,17 +1045,42 @@ fun ScanScreen(onReview: () -> Unit) {
                                         "${position + 1}. ${card.title}",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
+                                    // D4: one strip on every card, all values from the record.
+                                    if (row != null) {
+                                        Text(
+                                            strip(row),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                     // What it is, then why it is first: a name and a producer blurb
                                     // leave the reader exactly where they started.
-                                    if (what.isNotBlank()) {
+                                    if (shownWhat.isNotBlank()) {
                                         Text(
-                                            what,
+                                            shownWhat,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    if (why.isNotBlank()) {
-                                        Text(why, style = MaterialTheme.typography.bodySmall)
+                                    if (shownWhy.isNotBlank()) {
+                                        Text(shownWhy, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                    val label = bottleById[card.rowId]
+                                    Button(
+                                        onClick = {
+                                            if (label != null) {
+                                                scope.launch {
+                                                    AppGraph.cellar.upsert(label.wine)
+                                                    snackbarHostState.showSnackbar(
+                                                        if (eff == Service.GLASS) "Noted for a glass"
+                                                        else "Noted for the bottle"
+                                                    )
+                                                }
+                                            }
+                                        },
+                                        enabled = service != null && label != null
+                                    ) {
+                                        Text(orderButtonLabel(service))
                                     }
                                 }
                             }

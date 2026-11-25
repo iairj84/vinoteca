@@ -272,7 +272,11 @@ object Prompts {
         legendary, renowned, prestigious, famous, high-end — tells the reader nothing about the
         wine in front of them. Name the specific thing instead: the grape, the style, the
         appellation's tier, the vintage, the kind of producer (estate-grown, sherry house, co-op),
-        or the money.
+        or the money. The WINES list gives each line's grapes, place and vintage: those are that
+        line's distinctive facts. Never describe a wine with another line's grape, place or
+        vintage, and never compare this page against wines you were not given (no "unlike the
+        heavier", no "broader", no "cloying", no "on this list" superlatives). Name the grape: a
+        rosé made from Trepat says Trepat.
 
         For every numbered wine reply with exactly one line, in this exact shape:
         number | rank | fit | what | why
@@ -426,9 +430,11 @@ object Prompts {
           on this page, and it has to pass one test: put a different wine from this page in front
           of the sentence — if it would still be true, it is a label, not a reason, so rewrite it.
           Reputation alone ("exceptional producer", "top-tier", "world-class", "one of the
-          greatest") is never a reason. For rank 1 it says why it beats the rest, and if it costs
-          several times what the cheaper lines do, that price is part of the answer. Never "good
-          wine", never "nice", never blank.
+          greatest") is never a reason. Name the line's own grape, place, vintage or price, never
+          another line's, and never compare against wines off this page (no "unlike the heavier",
+          no "broader", no "cloying", no "on this list"). For rank 1 it says why it beats the
+          rest, and if it costs several times what the cheaper lines do, that price is part of
+          the answer. Never "good wine", never "nice", never blank.
         - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.

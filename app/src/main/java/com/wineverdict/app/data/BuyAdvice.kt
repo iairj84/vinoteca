@@ -17,7 +17,7 @@ import com.wineverdict.app.model.formatMoney
  * The rule that keeps the verdict worth reading: **a limit the bottle clears is not a reason to buy
  * it, and neither is a gap it would fill.** Being under an alcohol ceiling is a filter passed, and
  * "your first bottle from Catalonia" is a reason to be curious; treating either as an argument for
- * the money is what made a nine-bottle wine list come back as nine "Order it" pills. Only a fact
+ * the money is what made a nine-bottle wine list come back as nine bottle pills. Only a fact
  * that argues for spending the money — in practice a price inside the band the user gave — can
  * produce a Buy it. A passed ceiling is not one either: if compliance were an argument, every wine
  * under the ceiling would say buy, which is the same complaint one layer down.
@@ -32,7 +32,7 @@ object BuyAdvice {
         BUY, LOOK, LEAVE;
 
         fun label(restaurant: Boolean): String = when (this) {
-            BUY -> if (restaurant) "Order it" else "Buy it"
+            BUY -> if (restaurant) "Order the bottle" else "Buy it"
             LOOK -> if (restaurant) "Maybe" else "Worth a look"
             LEAVE -> if (restaurant) "Skip it" else "Leave it"
         }

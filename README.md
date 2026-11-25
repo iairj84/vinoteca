@@ -172,7 +172,7 @@ nothing is broken, which is explicitly not the same claim as a good match.
 
 The verdict moved to `BuyAdvice`, where a decision exists: a bottle in a shop or on a restaurant
 list. There the label in your hand prints the ABV, the price tag is next to it, and the app knows
-your limits, so `Buy it` / `Worth a look` / `Leave it` (`Order it` / `Maybe` / `Skip it` at a table)
+your limits, so `Buy it` / `Worth a look` / `Leave it` (`Order the bottle` / `Maybe` / `Skip it` at a table)
 is an answer rather than a grade. It is built only from things the app can check: a gate the user
 set failing (over the alcohol ceiling, or sweet by style when they asked for none, is a *Leave it*;
 oak named in the published tags is only a caution), a drinking window already past, the price against
@@ -186,7 +186,7 @@ the bottle out, what argues against this evening, what argues for the money, and
 simply passes — and only the third can produce a `Buy it`: a price inside the band the user gave.
 Passing the alcohol ceiling is a filter cleared and "your first bottle from Catalonia" is a reason to
 be curious; counting either as an argument for the money is what made a nine-wine restaurant list come
-back as nine `Order it` pills, and counting the ceiling would only move the bug one layer down, to
+back as nine bottle pills, and counting the ceiling would only move the bug one layer down, to
 "every wine under 13.5% is a buy". A bottle's gap is printed under the reasons in a quieter line and
 never lifts the verdict. A list, whose prices carry a markup and whose wines are never ranked against
 each other, therefore answers `Maybe` for a bottle that breaks nothing and `Skip it` for one that
@@ -210,7 +210,7 @@ then on what the app can check locally — a limit of the user's the bottle clea
 window, whether it is already at home. `BuyAdvice` exposes that last part as `strength`, which
 nothing displays.
 
-The best line is called out as `Order it`, two runners-up are numbered `2nd pick` and `3rd pick`, the
+The best line is called out as `Order the bottle`, two runners-up are numbered `2nd pick` and `3rd pick`, the
 rest of the page carries its place (`4th`, `5th` …) instead of repeating one word, and a summary above
 the cards names the ones worth ordering so the answer is visible without scrolling nine identical
 cards. A line that breaks one of the user's limits keeps `Skip it` and stays out of
