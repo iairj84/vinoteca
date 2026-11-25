@@ -12,16 +12,10 @@ import java.io.IOException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.addJsonObject
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -49,13 +43,6 @@ data class SourcedNotes(
     val caveat: String = "",
     /** The ABV a page printed for this bottling, when one did. Never estimated. */
     val alcohol: Double? = null
-)
-
-private data class Target(
-    val provider: AiProvider,
-    val baseUrl: String,
-    val key: String,
-    val model: String
 )
 
 /**
@@ -431,7 +418,7 @@ class AiClient(
 
         var response = post(
             target,
-            payload(target, system, turns, images, jsonMode, thinking, temperature, maxTokens)
+            chatPayload(target, system, turns, images, jsonMode, thinking, temperature, maxTokens)
         )
         if (!response.isSuccessful && response.code == 400) {
             // Some models reject response_format or reasoning_effort, and take at most a few
@@ -439,7 +426,7 @@ class AiClient(
             response.close()
             response = post(
                 target,
-                payload(target, system, turns, images.take(1), false, null, temperature, maxTokens)
+                chatPayload(target, system, turns, images.take(1), false, null, temperature, maxTokens)
             )
         }
         return response.use { res ->
@@ -493,83 +480,10 @@ class AiClient(
         }
     }
 
-    private fun payload(
-        target: Target,
-        system: String,
-        turns: List<ChatMessage>,
-        images: List<String>,
-        jsonMode: Boolean,
-        thinking: Thinking?,
-        temperature: Double,
-        maxTokens: Int
-    ): String {
-        val messages = buildJsonArray {
-            addJsonObject {
-                put("role", "system")
-                put("content", system)
-            }
-            turns.forEachIndexed { index, turn ->
-                val attachImages = images.isNotEmpty() && index == turns.lastIndex && turn.role == "user"
-                if (attachImages) {
-                    addJsonObject {
-                        put("role", "user")
-                        putJsonArray("content") {
-                            addJsonObject {
-                                put("type", "text")
-                                put("text", turn.text.ifBlank { "What can you tell me about this?" })
-                            }
-                            images.forEach { base64 ->
-                                addJsonObject {
-                                    put("type", "image_url")
-                                    putJsonObject("image_url") {
-                                        put("url", "data:image/jpeg;base64,$base64")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    addJsonObject {
-                        put("role", turn.role)
-                        put("content", turn.text)
-                    }
-                }
-            }
-        }
-        val root = buildJsonObject {
-            put("model", target.model)
-            put("messages", messages)
-            put("temperature", temperature)
-            put("max_tokens", maxTokens)
-            if (jsonMode) {
-                putJsonObject("response_format") { put("type", "json_object") }
-            }
-            thinking?.let { level ->
-                thinkingValue(target.provider, level)?.let { put("reasoning_effort", it) }
-            }
-        }
-        return root.toString()
-    }
-
-    /**
-     * JSON answers want the model's deliberation turned down: it is slower, costs output tokens,
-     * and occasionally talks itself out of the schema. Groq can switch thinking off; Gemini's
-     * compatibility layer cannot, so it gets the lowest level it accepts.
-     */
-    private fun thinkingValue(provider: AiProvider, thinking: Thinking): String? = when (provider) {
-        AiProvider.GROQ -> when (thinking) {
-            Thinking.OFF -> "none"
-            Thinking.LOW -> "low"
-            Thinking.MEDIUM -> "medium"
-        }
-        AiProvider.GEMINI -> when (thinking) {
-            Thinking.OFF, Thinking.LOW -> "low"
-            Thinking.MEDIUM -> "medium"
-        }
-        // OpenRouter passes provider parameters through untouched and every free vision model
-        // accepts the plain OpenAI shape, so ask for nothing special: the field is omitted.
-        AiProvider.OPENROUTER -> null
-    }
+    // The request body lives in AiPayload.kt, with the per-provider thinking map and the output
+    // budget: all three are pure, so a test can pin the exact JSON that used to return an empty
+    // answer (reasoning_effort "none" is a 400 on Groq, and the 400-retry then let reasoning eat
+    // the whole token budget).
 
     private fun retryAfterMs(res: Response, body: String): Long? {
         RateLimiter.parseDurationMillis(res.header("retry-after"))?.let { return it }

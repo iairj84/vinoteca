@@ -295,3 +295,9 @@ These supersede the steps above where they conflict.
    places 26 of 26. 4,000 is a floor, not a comfortable margin: 3,979 of it was used.
    Consequence for Step 8: `Thinking.OFF` must map to something Groq accepts (or omit the field),
    and every `maxTokens` must budget for reasoning tokens.
+8. **Fixed, and re-measured.** `Thinking.OFF` now maps to `low` for Groq, and the payload adds a
+   reasoning reserve to `maxTokens` (600 / 900 / 1,800 by level, ceiling 8,000). Same prompt,
+   `openai/gpt-oss-120b`, `reasoning_effort=low`, `max_tokens` 1,400: reasoning **133** tokens
+   (was 798), answer **4,115 characters** (was 0), 21 of 26 wines placed before the 1,400 ceiling
+   cut it. Omitting the field is *not* a safe alternative: the same prompt with no field spent all
+   4,000 tokens on reasoning and returned nothing. Pinned by `ai/AiPayloadTest`.

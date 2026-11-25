@@ -3,6 +3,16 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased: the judgement actually answers
+
+`Thinking.OFF` sent `reasoning_effort: "none"`, which Groq rejects with a 400. The retry dropped
+the field, so the model reasoned at its default: on an 800-token list judgement 798 tokens went to
+reasoning, the answer was empty, `finish_reason` was `length`, and the reply was thrown away — the
+cards fell back to the page read, in page order. `OFF` now maps to `low`, and `max_tokens` carries
+a reasoning reserve (600 / 900 / 1,800 by level, ceiling 8,000). Measured on the 26-wine fixture
+with `openai/gpt-oss-120b`: reasoning 798 → 133 tokens, and 4,115 characters of answer where there
+had been none. Fine-print reads at 400 tokens were hit by the same bug.
+
 ### 1.0.11: the answer states its unit, and earns its reasons
 
 A photographed list used to print one bottle price and one glass price on

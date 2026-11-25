@@ -54,7 +54,7 @@ class LiveListJudgeTest {
         .map { File(it) }
         .firstOrNull { it.isFile && it.length() > 0 }
 
-    private fun call(system: String, turn: String, maxTokens: Int, reasoning: Boolean): Result {
+    private fun call(system: String, turn: String, maxTokens: Int, effort: String?): Result {
         val file = checkNotNull(keyFile())
         val key = file.readText().trim()
         val client = OkHttpClient.Builder()
@@ -71,7 +71,7 @@ class LiveListJudgeTest {
             put("messages", messages)
             put("temperature", 0.3)
             put("max_tokens", maxTokens)
-            if (reasoning) put("reasoning_effort", "none")
+            effort?.let { put("reasoning_effort", it) }
         }.toString()
         val request = Request.Builder()
             .url(endpoint)
@@ -140,10 +140,10 @@ class LiveListJudgeTest {
         assumeTrue("no Groq key file found; live prompts are skipped", keyFile() != null)
         val (system, bottles) = setup()
         println("LIVE shipped settings: max_tokens=800, reasoning_effort=none (Thinking.OFF)")
-        var r = call(system, TURN, maxTokens = 800, reasoning = true)
+        var r = call(system, TURN, maxTokens = 800, effort = "none")
         if (r.code == 400) {
-            println("LIVE 400: reasoning_effort=none is rejected; retrying without the field, as the app does")
-            r = call(system, TURN, maxTokens = 800, reasoning = false)
+            println("LIVE 400: reasoning_effort=none is rejected; retrying without the field, as the app did")
+            r = call(system, TURN, maxTokens = 800, effort = null)
         }
         report("shipped", r, bottles)
     }
@@ -153,8 +153,18 @@ class LiveListJudgeTest {
         assumeTrue("no Groq key file found; live prompts are skipped", keyFile() != null)
         val (system, bottles) = setup()
         println("LIVE advice settings: max_tokens=4000, no reasoning field")
-        val r = call(system, TURN, maxTokens = 4_000, reasoning = false)
+        val r = call(system, TURN, maxTokens = 4_000, effort = null)
         report("advice", r, bottles)
+    }
+
+    /** What the app now sends: OFF maps to "low", and the budget carries room for reasoning. */
+    @Test
+    fun atTheShippedBudgetAfterTheFix() {
+        assumeTrue("no Groq key file found; live prompts are skipped", keyFile() != null)
+        val (system, bottles) = setup()
+        println("LIVE fixed settings: reasoning_effort=low, max_tokens=1400 (800 + 600 reserve)")
+        val r = call(system, TURN, maxTokens = 1_400, effort = "low")
+        report("fixed", r, bottles)
     }
 
     private companion object {
