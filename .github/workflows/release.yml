@@ -50,6 +50,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The app installs its own updates, which Android only allows over the same signature.
+      # The keystore lives in this repository's secrets, never in the tree.
+      - name: Restore the update signing key
+        env:
+          KEYSTORE: ${{ secrets.SIDELOAD_KEYSTORE }}
+          STORE_PASSWORD: ${{ secrets.SIDELOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIDELOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.SIDELOAD_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::warning::SIDELOAD_KEYSTORE is not set; this APK is debug-signed and cannot install over an earlier release."
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/vinoteca-update.jks"
+          {
+            echo "SIDELOAD_KEYSTORE_FILE=$RUNNER_TEMP/vinoteca-update.jks"
+            echo "SIDELOAD_KEYSTORE_PASSWORD=$STORE_PASSWORD"
+            echo "SIDELOAD_KEY_ALIAS=$KEY_ALIAS"
+            echo "SIDELOAD_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+          echo "Signing with the project key."
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

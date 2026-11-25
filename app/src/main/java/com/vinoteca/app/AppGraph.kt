@@ -9,6 +9,7 @@ import com.vinoteca.app.data.PalateStore
 import com.vinoteca.app.data.ScanQueue
 import com.vinoteca.app.data.SettingsStore
 import com.vinoteca.app.data.TasteStore
+import com.vinoteca.app.data.Updater
 import com.vinoteca.app.model.Wine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,8 @@ object AppGraph {
         private set
     lateinit var notes: NotesBackfill
         private set
+    lateinit var updater: Updater
+        private set
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -53,6 +56,7 @@ object AppGraph {
         ai = AiClient(settings)
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
         notes = NotesBackfill(ai, cellar, scope)
+        updater = Updater(app)
         scope.launch {
             cellar.load()
             chat.load()

@@ -13,9 +13,25 @@ android {
         applicationId = "com.vinoteca.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 21
-        versionName = "1.7.6"
+        versionCode = 22
+        versionName = "1.7.7"
         resourceConfigurations += listOf("en")
+    }
+
+    signingConfigs {
+        // CI decodes the project's keystore into a temp file and points SIDELOAD_KEYSTORE_FILE at
+        // it, so every release carries the same signature and can install over the one before it.
+        // A local build without that file falls back to the debug key and is not installable over
+        // a published release.
+        val keystore = System.getenv("SIDELOAD_KEYSTORE_FILE")?.let { File(it) }?.takeIf { it.exists() }
+        if (keystore != null) {
+            create("update") {
+                storeFile = keystore
+                storePassword = System.getenv("SIDELOAD_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SIDELOAD_KEY_ALIAS")
+                keyPassword = System.getenv("SIDELOAD_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -32,7 +48,7 @@ android {
             initWith(getByName("release"))
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("update") ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

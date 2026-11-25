@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -36,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,9 +59,11 @@ import com.vinoteca.app.data.Backup
 import com.vinoteca.app.data.BackupFile
 import com.vinoteca.app.data.ImportPreview
 import com.vinoteca.app.data.SettingsStore
+import com.vinoteca.app.data.Updater
 import com.vinoteca.app.data.WineImport
 import com.vinoteca.app.model.StorageLocation
 import kotlinx.coroutines.launch
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -87,6 +92,11 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
     var dataMessage by remember { mutableStateOf<String?>(null) }
     var restoreCandidate by remember { mutableStateOf<BackupFile?>(null) }
     var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
+
+    var update by remember { mutableStateOf<UpdateUi>(UpdateUi.Idle) }
+    var updateProgress by remember { mutableStateOf(0f) }
+    var installCandidate by remember { mutableStateOf<File?>(null) }
+    var updateApk by remember { mutableStateOf<File?>(null) }
 
     fun saveProvider(provider: AiProvider) {
         val draft = drafts[provider] ?: return
@@ -194,6 +204,62 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
             }
         }
     }
+
+    val installLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Back from "install unknown apps": carry on with the APK that was already downloaded.
+        val apk = installCandidate
+        installCandidate = null
+        if (apk != null && AppGraph.updater.canInstall()) {
+            runCatching { AppGraph.updater.install(apk) }
+                .onFailure { update = UpdateUi.Failed("Android would not open its installer.") }
+        }
+    }
+
+    fun checkForUpdates() {
+        if (update is UpdateUi.Checking || update is UpdateUi.Downloading) return
+        update = UpdateUi.Checking
+        scope.launch {
+            update = try {
+                val release = AppGraph.updater.check()
+                if (release == null) UpdateUi.UpToDate else UpdateUi.Available(release)
+            } catch (e: Exception) {
+                UpdateUi.Failed(e.message ?: "GitHub could not be reached.")
+            }
+        }
+    }
+
+    fun installUpdate(apk: File) {
+        if (AppGraph.updater.canInstall()) {
+            runCatching { AppGraph.updater.install(apk) }
+                .onFailure { update = UpdateUi.Failed("Android would not open its installer.") }
+        } else {
+            installCandidate = apk
+            runCatching { installLauncher.launch(AppGraph.updater.installSettingsIntent()) }
+                .onFailure {
+                    update = UpdateUi.Failed("This phone has no install-settings page for apps.")
+                }
+        }
+    }
+
+    fun downloadUpdate(release: Updater.Release) {
+        update = UpdateUi.Downloading(release)
+        updateProgress = 0f
+        scope.launch {
+            try {
+                val apk = AppGraph.updater.download(release) { progress -> updateProgress = progress }
+                updateApk = apk
+                update = UpdateUi.Ready(release)
+                installUpdate(apk)
+            } catch (e: Exception) {
+                update = UpdateUi.Failed(e.message ?: "The download did not finish.")
+            }
+        }
+    }
+
+    // One quiet question when Settings opens. Nothing is downloaded until it is tapped.
+    LaunchedEffect(Unit) { if (update is UpdateUi.Idle) checkForUpdates() }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Settings") }) },
@@ -466,6 +532,93 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 }
             }
 
+            SectionCard("Updates") {
+                Text(
+                    "Vinoteca updates itself from this project's GitHub releases. Opening Settings asks " +
+                        "GitHub once whether a newer one exists; the APK is downloaded only when you tap, " +
+                        "and Android's own installer does the rest. Your cellar, keys and mytaste.md stay " +
+                        "where they are.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "Installed: Vinoteca ${BuildConfig.VERSION_NAME}",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                when (val state = update) {
+                    UpdateUi.Idle, UpdateUi.Checking -> Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Text("Checking GitHub…", style = MaterialTheme.typography.bodySmall)
+                    }
+
+                    UpdateUi.UpToDate -> Text(
+                        "This is the newest release.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+
+                    is UpdateUi.Available -> {
+                        Text(
+                            "Vinoteca ${state.release.version} is available.",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        val notes = state.release.notes
+                            .lines()
+                            .filter { it.isNotBlank() }
+                            .take(4)
+                            .joinToString("\n")
+                            .take(400)
+                        if (notes.isNotBlank()) {
+                            Text(
+                                notes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Button(onClick = { downloadUpdate(state.release) }) {
+                            Text("Download and install")
+                        }
+                    }
+
+                    is UpdateUi.Downloading -> {
+                        Text(
+                            "Downloading ${state.release.fileName} — ${(updateProgress * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        LinearProgressIndicator(
+                            progress = { updateProgress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    is UpdateUi.Ready -> {
+                        Text(
+                            "Vinoteca ${state.release.version} is downloaded. Finish in Android's " +
+                                "installer, which opened behind this screen.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        updateApk?.let { apk ->
+                            OutlinedButton(onClick = { installUpdate(apk) }) { Text("Install again") }
+                        }
+                    }
+
+                    is UpdateUi.Failed -> Text(
+                        state.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                OutlinedButton(
+                    onClick = { checkForUpdates() },
+                    enabled = update !is UpdateUi.Checking && update !is UpdateUi.Downloading
+                ) {
+                    Text("Check for updates")
+                }
+            }
+
             SectionCard("About") {
                 Text(
                     "Vinoteca ${BuildConfig.VERSION_NAME} — a local cellar notebook with an AI sommelier on the side.",
@@ -643,6 +796,16 @@ private data class ProviderDraft(
 )
 
 private data class TestResult(val ok: Boolean, val message: String)
+
+private sealed interface UpdateUi {
+    data object Idle : UpdateUi
+    data object Checking : UpdateUi
+    data object UpToDate : UpdateUi
+    data class Available(val release: Updater.Release) : UpdateUi
+    data class Downloading(val release: Updater.Release) : UpdateUi
+    data class Ready(val release: Updater.Release) : UpdateUi
+    data class Failed(val message: String) : UpdateUi
+}
 
 private fun draftOf(settings: SettingsStore, provider: AiProvider): ProviderDraft = ProviderDraft(
     key = settings.key(provider),
