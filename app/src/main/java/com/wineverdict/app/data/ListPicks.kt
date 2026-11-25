@@ -133,11 +133,31 @@ object ListPicks {
         val out = advice.map { it.verdict == BuyAdvice.Verdict.LEAVE }
         val count = candidates.size
 
+        // The read's order, made into a real order before anything is scored. A model that writes
+        // "1, 2, 2" for three wines has still said which two it prefers; taken literally the repeat
+        // scores two lines identically and the page prints "1. 2. 2.", which is the one thing a
+        // best-first list must never do. So the placed lines are sorted by the number the read gave,
+        // then by fit, then by page order, and renumbered 1..n. A line the read did not place sits
+        // below the placed ones rather than tying with them, and a page with no order at all (or one
+        // number for every wine) stays level so the price fallback can still speak.
+        val given = candidates.indices.filter { candidates[it].order != null }
+        val placedOrder: Map<Int, Int> =
+            if (given.map { candidates[it].order }.distinct().size > 1) {
+                val byRead = given.sortedWith(
+                    compareBy<Int> { candidates[it].order!! }
+                        .thenByDescending { candidates[it].fit ?: NEUTRAL_FIT }
+                        .thenBy { it }
+                )
+                val unplaced = candidates.indices.filter { it !in given }
+                (byRead + unplaced)
+                    .mapIndexed { position, index -> index to position + 1 }
+                    .toMap()
+            } else {
+                emptyMap()
+            }
         // What the read said, without the local checks: the order down the page, then the fit.
-        // A missing order is not last place — it is a line the read did not place, so it scores as
-        // if unranked and the fit decides.
         val readScore = candidates.indices.map { index ->
-            val order = candidates[index].order
+            val order = placedOrder[index]
             val placed = if (order != null) (count - order + 1) * ORDER_WEIGHT else 0
             val fit = candidates[index].fit ?: NEUTRAL_FIT
             placed + fit * FIT_WEIGHT

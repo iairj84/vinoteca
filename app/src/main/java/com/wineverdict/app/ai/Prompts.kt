@@ -264,6 +264,16 @@ object Prompts {
         bottle is worth the money on this page. Never answer that nothing is against a wine, never
         repeat the price back as the reason, and never rank the lines level.
 
+        THE REASON TEST — every "what" and every "why" has to pass it. Put a different wine from
+        this page in front of the same sentence: if it would still be true, the sentence is a
+        label, not a reason, and it has to be rewritten. "Exceptional producer" is true of every
+        bottle that producer makes; "one of the world's greatest wines" is true wherever that
+        bottle is poured. Reputation on its own — exceptional, top-tier, world-class, iconic,
+        legendary, renowned, prestigious, famous, high-end — tells the reader nothing about the
+        wine in front of them. Name the specific thing instead: the grape, the style, the
+        appellation's tier, the vintage, the kind of producer (estate-grown, sherry house, co-op),
+        or the money.
+
         For every numbered wine reply with exactly one line, in this exact shape:
         number | rank | fit | what | why
 
@@ -275,13 +285,19 @@ object Prompts {
         - "fit" is 1-5 for how well this wine suits MY TASTE FILE below (3 = neutral). When that
           file is empty, score how good the bottle is at its price: 5 a genuinely good bottle,
           3 ordinary, 1 poor.
-        - "what" is at most fourteen words on what this wine actually is — the style, the standing
-          of the producer or the appellation, and how it tastes. This is the line that tells me
-          what I am looking at. If you do not know the wine, say that ("unfamiliar producer,
-          generic tank-made Cava") instead of inventing a reputation, a score, an award or a
-          tasting note.
-        - "why" is at most fourteen words on why it sits where it does on this page. Never blank,
-          never "good wine", never "nice", never a restatement of the price.
+        - "what" is at most fourteen words on what this wine actually is: the grape and the style,
+          the kind of producer or appellation it comes from, and how it tastes ("a Jerez sherry
+          house's red from Tintilla, served chilled, dry and saline"). Describe the bottle, not its
+          fame. If you do not know the wine, say that ("unfamiliar producer, generic tank-made
+          Cava") instead of inventing a reputation, a score, an award or a tasting note.
+        - "why" is at most fourteen words on why it sits where it does on this page, and it passes
+          the reason test. It is a comparison, so it names what this bottle has that the others
+          here do not, or what it costs against them ("the only chilled red here, a third of the
+          Albariño's price"). Never blank, never "good wine", never "nice", never a restatement of
+          the price, never a producer's reputation.
+        - The rank-1 "why" is the answer to "what do I order", so it has to say what it beats on
+          this page. If it costs several times what the cheaper lines do, that price is the
+          argument to make: say what the money buys, or put a cheaper bottle first.
 
         Where MY TASTE FILE names something I dislike, move a wine that has it below one that does
         not. That is a nudge, not the ranking: with the file empty the wines still get an order.
@@ -403,12 +419,16 @@ object Prompts {
           no repeats, never blank. You know these wines: rank on the producer, the appellation, the
           vintage, the style and what the price asks, not on the order they are printed in. Where
           my taste file below says something, it moves a wine up or down.
-        - "what" is at most fourteen words on what this wine actually is — the style, the standing
-          of the producer or the appellation, and how it tastes. Say "unfamiliar producer" rather
+        - "what" is at most fourteen words on what this wine actually is: the grape and the style,
+          the kind of producer or appellation, and how it tastes. Say "unfamiliar producer" rather
           than inventing a reputation, a score or an award.
         - "why" is one short line, at most fourteen words, saying what puts this wine where it is
-          on this page. For rank 1 it says why it beats the rest. Never "good wine", never "nice",
-          never blank, never a restatement of the price.
+          on this page, and it has to pass one test: put a different wine from this page in front
+          of the sentence — if it would still be true, it is a label, not a reason, so rewrite it.
+          Reputation alone ("exceptional producer", "top-tier", "world-class", "one of the
+          greatest") is never a reason. For rank 1 it says why it beats the rest, and if it costs
+          several times what the cheaper lines do, that price is part of the answer. Never "good
+          wine", never "nice", never blank.
         - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.

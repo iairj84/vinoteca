@@ -313,6 +313,23 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.9: the ranking says why this bottle, and what it costs
+
+1.0.8 stopped ranking by price, but the answer was still thin: three names, three producer blurbs
+("exceptional producer", "one of the world's greatest") and no price, so the bottle at 260 looked
+like the safe order. The numbers could repeat too — a read that wrote "1, 2, 2" was taken
+literally and the page printed "1. 2. 2."
+
+- **The reason test.** Every "what" and "why" now has to survive one question: put a different
+  wine from the same page in front of the sentence — if it is still true, it is a label, not a
+  reason. Reputation words on their own are banned as the whole answer, and the rank-1 line has
+  to say what it beats, including its price against the cheaper bottles.
+- **Unique numbers.** The read's order is renumbered 1..n before it is scored, breaking a repeated
+  rank by fit and then by page order, so no two cards share a place and "best first" really is
+  1, 2, 3.
+- **The price on every pick.** Each line of "Worth ordering, best first" now carries the bottle
+  price, with what the wine is and why it sits there underneath it.
+
 ### 1.0.8: the judgement says what the wines are, not what they cost
 
 A photographed list came back as nine cards that each said the same thing — nothing is against

@@ -910,17 +910,45 @@ fun ScanScreen(onReview: () -> Unit) {
                         // Three names and nothing else is not an answer either: the best line gets
                         // the read's own reason, and every place after it keeps its number.
                         ListPicks.Basis.READ -> SectionCard("Worth ordering, best first") {
-                            ranking.top.forEach { index ->
+                            ranking.top.forEachIndexed { position, index ->
                                 val bottle = result.bottles[index]
                                 val why = bottle.fitReason.trim()
-                                Text(
-                                    buildString {
-                                        append(ranking.picks[index].rank).append(". ")
-                                        append(bottle.wine.title)
-                                        if (why.isNotBlank()) append(" \u2014 ").append(why)
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
+                                val what = bottle.wine.expertNotes.trim()
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(
+                                        buildString {
+                                            // Numbered by where the line sits, not by the score it
+                                            // was sorted on: a repeated number ("1. 2. 2.") is the
+                                            // one thing a best-first list must never print.
+                                            append(position + 1).append(". ")
+                                            append(bottle.wine.title)
+                                            // The price is half the decision at a table. A bottle
+                                            // can win on quality and still be the wrong order at
+                                            // 260, so the number belongs next to the name.
+                                            if (bottle.wine.price != null) {
+                                                append(" \u2014 ").append(
+                                                    formatMoney(
+                                                        bottle.wine.price,
+                                                        bottle.wine.currency.ifBlank { currency }
+                                                    )
+                                                )
+                                            }
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    // What it is, then why it is first: a name and a producer blurb
+                                    // leave the reader exactly where they started.
+                                    if (what.isNotBlank()) {
+                                        Text(
+                                            what,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    if (why.isNotBlank()) {
+                                        Text(why, style = MaterialTheme.typography.bodySmall)
+                                    }
+                                }
                             }
                         }
                         // The read came back level, which is what an empty taste file produces. Say
