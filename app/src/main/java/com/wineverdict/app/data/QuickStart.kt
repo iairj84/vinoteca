@@ -1,12 +1,13 @@
 package com.wineverdict.app.data
 
 /**
- * The quick start: ten taps, no typing, every question skippable.
+ * The quick start: ten taps, three optional lines, every question skippable.
  *
  * These collect axes and constraints, not reasons. A tap cannot explain *why* a bottle worked, so a
  * tap must never write a rule the assistant will then defend — only [PalateRules] promotes an answer
- * into a checkable gate, and only for the two questions that ask for one (sweetness and what to
- * avoid).
+ * into a checkable gate, and only sweetness does ("none, please" or "a touch is fine"). The free-text
+ * answers at the end are the one place a reason does come from, and they never become a rule: they
+ * ride in the brief verbatim.
  */
 data class QuickStartOption(
     val id: String,

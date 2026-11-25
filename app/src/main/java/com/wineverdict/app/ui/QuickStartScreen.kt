@@ -23,6 +23,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -130,6 +131,11 @@ fun QuickStartScreen(onDone: () -> Unit) {
                     }
                 )
                 is Step.Picks -> PicksStep(profile = profile, onNext = { goNext() })
+                is Step.Notes -> NotesStep(
+                    profile = profile,
+                    onChange = { profile = it },
+                    onNext = { goNext() }
+                )
                 is Step.Review -> ReviewStep(profile = profile, onSave = { finish() })
             }
         }
@@ -139,6 +145,7 @@ fun QuickStartScreen(onDone: () -> Unit) {
 private sealed interface Step {
     data class Ask(val question: QuickStartQuestion) : Step
     data object Picks : Step
+    data object Notes : Step
     data object Review : Step
 }
 
@@ -147,6 +154,7 @@ private fun buildSteps(): List<Step> {
     QuickStart.questions.filter { !it.afterPicks }.forEach { steps += Step.Ask(it) }
     steps += Step.Picks
     QuickStart.questions.filter { it.afterPicks }.forEach { steps += Step.Ask(it) }
+    steps += Step.Notes
     steps += Step.Review
     return steps
 }
@@ -251,6 +259,65 @@ private fun PicksStep(profile: PalateProfile, onNext: () -> Unit) {
     Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) {
         Text("Continue")
     }
+}
+
+/**
+ * The three questions a tap cannot answer. All optional, and none of them becomes a rule: they go
+ * into the brief verbatim, which is the only place a reason for liking a bottle can come from.
+ */
+@Composable
+private fun NotesStep(profile: PalateProfile, onChange: (PalateProfile) -> Unit, onNext: () -> Unit) {
+    Text("Three things only you can tell me", style = MaterialTheme.typography.headlineSmall)
+    Text(
+        "Optional, and none of it becomes a rule. It goes into mytaste.md as your own words, so a " +
+            "reason can be tied to a bottle you actually liked.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    NotesField(
+        label = "Wines you loved, and what you liked",
+        hint = "e.g. 2019 Ultreia — dark fruit, and it smelled of the forest",
+        value = profile.lovedNote,
+        onValue = { onChange(profile.withNotes(loved = it)) }
+    )
+    NotesField(
+        label = "A wine you didn't enjoy, and why",
+        hint = "e.g. an oaky Chardonnay that tasted of vanilla",
+        value = profile.dislikedNote,
+        onValue = { onChange(profile.withNotes(disliked = it)) }
+    )
+    NotesField(
+        label = "Anything you're curious to try",
+        hint = "e.g. orange wine, or anything from Bierzo",
+        value = profile.curiousNote,
+        onValue = { onChange(profile.withNotes(curious = it)) }
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(onClick = onNext, modifier = Modifier.weight(1f)) { Text("Continue") }
+        TextButton(onClick = {
+            onChange(profile.withNotes(loved = "", disliked = "", curious = ""))
+            onNext()
+        }) { Text("Skip") }
+    }
+}
+
+@Composable
+private fun NotesField(label: String, hint: String, value: String, onValue: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { onValue(it.take(PalateProfile.NOTE_MAX_CHARS)) },
+        label = { Text(label) },
+        placeholder = { Text(hint) },
+        minLines = 2,
+        supportingText = { Text("${value.length} / ${PalateProfile.NOTE_MAX_CHARS}") },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable

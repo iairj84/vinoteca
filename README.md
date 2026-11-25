@@ -182,10 +182,16 @@ The file is seeded on first run and lives in the app's private files directory
 
 ## The quick start, and what it writes
 
-A new install has no palate, so **Taste → Start the quick start** asks ten taps and nothing else: what
-you pour, which axis is doing the work, sweetness, budget, what you tell people about a bottle you
-loved, who it is for, what to avoid, dish context, how far to stray, and repeats. Every question can be
-skipped — skipping is recorded as *unknown*, never filled with a default.
+A new install has no palate, so **Taste → Start the quick start** asks ten taps: what you pour, which
+axis is doing the work, sweetness, budget, what you tell people about a bottle you loved, who it is
+for, what to avoid, dish context, how far to stray, and repeats. Every question can be skipped —
+skipping is recorded as *unknown*, never filled with a default.
+
+Then three optional lines, the only typing in the flow: wines you loved and what you liked about
+them, a wine you didn't enjoy and why, and anything you are curious to try. They ride in the taste
+brief verbatim, capped at 200 characters each, and none of them becomes a rule. A numeric alcohol
+ceiling is separate again: it exists only when you type one on the Taste screen, and "avoid strong"
+stays a preference — a chip is not a measurement.
 
 Between the seventh tap and the last three, the flow shows **three things to look for**: styles, not
 bottles, because the app has no catalogue and naming a wine it cannot vouch for would be the same

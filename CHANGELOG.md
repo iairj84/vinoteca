@@ -12,6 +12,19 @@ number is given. A gate that cannot be checked from a record is no longer counte
 bottle with no printed ABV is no longer hedged down from *Buy it* to *Worth a look*. When a loved
 (4★+, or favourited) bottle would break a ceiling you set, the Taste screen says so in one line.
 
+**Oak is a preference now too.** "Heavy and oaky" no longer runs a test: it is a line in the brief
+("restrained oak — vanilla and toast in the background"), and the oak gate, its enum and the
+"tasting tags mention oak" failure are gone. An oak tag in the notes is a style, not a measurement.
+
+**You can type a ceiling.** The Taste screen takes an alcohol ceiling in % vol (5–25, or nothing),
+stored in the profile, written into mytaste.md as *your* number rather than one "inferred … ours",
+and checked against every bottle record. That is what makes the loved-bottle notice reachable.
+
+**Three questions a tap cannot answer.** The quick start now ends with optional free-text lines —
+wines you loved and why, one you didn't and why, anything you're curious to try — carried into the
+taste brief verbatim, capped at 200 characters, and never turned into a rule. The Taste screen also
+takes "what links the wines you love?", which the brief had a slot for but nothing to fill it.
+
 **The judgement actually answers.**
 
 `Thinking.OFF` sent `reasoning_effort: "none"`, which Groq rejects with a 400. The retry dropped

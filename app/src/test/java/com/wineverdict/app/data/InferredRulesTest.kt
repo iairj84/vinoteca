@@ -116,7 +116,30 @@ class InferredRulesTest {
     }
 
     @Test
-    fun oakIsAStyleNoteNotACeiling() {
-        assertNull(PalateRules(oak = OakTolerance.NEUTRAL).lovedConflict(listOf(zin(null))))
+    fun avoidOakDoesNotBecomeAGate() {
+        val rules = PalateRules.from(profile(avoid = listOf(QuickStart.AVOID_OAK)))
+        assertTrue("a chip must not run a test either", rules.isEmpty)
+        assertTrue(rules.checks(zin(13.0)).isEmpty())
+    }
+
+    @Test
+    fun aTypedCeilingIsTheOneRule() {
+        val rules = PalateRules.from(profile().copy(alcoholCeiling = 13.0))
+        assertEquals(13.0, rules.maxAlcohol!!, 0.001)
+        assertTrue(rules.fails(zin(14.0)))
+        assertFalse(rules.fails(zin(12.5)))
+    }
+
+    @Test
+    fun aTypedCeilingThatFailsALovedBottleIsNoticed() {
+        val rules = PalateRules.from(profile().copy(alcoholCeiling = 13.0))
+        assertNotNull(rules.lovedConflict(listOf(zin(14.5))))
+        assertNull(rules.lovedConflict(listOf(zin(12.0))))
+    }
+
+    @Test
+    fun aNumberNoWineHasIsIgnored() {
+        assertNull(PalateRules.from(profile().copy(alcoholCeiling = 40.0)).maxAlcohol)
+        assertNull(PalateRules.from(profile().copy(alcoholCeiling = 0.0)).maxAlcohol)
     }
 }

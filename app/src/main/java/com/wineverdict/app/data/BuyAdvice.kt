@@ -74,15 +74,12 @@ object BuyAdvice {
         val gaps = mutableListOf<String>()
         val unknowns = mutableListOf<String>()
 
+        // Every gate that can fail is one the user set by name, so breaking it is a reason to walk
+        // away rather than a style to weigh up. Oak used to be a soft "against"; it is a preference
+        // in the brief now and no longer a test the app runs.
         rules.checks(wine).forEach { check ->
             when (check.verdict) {
-                // The alcohol ceiling and "no sweet wine" are things the user asked not to be sold;
-                // oak is a style they would rather avoid, not a line to walk out over.
-                GateVerdict.FAIL -> if (check.gate == PalateRules.GATE_OAK) {
-                    against += check.detail
-                } else {
-                    hard += check.detail
-                }
+                GateVerdict.FAIL -> hard += check.detail
                 GateVerdict.PASS -> clears += check.detail
                 GateVerdict.UNKNOWN -> Unit
             }

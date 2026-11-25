@@ -14,32 +14,25 @@ data class GateResult(val gate: String, val verdict: GateVerdict, val detail: St
         }
 }
 
-enum class OakTolerance(val label: String) {
-    NEUTRAL("restrained"),
-    LIGHT("a little is fine"),
-    ANY("bring it")
-}
-
 /**
  * The thresholds the app itself checks against a bottle record.
  *
  * Two rules matter here. A threshold exists only when the user named it — nothing is filled in to make
- * the gate look complete. And a missing fact is [GateVerdict.UNKNOWN], never [GateVerdict.PASS]: an
- * unlisted ABV cannot satisfy an alcohol ceiling, and saying so out loud is the whole point. The model
- * is told these results; it is never asked to compute them.
+ * the gate look complete: "avoid strong" and "avoid heavy oak" are preferences in the brief now, not
+ * numbers or tests the app invents. And a missing fact is [GateVerdict.UNKNOWN], never
+ * [GateVerdict.PASS]: an unlisted ABV cannot satisfy an alcohol ceiling, and saying so out loud is the
+ * whole point. The model is told these results; it is never asked to compute them.
  */
 data class PalateRules(
     /** Grams per litre. 4.0 for "none, please", 8.0 for "a touch is fine". */
     val maxSugar: Double? = null,
-    val oak: OakTolerance? = null,
-    /** Percent alcohol by volume. Only ever a number the user gave: no chip becomes a ceiling. */
+    /** Percent alcohol by volume. Only ever a number the user typed: no chip becomes a ceiling. */
     val maxAlcohol: Double? = null
 ) {
-    val isEmpty: Boolean get() = maxSugar == null && oak == null && maxAlcohol == null
+    val isEmpty: Boolean get() = maxSugar == null && maxAlcohol == null
 
     fun checks(wine: Wine): List<GateResult> = buildList {
         if (maxSugar != null) add(sugarCheck(wine))
-        if (oak != null) add(oakCheck(wine))
         if (maxAlcohol != null) add(alcoholCheck(wine))
     }
 
@@ -61,7 +54,7 @@ data class PalateRules(
             .filter { it.favorite || (it.rating ?: 0) >= 4 }
             .firstNotNullOfOrNull { wine ->
                 checks(wine)
-                    .firstOrNull { it.verdict == GateVerdict.FAIL && it.gate != GATE_OAK }
+                    .firstOrNull { it.verdict == GateVerdict.FAIL }
                     ?.let { wine to it }
             } ?: return null
         return "${broken.first.title} is one you loved, but ${broken.second.detail}. " +
@@ -101,21 +94,6 @@ data class PalateRules(
         )
     }
 
-    /** Tasting tags that name oak, for the gate and for the match line. */
-    fun oakMentions(wine: Wine): List<String> = wine.flavorTags
-        .map { it.lowercase() }
-        .filter { tag -> OAK_WORDS.any { tag.contains(it) } }
-
-    private fun oakCheck(wine: Wine): GateResult {
-        val hits = oakMentions(wine)
-        return if (oak == OakTolerance.NEUTRAL && hits.isNotEmpty()) {
-            GateResult(GATE_OAK, GateVerdict.FAIL, "tasting tags mention ${hits.joinToString(", ")}")
-        } else {
-            // Oak is a style, not a printed number: a record can fail the test but can never pass it.
-            GateResult(GATE_OAK, GateVerdict.UNKNOWN, "oak is not on the label; judge it from the notes")
-        }
-    }
-
     private fun alcoholCheck(wine: Wine): GateResult {
         val ceiling = maxAlcohol
             ?: return GateResult(GATE_ALCOHOL, GateVerdict.UNKNOWN, "no ceiling set")
@@ -130,30 +108,25 @@ data class PalateRules(
 
     companion object {
         const val GATE_SUGAR = "G1 sweetness"
-        const val GATE_OAK = "G2 oak"
         const val GATE_ALCOHOL = "G3 alcohol"
-
-        private val OAK_WORDS = listOf("oak", "vanilla", "toast", "buttery", "butter", "cedar", "coconut")
 
         private fun fmt(value: Double?): String =
             if (value == null) "—" else String.format(java.util.Locale.US, "%.1f", value)
 
         fun from(profile: PalateProfile): PalateRules {
-            val avoids = profile.choices(QuickStart.Q_AVOID)
             val sugar = when (profile.choice(QuickStart.Q_SWEET)) {
                 QuickStart.SWEET_NONE -> 4.0
                 QuickStart.SWEET_TOUCH -> 8.0
                 else -> null
             }
-            val oak = when {
-                QuickStart.AVOID_OAK in avoids -> OakTolerance.NEUTRAL
-                else -> null
-            }
-            // "Avoid strong" is a chip, not a number. Turning it into a 13.5% ceiling invented a
-            // rule the assistant then defended, and it contradicted the 5★ Zinfandel in the same
-            // cellar. The preference still reaches the model, worded as a preference; a numeric
-            // ceiling exists only when the user gives one.
-            return PalateRules(maxSugar = sugar, oak = oak)
+            // Both "avoid" chips are preferences now, carried to the model by the brief. Turning
+            // "avoid strong" into a 13.5% ceiling invented a rule the assistant then defended, and
+            // it contradicted the 5★ Zinfandel in the same cellar; an oak gate did the same one
+            // layer down. A ceiling exists only when the user types a number.
+            return PalateRules(
+                maxSugar = sugar,
+                maxAlcohol = profile.alcoholCeiling?.takeIf { it in PalateProfile.ALCOHOL_RANGE }
+            )
         }
     }
 }

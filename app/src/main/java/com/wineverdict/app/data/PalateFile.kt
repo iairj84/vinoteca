@@ -49,6 +49,11 @@ object PalateFile {
         blocks += "## My taste"
         blocks += tasteSection(profile, rules)
 
+        if (profile.hasNotes || profile.links.isNotBlank()) {
+            blocks += "## In my own words"
+            blocks += inMyWords(profile)
+        }
+
         blocks += "## How to score a bottle"
         blocks += "Gates first. A bottle that fails a gate is never scored. **Unknown is not a pass.**"
         blocks += gateTable(profile, rules)
@@ -140,7 +145,7 @@ object PalateFile {
         sweetness(profile)?.let {
             facts += Fact(it, source(profile, QuickStart.Q_SWEET), "Yours")
         }
-        if (rules.oak != null) {
+        if (QuickStart.AVOID_OAK in profile.choices(QuickStart.Q_AVOID)) {
             facts += Fact(
                 "Oak restrained: vanilla and toast in the background, never the flavour",
                 source(profile, QuickStart.Q_AVOID),
@@ -148,11 +153,7 @@ object PalateFile {
             )
         }
         rules.maxAlcohol?.let {
-            facts += Fact(
-                "${fmt(it)}% or under",
-                "inferred from ${quoted(profile, QuickStart.Q_AVOID)} — the number is ours, not yours",
-                "Ours"
-            )
+            facts += Fact("${fmt(it)}% or under", "typed on the Taste screen", "Yours")
         }
         if (facts.isEmpty()) {
             return "_Unknown — no answer here describes what a wine should taste of. The quick start " +
@@ -167,14 +168,9 @@ object PalateFile {
             rows += "| **${PalateRules.GATE_SUGAR}** | Dry — under ${fmt(it)} g/L | hard | " +
                 "${source(profile, QuickStart.Q_SWEET)} | Yours |"
         }
-        rules.oak?.let {
-            rows += "| **${PalateRules.GATE_OAK}** | Restrained; oak must not be the flavour | hard | " +
-                "${source(profile, QuickStart.Q_AVOID)} | Yours |"
-        }
         rules.maxAlcohol?.let {
-            rows += "| **${PalateRules.GATE_ALCOHOL}** | ${fmt(it)}% or under | soft | " +
-                "inferred from ${quoted(profile, QuickStart.Q_AVOID)} — the number is ours, not " +
-                "yours | Ours |"
+            rows += "| **${PalateRules.GATE_ALCOHOL}** | ${fmt(it)}% or under | hard | " +
+                "typed on the Taste screen | Yours |"
         }
         if (rows.isEmpty()) {
             return "_No gate is set yet — no answer named a limit. Style and price below are " +
@@ -394,6 +390,14 @@ object PalateFile {
         return gaps.joinToString("\n") + "\n\nIf a question depends on one of these, ask rather than assume."
     }
 
+    /** The optional answers, verbatim: nothing here is turned into a rule. */
+    private fun inMyWords(profile: PalateProfile): String = buildList {
+        profile.links.trim().takeIf { it.isNotBlank() }?.let { add("What links them: $it") }
+        profile.lovedNote.trim().takeIf { it.isNotBlank() }?.let { add("Wines I loved: $it") }
+        profile.dislikedNote.trim().takeIf { it.isNotBlank() }?.let { add("One I didn't enjoy: $it") }
+        profile.curiousNote.trim().takeIf { it.isNotBlank() }?.let { add("Curious to try: $it") }
+    }.joinToString("\n\n")
+
     private fun conflicts(ratings: Int): String =
         if (ratings == 0) {
             "None. What you said and what you pick agree so far."
@@ -480,9 +484,6 @@ object PalateFile {
         return if (number == null) "\"$words\"" else "\"$words\" ($number)"
     }
 
-    private fun quoted(profile: PalateProfile, questionId: String): String =
-        "\"${label(profile, questionId) ?: "not answered"}\""
-
     private fun fmt(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
 
     /** About 250 words: the whole taste brief that rides along with a list or a label. */
@@ -543,11 +544,8 @@ object PalateFile {
         // Oak and alcohol as preferences. A list prints neither, so a gate on them is a rule that
         // can never be checked there — which is how every red on a list came back "unknown".
         val preferences = mutableListOf<String>()
-        when (rules.oak) {
-            OakTolerance.NEUTRAL -> preferences += "restrained oak — vanilla and toast in the background, not the flavour"
-            OakTolerance.LIGHT -> preferences += "a little oak is fine"
-            OakTolerance.ANY -> preferences += "oak is welcome"
-            null -> Unit
+        if (QuickStart.AVOID_OAK in profile.choices(QuickStart.Q_AVOID)) {
+            preferences += "restrained oak — vanilla and toast in the background, not the flavour"
         }
         if (rules.maxAlcohol != null) {
             preferences += "moderate alcohol, about ${fmt(rules.maxAlcohol!!)}% or under when there is a choice"
@@ -565,9 +563,22 @@ object PalateFile {
         val dislikedLine = disliked.take(3).map { bottleLine(it) }.filter { it.isNotBlank() }
         if (dislikedLine.isNotEmpty()) parts += "Bottles I didn't enjoy: ${dislikedLine.joinToString("; ")}."
 
-        links?.trim()?.takeIf { it.isNotBlank() }?.let {
+        // Verbatim, but capped here as well as at entry: a hand-edited profile can be any length,
+        // and the brief has a hard budget of its own.
+        profile.lovedNote.trim().takeIf { it.isNotBlank() }?.let {
+            parts += "Wines I loved, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+        }
+        profile.dislikedNote.trim().takeIf { it.isNotBlank() }?.let {
+            parts += "A wine I didn't enjoy, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+        }
+        profile.curiousNote.trim().takeIf { it.isNotBlank() }?.let {
+            parts += "Curious to try: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+        }
+
+        val linkLine = links ?: profile.links
+        linkLine.trim().takeIf { it.isNotBlank() }?.let {
             // Their own sentence, so do not staple a second full stop onto it.
-            parts += "What links them: ${it.take(200).trimEnd('.', '!', '?')}."
+            parts += "What links them: ${it.take(PalateProfile.NOTE_MAX_CHARS).trimEnd('.', '!', '?')}."
         }
 
         budgetBand(profile.choice(QuickStart.Q_BUDGET))?.let { retail ->
