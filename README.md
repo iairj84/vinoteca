@@ -313,6 +313,14 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.3: free scans via OpenRouter
+
+A third provider card, OpenRouter (free): paste a key from openrouter.ai/keys, Save, Test
+connection. It uses a free vision model suited to wine lists, fixed in the app so there is
+nothing to pick — about 15 requests a minute and 50 a day per key, 1,000 a day once the
+OpenRouter account has bought 10 credits. It slots into the existing order: the first
+provider with a key leads, the others are fallback, tap a row to change which is primary.
+
 ### 1.0.2: the updater learns its own name
 
 One repo now publishes two product lines, and /releases/latest points at Vinoteca 1.7.18 —

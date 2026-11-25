@@ -562,6 +562,9 @@ class AiClient(
             Thinking.OFF, Thinking.LOW -> "low"
             Thinking.MEDIUM -> "medium"
         }
+        // OpenRouter passes provider parameters through untouched and every free vision model
+        // accepts the plain OpenAI shape, so ask for nothing special: the field is omitted.
+        AiProvider.OPENROUTER -> null
     }
 
     private fun retryAfterMs(res: Response, body: String): Long? {

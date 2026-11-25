@@ -57,6 +57,24 @@ enum class AiProvider(
         notes = "Free tier is 30 requests and 8,000 tokens a minute, counted per model, with a " +
             "200,000-token daily cap. Groq reports the remaining budget on every response, so the " +
             "queue paces itself from real numbers when this provider is in use."
+    ),
+    OPENROUTER(
+        id = "openrouter",
+        label = "OpenRouter (free)",
+        shortLabel = "OpenRouter",
+        defaultBaseUrl = "https://openrouter.ai/api/v1",
+        defaultVisionModels = listOf("nvidia/nemotron-3.5-super-vl:free"),
+        defaultTextModels = listOf("nvidia/nemotron-3.5-super-vl:free"),
+        keyHint = "sk-or-v1-…",
+        keyUrl = "https://openrouter.ai/keys",
+        keyPageHint = "openrouter.ai",
+        defaultRequestsPerMinute = 15,
+        tokenBudgetPerMinute = 200_000,
+        reportsRateHeaders = false,
+        notes = "Free models cost nothing: about 15 requests a minute and 50 a day on this key, " +
+            "rising to 1,000 a day once the OpenRouter account has bought 10 credits. The model " +
+            "is fixed to a free vision model suited to wine lists, so there is nothing to choose " +
+            "— if OpenRouter retires it, an app update points at the replacement."
     );
 
     companion object {
