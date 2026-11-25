@@ -22,7 +22,13 @@ data class ScannedLabel(
     /** The one photo or check that would settle the most, in the model's own words. */
     val nextTip: String = "",
     /** Per-glass price printed on a restaurant list; null elsewhere. Never a bottle price. */
-    val glassPrice: Double? = null
+    val glassPrice: Double? = null,
+    /**
+     * The model's order down a wine list: 1 = the bottle it would order first from this page.
+     * A comparison between the lines, so it keeps meaning when `mytaste.md` is empty and every
+     * `personal_fit` comes back neutral. Null everywhere but a list.
+     */
+    val listRank: Int? = null
 ) {
     val usable: Boolean
         get() = wineFound && (wine.name.isNotBlank() || wine.producer.isNotBlank())
@@ -311,7 +317,8 @@ object ScanParsing {
             valueVerdict = root.str("value_verdict").ifBlank { "unknown" },
             uncertainFields = flagged,
             nextTip = root.str("next_tip"),
-            glassPrice = glass
+            glassPrice = glass,
+            listRank = root.intOrNull("list_rank")?.takeIf { it in 1..24 }
         )
     }
 }

@@ -193,19 +193,29 @@ guessing in the same voice.
 
 Nine cards carrying the same word is not an answer to "which one do I order", and that is what a
 list produced: with nothing printed about alcohol or oak, a per-bottle verdict has the same inputs on
-every line and therefore the same output. So a list is ranked against itself in `ListPicks`, from the
-two things there are. The model already reads `personal_fit` (1-5) for each wine on the page against
-`mytaste.md` — a real per-bottle judgment that the card used to ignore — and the app adds what it can
-check locally: a limit of the user's the bottle clears or breaks, its window, whether it is already
-at home. `BuyAdvice` exposes that case as `strength`, which nothing displays.
+every line and therefore the same output. So a list is ranked against itself in `ListPicks`.
 
-The best line is called out as `Order it`, two runners-up are numbered `2nd pick` and `3rd pick`, and
-a summary above the cards names the ones worth ordering so the answer is visible without scrolling
-nine identical cards. A line that breaks one of the user's limits keeps `Skip it` and stays out of
+The first version of that ranking leaned on `personal_fit`, which is a judgment of one wine against
+`mytaste.md` — and with that file empty, as it is on a fresh install or after the app data is cleared,
+the model honestly scores every wine neutral and the page ranks flat again. So the read now returns
+`list_rank` as well: the model's own order down the page, 1 for the bottle it would order first, a
+different number for every line, with `fit_reason` naming what puts that bottle there. That is a
+comparison between the bottles on the page rather than a verdict on each in isolation, so it keeps
+its meaning with an empty taste file. `ListPicks` sorts on that order first, then on `personal_fit`,
+then on what the app can check locally — a limit of the user's the bottle clears or breaks, its
+window, whether it is already at home. `BuyAdvice` exposes that last part as `strength`, which
+nothing displays.
+
+The best line is called out as `Order it`, two runners-up are numbered `2nd pick` and `3rd pick`, the
+rest of the page carries its place (`4th`, `5th` …) instead of repeating one word, and a summary above
+the cards names the ones worth ordering so the answer is visible without scrolling nine identical
+cards. A line that breaks one of the user's limits keeps `Skip it` and stays out of
 the ranking whatever the fit says — second-best of nine is still a recommendation. A tie is not
 broken by invention: when the top score is shared, those cards say `Best pick` instead of crowning
-one, and when every line scores the same the ranking says so rather than picking a bottle at random.
-The cards stay in menu order, because the list in the reader's hand is in that order too.
+one. When the read really does come back level, `ListPicks` says which of the three it is in
+(`READ`, `PRICE`, `NONE`) and the banner above the cards changes with it: a price fallback names the
+cheapest and the priciest line instead of crowning a bottle, and a page where nothing differs says
+so. The cards stay in menu order, because the list in the reader's hand is in that order too.
 
 `personal_fit` still exists on the label scan: a model that looked at *that* label against the
 profile is a real per-bottle judgment, and it shows as `AI match N/5` when it arrives. The app no

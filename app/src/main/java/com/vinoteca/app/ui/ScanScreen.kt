@@ -545,7 +545,11 @@ fun ScanScreen(onReview: () -> Unit) {
                 val ranking = if (restaurant && result.bottles.size > 1) {
                     ListPicks.rank(
                         candidates = result.bottles.map {
-                            ListPicks.Candidate(wine = it.wine, fit = it.fitScore)
+                            ListPicks.Candidate(
+                                wine = it.wine,
+                                fit = it.fitScore,
+                                order = it.listRank
+                            )
                         },
                         rules = rules,
                         profile = AppGraph.palate.profile.value,
@@ -555,18 +559,32 @@ fun ScanScreen(onReview: () -> Unit) {
                     null
                 }
                 if (ranking != null) {
-                    if (ranking.separated) {
-                        val shortlist = ranking.top.map { index ->
-                            val title = result.bottles[index].wine.title.take(44)
-                            "${ranking.picks[index].rank}. $title"
+                    when (ranking.basis) {
+                        ListPicks.Basis.READ -> {
+                            val shortlist = ranking.top.map { index ->
+                                val title = result.bottles[index].wine.title.take(44)
+                                "${ranking.picks[index].rank}. $title"
+                            }
+                            Banner("Worth ordering, best first: " + shortlist.joinToString("  \u00b7  "))
                         }
-                        Banner("Worth ordering, best first: " + shortlist.joinToString("  \u00b7  "))
-                    } else {
-                        Banner(
-                            "Nothing in this read separates one line from another: every wine " +
-                                "came back with the same fit and none of your limits rules one out, " +
-                                "so the list is left in menu order. Set a limit in Taste and scan it " +
-                                "again and the ranking starts working."
+                        // The read came back level, which is what an empty taste file produces. Say
+                        // so, and say the one thing the page does separate, rather than sending the
+                        // user to another screen before the list will say anything.
+                        ListPicks.Basis.PRICE -> {
+                            val cheap = ranking.cheapest?.let { result.bottles[it].wine }
+                            val dear = ranking.priciest?.let { result.bottles[it].wine }
+                            Banner(
+                                "The read put these lines on the same footing, so there is no best " +
+                                    "bottle on the page. What the list itself separates is price: " +
+                                    "${cheap?.title?.take(40)} at " +
+                                    "${formatMoney(cheap?.price, cheap?.currency.orEmpty())} is the " +
+                                    "cheapest, ${dear?.title?.take(40)} at " +
+                                    "${formatMoney(dear?.price, dear?.currency.orEmpty())} the priciest."
+                            )
+                        }
+                        ListPicks.Basis.NONE -> Banner(
+                            "Nothing on this page separates the lines: the read ranked them level " +
+                                "and the prices do not differ either, so they are left in menu order."
                         )
                     }
                 }
@@ -575,7 +593,8 @@ fun ScanScreen(onReview: () -> Unit) {
                 val noAbvAtAll = result.bottles.isNotEmpty() &&
                     result.bottles.none { it.wine.alcohol != null }
                 val hideAbvUnknown = restaurant && noAbvAtAll && rules.maxAlcohol != null
-                if (rules.isEmpty && result.bottles.isNotEmpty()) {
+                // Only worth saying when it is the reason the page could not be ranked.
+                if (rules.isEmpty && result.bottles.isNotEmpty() && ranking?.separated != true) {
                     Banner(
                         "Your limits are not set — no alcohol ceiling, no sweetness or oak " +
                             "preference and no budget band — so nothing here can be checked against " +

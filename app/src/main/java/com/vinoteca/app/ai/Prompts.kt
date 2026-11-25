@@ -67,6 +67,11 @@ object Prompts {
           grape or the blend: put those in "grapes" ("Xarel·lo, Macabeu, Parellada" → three grapes).
           "GLASS - 14" is "glass_price"; "BOTTLE - 54" is "price". When only a glass price is
           printed, leave "price" null and fill "glass_price". Never mix the two.
+          Then rank the lines against each other: "list_rank" is 1 for the bottle on this page you
+          would order first, 2 for the next, down to the last line. Every line gets its own number
+          — the numbers run 1 to the number of wines on the page and no two lines share one. This
+          is a comparison down the page, not a score, so nine decent wines still have a first and a
+          last, and "fit_reason" says what puts this bottle there rather than somewhere else.
 
         STEP 3 — fill the rest ONLY from those words plus what the photo plainly shows. A field you
         cannot justify that way stays "" or null. Never fill a gap with the wine it probably is.
@@ -86,7 +91,8 @@ object Prompts {
         STEP 4 — check your own work before replying. Re-read "label_text" (or the list line) and
         confirm: producer and name are not swapped or merged, the vintage is not the volume or ABV,
         the appellation is a place and not the brand, accents are copied exactly, and on a list you
-        have one entry per wine rather than one entry for the page. Fix what you can now. Then list
+        have one entry per wine rather than one entry for the page and "list_rank" uses every
+        number from 1 to the number of wines exactly once. Fix what you can now. Then list
         every field you are still unsure about in "uncertain_fields", and in "next_tip" write the
         one photo or check that would settle the most (for example "photograph the back label for
         the ABV", "move closer so the vintage is legible", "shoot the left column and the right
@@ -116,6 +122,7 @@ object Prompts {
               "expert_notes": string,
               "flavor_tags": [string],
               "personal_fit": number,
+              "list_rank": number,
               "fit_reason": string,
               "value_verdict": "bad"|"fair"|"good"|"great"|"unknown",
               "confidence": "high"|"medium"|"low",
@@ -164,6 +171,17 @@ object Prompts {
         - "personal_fit" is 1-5 for how well this wine suits MY TASTE PROFILE below (3 = neutral,
           5 = exactly my kind of wine). "fit_reason" is one or two short sentences: what it tastes
           like and why it fits or does not.
+        - When MY TASTE PROFILE is empty there is nothing to fit: every "personal_fit" may honestly
+          be 3. Do not let that flatten the page. Rank on the wines themselves — which is the more
+          interesting bottle, which suits the food the list suggests, which is the fairer price for
+          what it is — and make "fit_reason" say what this bottle has that the others do not.
+        - "list_rank" is your order down the page: 1 = the bottle you would order first from this
+          list, then 2, 3 and so on, each number used once, 1 to the number of wines read. It is a
+          comparison between these bottles, so it must not be the same number twice; a page where
+          every line ties is a ranking you have not done. It is null for a single bottle and for a
+          shop shelf.
+        - On a list, "fit_reason" is never empty: it is the one sentence that tells these cards
+          apart, so it names the difference ("the only rosé here, and half the price of the cavas").
         - "confidence": "high" only when producer, name and vintage are all clearly legible, the
           ABV was read or the back label is not visible to read it from, and you are sure which
           bottling this is. "medium" when one field had to be inferred — name it in
@@ -216,6 +234,11 @@ object Prompts {
         wine. Never invent a wine, a vintage or a price: a line you cannot read is skipped, and you
         say so in "notes".
 
+        Also rank the lines against each other in "list_rank": 1 for the bottle you would order
+        first from this page, then 2, 3 and so on, with a different number on every line and no
+        number left unused. "fit_reason" says in at most twelve words what sets that bottle apart
+        from the rest of the page — a grape, a style, a producer, a price. Never leave it empty.
+
         Reply with ONLY this JSON:
         {
           "bottles": [
@@ -234,6 +257,7 @@ object Prompts {
               "currency": string,
               "flavor_tags": [string],
               "personal_fit": number,
+              "list_rank": number,
               "fit_reason": string,
               "confidence": "high"|"medium"|"low"
             }
