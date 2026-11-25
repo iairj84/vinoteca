@@ -112,6 +112,29 @@ data class SceneScan(
 
 object ScanParsing {
 
+    /**
+     * Words that only turn up when a model echoes the schema back instead of reading the photo:
+     * a card titled "name · Fields: producer" is a template, not a wine. Such a value is treated
+     * as blank, and a line whose producer and name are both template words is dropped entirely —
+     * no card at all beats a card about nothing.
+     */
+    private val SCHEMA_WORDS = setOf(
+        "name", "producer", "vintage", "region", "country", "appellation", "grape", "grapes",
+        "type", "alcohol", "abv", "price", "bottle price", "glass price", "bottle", "glass",
+        "confidence", "rank", "why", "reason", "string", "number", "null", "true", "false",
+        "array", "object", "fields", "scene", "notes", "currency", "value", "field"
+    )
+
+    private fun placeholder(value: String): Boolean {
+        val clean = value.trim().trim('"', '\'').lowercase().trimEnd('.', ':')
+        if (clean.isEmpty()) return false
+        if (clean in SCHEMA_WORDS) return true
+        if (clean.startsWith("fields:") || clean.startsWith("field:")) return true
+        // A field that still holds a separator or a <slot> is the template, never a label.
+        if (clean.contains('|') || clean.contains("{") || clean.contains("}")) return true
+        return clean.startsWith("<") && clean.endsWith(">")
+    }
+
     /** The one-word answer to "what is this photo?", with a tolerant read of anything chatty around it. */
     fun sceneWord(raw: String): Scene? {
         val word = Regex("[a-zA-Z]+").findAll(raw.lowercase()).map { it.value }
@@ -162,14 +185,13 @@ object ScanParsing {
             return value.takeIf { it > 0.0 }
         }
         val year = java.time.LocalDate.now().year
-        val producer = text(0)
-        val name = text(1)
+        val producer = text(0).takeUnless { placeholder(it) }.orEmpty()
+        val name = text(1).takeUnless { placeholder(it) }.orEmpty()
         if (producer.isBlank() && name.isBlank()) return null
-        if (text(0).equals("producer", true)) return null
         val vintage = text(2).replace(Regex("[^0-9]"), "").toIntOrNull()?.takeIf { it in 1900..year }
         val grapes = text(4).split(';', ',')
             .map { it.trim() }
-            .filter { it.isNotBlank() && it != "-" }
+            .filter { it.isNotBlank() && it != "-" && !placeholder(it) }
         val bottle = number(6)?.takeIf { it < 5000.0 }
         // A "glass" that costs more than the bottle is the two figures swapped or one read twice.
         val glass = number(7)?.takeIf { it < 5000.0 }?.takeIf { bottle == null || it < bottle }
@@ -187,8 +209,8 @@ object ScanParsing {
             producer = producer,
             name = name,
             vintage = vintage,
-            type = WineType.from(text(5)),
-            region = text(3),
+            type = WineType.from(text(5).takeUnless { placeholder(it) }.orEmpty()),
+            region = text(3).takeUnless { placeholder(it) }.orEmpty(),
             grapes = grapes,
             price = bottle,
             currency = currencyFallback,
@@ -273,25 +295,27 @@ object ScanParsing {
             // A "glass" that costs more than the bottle is the two numbers swapped or the same one
             // read twice; drop it rather than show a nonsense pair.
             ?.takeIf { bottle -> price == null || bottle < price }
+        fun field(key: String): String =
+            root.str(key).takeUnless { placeholder(it) }.orEmpty()
         val wine = Wine(
-            producer = root.str("producer"),
-            name = root.str("name"),
+            producer = field("producer"),
+            name = field("name"),
             vintage = vintage,
-            type = WineType.from(root.str("type")),
-            country = root.str("country"),
-            region = root.str("region"),
-            appellation = root.str("appellation"),
-            grapes = root.stringList("grapes"),
+            type = WineType.from(field("type")),
+            country = field("country"),
+            region = field("region"),
+            appellation = field("appellation"),
+            grapes = root.stringList("grapes").filterNot { placeholder(it) },
             alcohol = alcohol,
             barcode = root.str("barcode"),
             price = price,
             currency = root.str("currency").ifBlank { currencyFallback },
             drinkFrom = root.intOrNull("drink_from")?.takeIf { it in 1900..nowYear + 30 },
             drinkTo = root.intOrNull("drink_to")?.takeIf { it in 1900..nowYear + 30 },
-            expertNotes = root.str("expert_notes"),
-            flavorTags = root.stringList("flavor_tags"),
+            expertNotes = field("expert_notes"),
+            flavorTags = root.stringList("flavor_tags").filterNot { placeholder(it) },
             fitScore = root.intOrNull("personal_fit")?.takeIf { it in 1..5 },
-            fitReason = root.str("fit_reason"),
+            fitReason = field("fit_reason"),
             source = "label-scan"
         )
         val uncertain = root.stringList("uncertain_fields")

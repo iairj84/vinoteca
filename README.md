@@ -313,6 +313,17 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.4: no more template cards, and a bottle read in one wait
+
+A small model sometimes answers by echoing the schema — a card titled "name · Fields:
+producer", a type of "Red", grapes called "grapes". Those words are now treated as blank,
+and a line whose producer and name are both template words is dropped, so a failed read says
+so instead of inventing a bottle.
+
+A bottle scan also stops doing its two label reads one after the other: the rich read and the
+small-print pass go out together and the slower one sets the wait, which is most of the minute
+that a single bottle used to take.
+
 ### 1.0.3: free scans via OpenRouter
 
 A third provider card, OpenRouter (free): paste a key from openrouter.ai/keys, Save, Test

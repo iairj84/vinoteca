@@ -282,6 +282,32 @@ fun ScanScreen(onReview: () -> Unit) {
                     }.onFailure { lastProblem = it.message }.getOrNull()
                 }
 
+                // The small print on the label's centre crop: ABV, vintage, volume, appellation.
+                // A dozen short fields, so it is the cheapest request in the scan — and the one
+                // that decides the alcohol rule and the drinking window.
+                suspend fun readFinePrint(crop: String): ScannedLabel? {
+                    val fineRaw = runCatching {
+                        withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
+                            AppGraph.ai.complete(
+                                system = Prompts.finePrint(currency),
+                                turns = listOf(
+                                    ChatMessage(
+                                        role = "user",
+                                        text = "Read the small print: ABV, vintage, volume, appellation, grapes, barcode."
+                                    )
+                                ),
+                                imagesBase64 = listOf(crop),
+                                vision = true,
+                                jsonMode = true,
+                                thinking = Thinking.OFF,
+                                temperature = 0.1,
+                                maxTokens = 600
+                            )
+                        }
+                    }.getOrNull()
+                    return fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
+                }
+
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
                 // half-written, and the scene and the order come back in the same answer. That is
                 // one round trip for a list instead of a cheap question followed by a real one.
@@ -418,10 +444,29 @@ fun ScanScreen(onReview: () -> Unit) {
                 // Skipped when the budget is nearly spent — the line read already has the bottle.
                 val bottle = scene == Scene.BOTTLE ||
                     (scene == null && parsed?.bottles?.size == 1)
-                if (bottle && remainingMs() > 12_000L) {
+                var finePrinted = false
+                if (bottle && parsed != null && remainingMs() > 12_000L) {
                     stage = "Reading the label with $who"
-                    val rich = readJson()
+                    val crop = withContext(Dispatchers.IO) {
+                        Base64.encodeToString(
+                            ImageUtils.labelCropJpeg(context, uri, maxDim = 1800),
+                            Base64.NO_WRAP
+                        )
+                    }
+                    // The rich read and the small-print pass are two independent reads of the same
+                    // label, so they go out together: in series they were most of the minute a
+                    // bottle scan used to take. Whichever is slower sets the wait, not their sum.
+                    finePrinted = true
+                    val (rich, fine) = coroutineScope {
+                        val richJob = async { readJson() }
+                        val fineJob = async { readFinePrint(crop) }
+                        richJob.await() to fineJob.await()
+                    }
                     if (rich != null && rich.bottles.isNotEmpty()) parsed = rich
+                    val single = parsed?.bottles?.singleOrNull()
+                    if (single != null && fine != null) {
+                        parsed = parsed?.copy(bottles = listOf(single.withFinePrint(fine)))
+                    }
                 }
                 // Nothing came out of the line read: try the structured one on the same photo.
                 if (parsed == null) {
@@ -434,12 +479,11 @@ fun ScanScreen(onReview: () -> Unit) {
                         ?: "Nothing readable came back from that photo. Try again, or shoot the page in two halves."
                 }
 
-                // A single bottle missing its ABV or vintage gets the small-print pass on the crop.
-                // Those two figures decide the verdict and the window, so they are worth one more
-                // cheap request — the answer is a dozen short fields, not a whole reading.
-                // Skipped when the scan budget is nearly spent: no scan takes minutes.
+                // A bottle that only came out of the fallback read still gets the small print.
+                // Skipped when the parallel pass above already asked for it, or when the scan
+                // budget is nearly spent: no scan takes minutes.
                 val only = parsed?.bottles?.singleOrNull()
-                if (parsed != null && only != null &&
+                if (!finePrinted && parsed != null && only != null &&
                     (only.wine.alcohol == null || only.wine.vintage == null) &&
                     remainingMs() > 10_000L
                 ) {
@@ -449,26 +493,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             Base64.NO_WRAP
                         )
                     }
-                    val fineRaw = runCatching {
-                        withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
-                            AppGraph.ai.complete(
-                                system = Prompts.finePrint(currency),
-                                turns = listOf(
-                                    ChatMessage(
-                                        role = "user",
-                                        text = "Read the small print: ABV, vintage, volume, appellation, grapes, barcode."
-                                    )
-                                ),
-                                imagesBase64 = listOf(crop),
-                                vision = true,
-                                jsonMode = true,
-                                thinking = Thinking.OFF,
-                                temperature = 0.1,
-                                maxTokens = 600
-                            )
-                        }
-                    }.getOrNull()
-                    val fine = fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
+                    val fine = readFinePrint(crop)
                     if (fine != null) {
                         parsed = parsed.copy(bottles = listOf(only.withFinePrint(fine)))
                     }
