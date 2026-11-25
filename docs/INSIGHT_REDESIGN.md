@@ -295,21 +295,23 @@ These supersede the steps above where they conflict.
    places 26 of 26. 4,000 is a floor, not a comfortable margin: 3,979 of it was used.
    Consequence for Step 8: `Thinking.OFF` must map to something Groq accepts (or omit the field),
    and every `maxTokens` must budget for reasoning tokens.
-10. **Step 5's prompt, shipped with two deviations.** `listAdvice` is called with `maxTokens =
-    4_000` rather than the 1,800 written above (correction 3), so the wire request is ~5,800
-    completion tokens plus a ~2,000-token prompt — inside the free tier's 8,000 TPM only for a
-    single call, so a retry in the same minute 429s. `Thinking.MEDIUM` maps to `medium` on Groq.
-    Until the validated reader lands, only the `PICK` line numbers are used (`ScanParsing.applyAdvice`):
-    picks are placed 1..3 and the rest of the page is unranked. The WHY text is in the trace and
-    nowhere on screen until Step 7.
-
-9. **Step 5's budget, shipped.** `judgeList` asks for `maxTokens = 4_000` (the payload sends 4,600
-   with the reserve). `LIST_DEADLINE_MS = 130 s` applies only when the phone read the page as a
-   list, and `JUDGE_TIMEOUT_MS` went 45 s → 75 s so the longer deadline is not undone by the judge
-   being cancelled first. The stage reads "Thinking about the list…".
 8. **Fixed, and re-measured.** `Thinking.OFF` now maps to `low` for Groq, and the payload adds a
    reasoning reserve to `maxTokens` (600 / 900 / 1,800 by level, ceiling 8,000). Same prompt,
    `openai/gpt-oss-120b`, `reasoning_effort=low`, `max_tokens` 1,400: reasoning **133** tokens
    (was 798), answer **4,115 characters** (was 0), 21 of 26 wines placed before the 1,400 ceiling
    cut it. Omitting the field is *not* a safe alternative: the same prompt with no field spent all
    4,000 tokens on reasoning and returned nothing. Pinned by `ai/AiPayloadTest`.
+9. **Step 5's budget, shipped.** `judgeList` asks for `maxTokens = 4_000` (the payload sends 4,600
+   with the reserve). `LIST_DEADLINE_MS = 130 s` applies only when the phone read the page as a
+   list, and `JUDGE_TIMEOUT_MS` went 45 s → 75 s so the longer deadline is not undone by the judge
+   being cancelled first. The stage reads "Thinking about the list…".
+10. **Step 5's prompt, shipped with two deviations.** `listAdvice` is called with `maxTokens =
+    4_000` rather than the 1,800 written above (correction 3), so the wire request is ~5,800
+    completion tokens plus a ~2,000-token prompt — inside the free tier's 8,000 TPM only for a
+    single call, so a retry in the same minute 429s. That is why the per-wine fallback is *not*
+    attempted when the advice call fails on a budget problem: a timeout or a rate limit is the one
+    failure a second 4,000-token call would repeat rather than fix, so the scan goes to the page
+    read instead. `Thinking.MEDIUM` maps to `medium` on Groq. Until the validated reader lands,
+    only the `PICK` line numbers are used (`ScanParsing.applyAdvice`): picks are placed 1..3 and
+    the rest of the page is unranked. The WHY text is in the trace and nowhere on screen until
+    Step 7.

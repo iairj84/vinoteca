@@ -436,6 +436,7 @@ fun ScanScreen(onReview: () -> Unit) {
 
                     // Thinking.MEDIUM here and not OFF: this is the one call where the model's own
                     // knowledge is the product, so it is allowed to reason about it.
+                    var adviceTimedOut = false
                     val advice = runCatching {
                         withTimeoutOrNull(budgetMs(ADVICE_TIMEOUT_MS)) {
                             AppGraph.ai.complete(
@@ -459,7 +460,10 @@ fun ScanScreen(onReview: () -> Unit) {
                                 onBudgetWait = hold,
                                 onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
                             )
-                        } ?: throw AiException("The advice did not arrive in time.")
+                        } ?: run {
+                            adviceTimedOut = true
+                            throw AiException("The advice did not arrive in time.")
+                        }
                     }
                     advice.getOrNull()?.let { raw ->
                         waitedFor = 0L
@@ -471,12 +475,21 @@ fun ScanScreen(onReview: () -> Unit) {
                         )
                         ScanParsing.applyAdvice(read, raw)?.let { return it }
                     }
-                    advice.exceptionOrNull()?.let {
-                        lastProblem = it.message
+                    advice.exceptionOrNull()?.let { failure ->
+                        lastProblem = failure.message
                         trace.request(
                             "advice", judgeWho, judgeModel, 0,
-                            System.currentTimeMillis() - judgeStart, false, it.message.orEmpty()
+                            System.currentTimeMillis() - judgeStart, false, failure.message.orEmpty()
                         )
+                        // A second 4,000-token call in the same minute cannot fit: the advice call
+                        // alone is most of the free tier's 8,000 TPM. A timeout or a rate limit is
+                        // the one failure a fallback would repeat rather than fix, so the scan goes
+                        // to the page read instead of spending the budget twice.
+                        val budget =
+                            adviceTimedOut || (failure as? AiException)?.let {
+                                it.retryable || it.retryAfterMs != null
+                            } == true
+                        if (budget) return null
                     }
 
                     val fallbackStart = System.currentTimeMillis()

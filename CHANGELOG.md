@@ -29,8 +29,9 @@ takes "what links the wines you love?", which the brief had a slot for but nothi
 and a couple of tempting ones to skip, instead of a rank for every line — the answer that kept
 putting the first three sparkling wines first. The advice call thinks before it answers, has its own
 60-second timeout, and gets the cellar summary and taste brief. The per-wine judgement is kept for
-one release as the fallback, used only when the advice answer carries no usable pick, and the debug
-panel labels it. Picks are matched by line number; the reason text arrives on the cards in a later
+one release as the fallback, used only when the advice answer carries no usable pick — never after a
+timeout or a rate limit, because a second 4,000-token request cannot fit in the same minute — and the
+debug panel labels it. Picks are matched by line number; the reason text arrives on the cards in a later
 step.
 
 **The list gets long enough to answer.** The judgement on a photographed wine list now asks for
