@@ -75,6 +75,11 @@ class AiClient(
         imageBase64: String? = null,
         imagesBase64: List<String> = emptyList(),
         vision: Boolean = false,
+        /**
+         * The advice question or the chat: the advice model answers, and Groq leads when it has a
+         * key. A scan read keeps the text/vision models and the primary provider.
+         */
+        advice: Boolean = false,
         jsonMode: Boolean = false,
         thinking: Thinking = Thinking.OFF,
         temperature: Double = 0.4,
@@ -89,7 +94,7 @@ class AiClient(
             imageBase64?.takeIf { it.isNotBlank() }?.let { add(it) }
             imagesBase64.filter { it.isNotBlank() }.forEach { add(it) }
         }
-        val targets = resolveTargets(provider, model, vision)
+        val targets = resolveTargets(provider, model, vision, advice)
         if (targets.isEmpty()) {
             throw AiException(
                 "Add an API key in Settings. Groq and Google Gemini both have free tiers and either one is enough.",
@@ -375,14 +380,25 @@ class AiClient(
     private fun resolveTargets(
         provider: AiProvider?,
         model: String?,
-        vision: Boolean
+        vision: Boolean,
+        advice: Boolean = false
     ): List<Target> {
-        val providers = if (provider != null) listOf(provider) else settings.configuredProviders
+        val providers = if (provider != null) {
+            listOf(provider)
+        } else if (advice) {
+            settings.adviceProviders
+        } else {
+            settings.configuredProviders
+        }
         return providers.mapNotNull { candidate ->
             val key = settings.key(candidate)
             if (key.isBlank()) return@mapNotNull null
             val chosen = model?.takeIf { provider != null && it.isNotBlank() }
-                ?: if (vision) settings.visionModel(candidate) else settings.textModel(candidate)
+                ?: when {
+                    advice -> settings.adviceModel(candidate)
+                    vision -> settings.visionModel(candidate)
+                    else -> settings.textModel(candidate)
+                }
             Target(
                 provider = candidate,
                 baseUrl = settings.baseUrl(candidate),

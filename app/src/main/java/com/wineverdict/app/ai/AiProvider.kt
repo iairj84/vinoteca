@@ -14,6 +14,15 @@ enum class AiProvider(
     val defaultBaseUrl: String,
     val defaultVisionModels: List<String>,
     val defaultTextModels: List<String>,
+    /**
+     * The model that answers the advice question and the chat.
+     *
+     * Separate from the text model because the two jobs want different things: a scan read wants
+     * speed on a schema, an advice wants a model that reasons about wine. On Groq both default to
+     * `gpt-oss-120b`; on Gemini the Lite id is kept because nobody has supplied a better one for
+     * this key, and guessing an id only produces a 404 the user then has to debug.
+     */
+    val defaultAdviceModels: List<String>,
     val keyHint: String,
     val keyUrl: String,
     val keyPageHint: String,
@@ -30,6 +39,7 @@ enum class AiProvider(
         defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai",
         defaultVisionModels = listOf("gemini-3.1-flash-lite"),
         defaultTextModels = listOf("gemini-3.1-flash-lite"),
+        defaultAdviceModels = listOf("gemini-3.1-flash-lite"),
         keyHint = "AIza…",
         keyUrl = "https://aistudio.google.com/apikey",
         keyPageHint = "aistudio.google.com",
@@ -48,6 +58,7 @@ enum class AiProvider(
         defaultBaseUrl = "https://api.groq.com/openai/v1",
         defaultVisionModels = listOf("qwen/qwen3.8-27b"),
         defaultTextModels = listOf("openai/gpt-oss-120b"),
+        defaultAdviceModels = listOf("openai/gpt-oss-120b"),
         keyHint = "gsk_…",
         keyUrl = "https://console.groq.com/keys",
         keyPageHint = "console.groq.com",
@@ -65,6 +76,7 @@ enum class AiProvider(
         defaultBaseUrl = "https://openrouter.ai/api/v1",
         defaultVisionModels = listOf("nvidia/nemotron-3.5-super-vl:free"),
         defaultTextModels = listOf("nvidia/nemotron-3.5-super-vl:free"),
+        defaultAdviceModels = listOf("nvidia/nemotron-3.5-super-vl:free"),
         keyHint = "sk-or-v1-…",
         keyUrl = "https://openrouter.ai/keys",
         keyPageHint = "openrouter.ai",
@@ -81,5 +93,21 @@ enum class AiProvider(
         val DEFAULT_PRIMARY: AiProvider = GEMINI
 
         fun from(id: String?): AiProvider = entries.firstOrNull { it.id == id } ?: DEFAULT_PRIMARY
+
+        /**
+         * Which provider answers the advice question and the chat.
+         *
+         * Groq leads whenever it can answer, then Gemini; the primary-provider setting governs the
+         * scan reads, not this. The order is a pure function so a test can pin it: swapping it by
+         * accident would send a 4,000-token reasoning call to whichever provider was last chosen
+         * for photos.
+         */
+        fun adviceOrder(providers: Collection<AiProvider>): List<AiProvider> = providers.sortedBy {
+            when (it) {
+                GROQ -> 0
+                GEMINI -> 1
+                OPENROUTER -> 2
+            }
+        }
     }
 }

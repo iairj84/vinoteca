@@ -144,6 +144,8 @@ fun ChatScreen() {
                             turns = history,
                             imageBase64 = base64,
                             vision = base64 != null,
+                            // The chat is advice, not a read: the advice model answers it.
+                            advice = true,
                             // Prose advice, not JSON: this is the one request that wants the model
                             // to reason. Thinking shares the completion budget, so the cap is
                             // above what an answer alone needs.

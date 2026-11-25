@@ -42,6 +42,17 @@ is gone from list cards (a shelf and a single bottle keep it); a ranked line kee
 line that breaks one of your limits still says why. When the advice answer did not come back, the
 older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
 
+**The glass/bottle toggle is back on the advice result, and advice has its own model.** Choosing a
+pour is the first question at a table, and it disappeared when the ranked section it lived in was
+replaced: it is at the top of "What to order" again. Glass shows only the picks the list actually
+pours by the glass, Bottle hides the by-the-glass answer, Not sure shows both; a list with no glass
+prices says so instead of showing an empty answer.
+
+The advice call and the chat now go to an advice model of their own — a third field on each
+provider's card in Settings — and Groq leads whenever it has a key, because reasoning over a whole
+list is the job its model does best on a free tier. Scan reads keep the vision and chat models and
+the primary-provider order.
+
 **Advice is checked before it is shown.** Every line the model writes about a list is verified
 against the page: the line number has to exist, a glass has to be a wine the menu pours by the
 glass, a wine cannot be called red when its section says rosado (or the reverse), and one bottle is

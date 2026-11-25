@@ -119,7 +119,11 @@ limited or fails.
    The test lists the models the key can actually reach.
 
 Each provider keeps its own key, base URL, model ids and pace, all editable in Settings — point the
-base URL at any other OpenAI-compatible endpoint and it works too.
+base URL at any other OpenAI-compatible endpoint and it works too. There are three model fields: the
+vision models that read a photo, the chat models that read and name a bottle, and the advice model
+that answers a wine list and the chat. The advice call and the chat go to the advice model, and Groq
+leads whenever it has a key, because reasoning over a whole list is the job its model does best on a
+free tier; Gemini answers when Groq has no key, is rate limited or fails.
 
 Keys are typed into the app at runtime and stored only in its private `SharedPreferences`
 (`vinoteca_settings`). Nothing is read from the build and nothing is written to this repository: there

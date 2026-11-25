@@ -454,6 +454,8 @@ fun ScanScreen(onReview: () -> Unit) {
                                     )
                                 ),
                                 vision = false,
+                                // Advice, so it goes to the advice model and Groq leads.
+                                advice = true,
                                 jsonMode = false,
                                 thinking = Thinking.MEDIUM,
                                 temperature = 0.4,
@@ -1495,8 +1497,47 @@ private fun LabelResult(
 @Composable
 private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
     if (advice.picks.isEmpty()) return
+    // Which pour the answer is read in. The ranked section carried this before advice replaced it,
+    // and it is the first question at a table: a list that pours by the glass and one that only
+    // sells bottles need different answers, and the advice was written for both.
+    var service by remember(advice) { mutableStateOf<Service?>(null) }
+    val glassOnPage = bottles.any { it.glassPrice != null }
+    val picks = if (service == Service.GLASS) {
+        advice.picks.filter { bottles.getOrNull(it.index)?.glassPrice != null }
+    } else {
+        advice.picks
+    }
     SectionCard("What to order") {
-        advice.picks.forEachIndexed { position, pick ->
+        Text(
+            unitLine(service),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { service = Service.GLASS }) {
+                Text(if (service == Service.GLASS) "Glass ✓" else "Glass")
+            }
+            OutlinedButton(onClick = { service = Service.BOTTLE }) {
+                Text(if (service == Service.BOTTLE) "Bottle ✓" else "Bottle")
+            }
+            OutlinedButton(onClick = { service = Service.UNSURE }) {
+                Text(if (service == Service.UNSURE) "Not sure ✓" else "Not sure")
+            }
+        }
+        if (service == Service.GLASS && !glassOnPage) {
+            Text(
+                "This list is bottle-only — no glass prices are printed. Showing the bottle answer.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (service == Service.GLASS && picks.isEmpty()) {
+            Text(
+                "None of these picks is poured by the glass. The glass answer is just below.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        picks.forEachIndexed { position, pick ->
             val bottle = bottles.getOrNull(pick.index)
             if (bottle != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1527,7 +1568,7 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
             }
         }
 
-        advice.glass?.let { glass ->
+        if (service != Service.BOTTLE) advice.glass?.let { glass ->
             val bottle = bottles.getOrNull(glass.index)
             if (bottle != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {

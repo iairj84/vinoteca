@@ -107,6 +107,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
         AppGraph.settings.setBaseUrl(provider, draft.baseUrl)
         AppGraph.settings.setVisionModels(provider, draft.vision.split(',', '\n'))
         AppGraph.settings.setTextModels(provider, draft.text.split(',', '\n'))
+        AppGraph.settings.setAdviceModels(provider, draft.advice.split(',', '\n'))
         AppGraph.settings.setRequestsPerMinute(
             provider,
             draft.rpm.toIntOrNull() ?: provider.defaultRequestsPerMinute
@@ -825,6 +826,7 @@ private data class ProviderDraft(
     val baseUrl: String = "",
     val vision: String = "",
     val text: String = "",
+    val advice: String = "",
     val rpm: String = ""
 )
 
@@ -845,6 +847,7 @@ private fun draftOf(settings: SettingsStore, provider: AiProvider): ProviderDraf
     baseUrl = settings.baseUrl(provider),
     vision = settings.visionModels(provider).joinToString(", "),
     text = settings.textModels(provider).joinToString(", "),
+    advice = settings.adviceModels(provider).joinToString(", "),
     rpm = settings.requestsPerMinute(provider).toString()
 )
 
@@ -930,6 +933,15 @@ private fun ProviderCard(
             value = draft.text,
             onValueChange = { onDraftChange(draft.copy(text = it)) },
             label = { Text("Chat models") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = draft.advice,
+            onValueChange = { onDraftChange(draft.copy(advice = it)) },
+            label = { Text("Advice model") },
+            supportingText = {
+                Text("What answers a wine list and the chat: it has to reason about a whole page, not read a label. Empty falls back to the chat models above.")
+            },
             modifier = Modifier.fillMaxWidth()
         )
         OutlinedTextField(
