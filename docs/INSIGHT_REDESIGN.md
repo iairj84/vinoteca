@@ -285,3 +285,13 @@ These supersede the steps above where they conflict.
    region-level reasons are legitimately shared between wines.
 6. **1.0.11 guarantees carry over.** Glass/Bottle/Not-sure toggle, per-field unit strip, glass price
    only when the menu prints one, one PICK per producer. SKIP and GLASS are exempt from the cap.
+7. **Measured on Groq, `openai/gpt-oss-120b`, 2026-11-25** (`ai/LiveListJudgeTest`, 26-wine fixture,
+   7,057-character prompt). `Thinking.OFF` sends `reasoning_effort: "none"`, which Groq rejects
+   with 400 — *"must be one of `low`, `medium`, or `high`"*. The app's 400-retry drops the field, so
+   the model reasons at its default: at `max_tokens = 800`, **798 tokens went to reasoning, the
+   answer was 0 characters**, `finish_reason=length`, and `parseContent` throws — so `judgeList`
+   returns null and the judgement never lands at all. At `max_tokens = 4,000` the same prompt
+   finishes (`stop`), 2,777 reasoning tokens, 3,724 characters of answer, and `applyJudgement`
+   places 26 of 26. 4,000 is a floor, not a comfortable margin: 3,979 of it was used.
+   Consequence for Step 8: `Thinking.OFF` must map to something Groq accepts (or omit the field),
+   and every `maxTokens` must budget for reasoning tokens.

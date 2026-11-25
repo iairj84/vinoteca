@@ -17,3 +17,6 @@ app/build
 # The local copy of the update signing key. The same key is held in the repository's
 # Actions secrets; it must never be committed.
 signing/
+
+# Local secrets for live test harnesses. Never committed.
+.secrets/
