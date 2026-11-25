@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinoteca 1.7.6 — install</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #fbf8f3;
+    color: #1e1717;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 18px;
+  }
+  main { width: 100%; max-width: 460px; }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 31px;
+    margin: 6px 0 4px;
+    letter-spacing: -0.02em;
+  }
+  .sub { margin: 0 0 24px; color: #6b5f57; font-size: 15px; }
+  a.button {
+    display: block;
+    text-align: center;
+    background: #7b2233;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 17px;
+    padding: 18px 20px;
+    border-radius: 14px;
+    box-shadow: 0 8px 20px rgba(123, 34, 51, 0.22);
+  }
+  a.button:active { transform: translateY(1px); }
+  .meta { text-align: center; font-size: 13px; color: #8b7d72; margin: 10px 0 26px; }
+  ol { padding-left: 20px; margin: 0 0 22px; }
+  li { margin-bottom: 12px; font-size: 15px; line-height: 1.45; }
+  li strong { display: block; margin-bottom: 2px; }
+  .note {
+    background: #f3ece4;
+    border-left: 3px solid #8a6a2f;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #4e453e;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #14100f; color: #f1e7e0; }
+    .sub { color: #b6a79d; }
+    a.button { background: #c9566b; color: #2a0d13; box-shadow: none; }
+    .note { background: #241d1a; color: #d3c6bc; }
+    .meta { color: #9c8e84; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vinoteca 1.7.6</h1>
+  <p class="sub">Wine cellar notebook with an AI sommelier.</p>
+
+  <a class="button" href="vinoteca-1.7.6.apk" download="vinoteca-1.7.6.apk">Download the app</a>
+  <p class="meta">Android 8.0+ · 1.6 MB · no account needed</p>
+
+  <ol>
+    <li><strong>Tap Download</strong>It saves as vinoteca-1.7.6.apk.</li>
+    <li><strong>Open the file</strong>From the download notification, or Files → Downloads.</li>
+    <li><strong>Allow the install</strong>Android will ask to allow installs from this browser: Settings → Install unknown apps → allowed, then tap Install again.</li>
+    <li><strong>Add a key</strong>Open Vinoteca → Settings → paste a free Gemini key (aistudio.google.com) or Groq key (console.groq.com) → Test connection.</li>
+  </ol>
+
+  <p class="note">
+    New in 1.7.6: <strong>two readers, either can carry the scan</strong>. If the structured read fails the line read answers, and the other way round, so one unreadable reply no longer costs the whole photo. Wine lists read as lines, not JSON. One printed wine per line with its glass and bottle price, so a long list can no longer arrive unreadable. Also: scans that finish. One image per read leaves room for the answer, so a long wine list is no longer cut off mid-JSON; a truncated answer is salvaged rather than thrown away, and a single bottle gets a small-print pass for its ABV. Also: wine lists actually read. Every wine on a restaurant list is listed with its glass and bottle price; if a legible list comes back empty the app retries it automatically. Also: slower, sharper scans. Larger photos, low reasoning, self-checked vintages and ABVs, and a <strong>To be sure</strong> box that says what to re-shoot. One shutter, and the verdict everywhere, as in 1.7.1: the three scan chips are gone
+    &mdash; the photo already says whether it is a single bottle, a shelf or a wine list, and the app now
+    asks the model in the same reply that reads the bottles. That also fixed a quiet bug: a wine list
+    scanned under &ldquo;shop shelf&rdquo; had its list prices judged against a retail price band.
+    A single bottle photographed now gets the same <strong>Buy it / Worth a look / Leave it</strong>
+    verdict as a shelf, with its reasons, which is the ordinary shop moment.<br><br>
+    From 1.7.0: <strong>a verdict where you actually decide</strong>. The 1&ndash;5 match line is gone
+    from bottles you already own &mdash; it ranked a shelf you had already paid for, and in a cellar of
+    similar reds it said the same two things about everything. A bottle page now shows its facts and a
+    <em>Your rules</em> card: under your ABV ceiling, over it, or not on the label, one line per gate.
+    The score moved to the shop: scan a shelf and each bottle gets <strong>Buy it / Worth a look /
+    Leave it</strong> with the reasons &mdash; your ceiling, sweetness and oak, your price band, whether
+    you already own it, and the gap it fills in the cellar. There is a new <strong>At a restaurant</strong>
+    mode that reads a wine list or the bottle the sommelier brought over, judges it against your limits
+    and ignores the price band, because a list price carries a markup. Shelf scans now read the ABV off
+    the label, and a reference-note lookup records the ABV a page prints when the bottle has none —
+    the one hard limit the app can check, and the reason a shop scan is worth more than a cellar page.<br><br>
+    From 1.6.6: <strong>the note reader stopped saving non-answers</strong>. A reply that described the
+    wine and then admitted tasting notes were not available used to be stored as a reference note,
+    under a critic's authority; it now counts as a miss and says so.<br><br>
+    From 1.6.5: <strong>every bottle gets a match line</strong>, with a stored score shown even when its
+    reason is empty.<br><br>
+    From 1.6.4: <strong>the note reader accepts what models actually write</strong>. The check asked
+    for JSON and a stripped-down request came back as prose, so every bottle failed with
+    &ldquo;the model answered without the notes I asked for&rdquo; and nothing was saved. It now asks for
+    five plain lines — MATCH, NOTE, TAGS, SOURCES, CAVEAT — still reads JSON when a model offers
+    it, and if an answer cannot be read at all it shows the first 200 characters of it in the card<br><br>
+    From 1.6.3: <strong>the lookup actually looks things up</strong>. Gemini's Google Search
+    grounding turned out to be a paid feature — a free key answers &ldquo;quota exceeded&rdquo; with a limit
+    of zero, so every check stopped before reading a single page. The app now searches and fetches
+    the pages itself: Falstaff, Sommelier's Window, the producer's own vintage notes, Vivino, and it
+    asks the model only to report what those pages say, keeping the links on the bottle. Either
+    provider works; no extra key.<br><br>
+    New in 1.6.2: <strong>the whole cellar, checked</strong>. Settings → Reference notes walks every
+    bottle that has not been checked yet: one request per bottle at your key's pace, each note saved
+    with the pages it came from, and a run you can stop and start again without repeating a bottle.
+    With 100+ bottles that is about ten minutes on a free Gemini key instead of a hundred taps. Ask
+    also receives up to 140 bottles on Gemini now (still 55 on Groq, whose minute budget is smaller),
+    so the rest of the cellar is no longer invisible to it.<br><br>
+    From 1.6.1: <strong>reference notes you can check</strong>. Each bottle page has a
+    <em>Look up tasting notes</em> button: Gemini reads published notes with Google Search and saves
+    them on the bottle, with the pages it used listed underneath. Until a note carries sources it is
+    general knowledge, not fact — Ask is no longer allowed to invent a bottle's oak, acidity or
+    fruit from its name. A plan request (a meal, a day, three bottles) now comes back in a fixed
+    shape: what to open, when to chill or decant, what it is for, and why, in plain text.<br><br>
+    Still there from 1.6: <strong>mytaste.md is a receipt</strong>. Every value carries the words you chose and
+    a confidence — Yours, Ours, Guess or Unknown — and a field with no source reads as
+    <em>unknown</em> instead of being filled in. The file opens with those rules, then your anchor
+    line, the taste axes, the gates the app checks, a settings table, the pairing policy, house
+    rules, who you drink with, and two honesty sections: what the file doesn't know, and any
+    conflict between what you said and what you pick. It stores nothing about which grape suits
+    which dish — pairing is worked out per dish when you ask.<br><br>
+    Still there from 1.5: the ten-tap quick start that writes the file in about two minutes, the
+    gates checked by the app itself (a missing ABV reads as unknown, never as a pass), the three
+    styles to look for instead of a "profile saved" screen, and
+    <strong>Settings → Advanced → Edit mytaste.md</strong> for anyone who would rather write it.<br><br>
+    Updating from 1.0–1.5: install straight over the old app, your cellar, notes and taste file are
+    kept. Open <strong>Settings → Backup and import → Export backup</strong> once — a backup is a
+    single file you can keep off the phone.<br><br>
+    Also in from earlier versions: <strong>Google Gemini</strong> next to Groq, each with its own key,
+    model ids and pace, and per-provider <strong>Test connection</strong>; Ask sends the whole
+    mytaste.md (1.4.1 fixed a 2,600-character cut that had been dropping the pairing table), and
+    batch shelf scans read three to five bottles per photo.<br><br>
+    It is a sideloaded build, not from the Play Store, so Play Protect will warn you — expected.
+    The app has no trackers and no account. Your cellar, notes and mytaste.md live on the phone;
+    only photos you analyse and the text you send to the model are sent to the provider you
+    configured, with your own key.
+  </p>
+</main>
+</body>
+</html>

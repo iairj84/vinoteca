@@ -1,0 +1,757 @@
+package com.vinoteca.app.ui
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vinoteca.app.AppGraph
+import com.vinoteca.app.BuildConfig
+import com.vinoteca.app.ai.AiProvider
+import com.vinoteca.app.data.Backup
+import com.vinoteca.app.data.BackupFile
+import com.vinoteca.app.data.ImportPreview
+import com.vinoteca.app.data.SettingsStore
+import com.vinoteca.app.data.WineImport
+import com.vinoteca.app.model.StorageLocation
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val backfill by AppGraph.notes.progress.collectAsStateWithLifecycle()
+
+    var currency by remember { mutableStateOf(AppGraph.settings.currency) }
+    var primaryProvider by remember { mutableStateOf(AppGraph.settings.primaryProvider) }
+    var drafts by remember {
+        mutableStateOf(AiProvider.entries.associateWith { draftOf(AppGraph.settings, it) })
+    }
+    var revealedProvider by remember { mutableStateOf<AiProvider?>(null) }
+    var testingProvider by remember { mutableStateOf<AiProvider?>(null) }
+    var testResults by remember { mutableStateOf<Map<AiProvider, TestResult>>(emptyMap()) }
+
+    var newLocationName by remember { mutableStateOf("") }
+    var renameTarget by remember { mutableStateOf<StorageLocation?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var confirmClearChat by remember { mutableStateOf(false) }
+
+    var busy by remember { mutableStateOf(false) }
+    var dataMessage by remember { mutableStateOf<String?>(null) }
+    var restoreCandidate by remember { mutableStateOf<BackupFile?>(null) }
+    var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
+
+    fun saveProvider(provider: AiProvider) {
+        val draft = drafts[provider] ?: return
+        AppGraph.settings.setKey(provider, draft.key)
+        AppGraph.settings.setBaseUrl(provider, draft.baseUrl)
+        AppGraph.settings.setVisionModels(provider, draft.vision.split(',', '\n'))
+        AppGraph.settings.setTextModels(provider, draft.text.split(',', '\n'))
+        AppGraph.settings.setRequestsPerMinute(
+            provider,
+            draft.rpm.toIntOrNull() ?: provider.defaultRequestsPerMinute
+        )
+    }
+
+    fun makePrimary(provider: AiProvider) {
+        AppGraph.settings.primaryProvider = provider
+        primaryProvider = provider
+    }
+
+    fun testProvider(provider: AiProvider) {
+        saveProvider(provider)
+        testingProvider = provider
+        testResults = testResults - provider
+        scope.launch {
+            try {
+                val models = AppGraph.ai.listModels(provider)
+                AppGraph.settings.setLastModelList(provider, models.joinToString("\n"))
+                testResults = testResults + (
+                    provider to TestResult(
+                        true,
+                        if (models.isEmpty()) {
+                            "Connected, but no models were listed for this key."
+                        } else {
+                            "Connected. ${models.size} models available, for example: " +
+                                models.take(4).joinToString(", ")
+                        }
+                    )
+                    )
+            } catch (e: Exception) {
+                testResults = testResults + (
+                    provider to TestResult(false, e.message ?: "Connection failed.")
+                    )
+            } finally {
+                testingProvider = null
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            try {
+                val cellar = AppGraph.cellar.data.value
+                Backup.write(
+                    context,
+                    uri,
+                    Backup.encode(
+                        cellar = cellar,
+                        taste = AppGraph.taste.text.value,
+                        appVersion = BuildConfig.VERSION_NAME,
+                        currency = AppGraph.settings.currency
+                    )
+                )
+                dataMessage = "Backup written: ${cellar.wines.size} wines, " +
+                    "${cellar.wines.sumOf { it.quantity }} bottles, plus your mytaste.md."
+            } catch (e: Exception) {
+                dataMessage = e.message ?: "Could not write the backup."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            try {
+                restoreCandidate = Backup.decode(Backup.decodeText(Backup.readBytes(context, uri)))
+            } catch (e: Exception) {
+                dataMessage = e.message ?: "That file is not a Vinoteca backup."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            try {
+                val text = Backup.decodeText(Backup.readBytes(context, uri))
+                importPreview = WineImport.fromCsv(text, AppGraph.settings.currency)
+            } catch (e: Exception) {
+                dataMessage = e.message ?: "That file could not be imported."
+            } finally {
+                busy = false
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Settings") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SectionCard("Which provider runs first") {
+                Text(
+                    "Questions and scans go to the first provider that has a key, and fall back to the other when it is rate-limited or fails. The batch queue spreads frames across every provider with a key.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                AiProvider.entries.forEach { provider ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { makePrimary(provider) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = primaryProvider == provider,
+                            onClick = { makePrimary(provider) }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text(provider.label, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                if (AppGraph.settings.key(provider).isNotBlank()) {
+                                    "key saved"
+                                } else {
+                                    "no key yet"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            AiProvider.entries.forEach { provider ->
+                ProviderCard(
+                    provider = provider,
+                    isPrimary = primaryProvider == provider,
+                    draft = drafts[provider] ?: ProviderDraft(),
+                    revealed = revealedProvider == provider,
+                    testing = testingProvider == provider,
+                    result = testResults[provider],
+                    onDraftChange = { drafts = drafts + (provider to it) },
+                    onToggleReveal = {
+                        revealedProvider = if (revealedProvider == provider) null else provider
+                    },
+                    onSave = {
+                        saveProvider(provider)
+                        scope.launch { snackbarHostState.showSnackbar("${provider.shortLabel} saved") }
+                    },
+                    onTest = { testProvider(provider) },
+                    onOpenKeyPage = {
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(provider.keyUrl)))
+                        }
+                    }
+                )
+            }
+
+            SectionCard("Currency") {
+                OutlinedTextField(
+                    value = currency,
+                    onValueChange = { currency = it.uppercase().take(4) },
+                    label = { Text("ISO code") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        AppGraph.settings.currency = currency
+                        scope.launch { snackbarHostState.showSnackbar("Currency saved") }
+                    }
+                ) {
+                    Text("Save")
+                }
+            }
+
+            SectionCard("Reference notes") {
+                val unchecked = data.wines.count {
+                    it.notesCheckedAt == 0L && (it.name.isNotBlank() || it.producer.isNotBlank())
+                }
+                val checked = data.wines.count { it.notesCheckedAt > 0L }
+                val rpm = AppGraph.settings.requestsPerMinute(primaryProvider).coerceAtLeast(1)
+                val minutes = (unchecked + rpm - 1) / rpm
+                val hasKey = AiProvider.entries.any { AppGraph.settings.key(it).isNotBlank() }
+                Text(
+                    "$checked of ${data.wines.size} bottles carry a check against published notes. " +
+                        "A check searches the web itself and reads what writers published about that " +
+                        "producer, cuvée and vintage, then keeps the note with the pages it came from. " +
+                        "No extra service is needed — one API key is enough — and it is what lets Ask " +
+                        "say something about the wine instead of guessing from its grape.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (unchecked > 0) {
+                    Text(
+                        "$unchecked still unchecked — about $minutes minutes at $rpm a minute. " +
+                            "Keep the app open; it can be stopped and started again without repeating a bottle.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                if (backfill.running) {
+                    Text(
+                        "${(backfill.done + 1).coerceAtMost(backfill.total)} of ${backfill.total} · ${backfill.current}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(onClick = { AppGraph.notes.cancel() }) { Text("Stop") }
+                } else {
+                    OutlinedButton(
+                        onClick = { AppGraph.notes.start() },
+                        enabled = unchecked > 0 && hasKey
+                    ) {
+                        Text(
+                            when {
+                                unchecked == 0 -> "Every bottle checked"
+                                !hasKey -> "Add an API key first"
+                                else -> "Check $unchecked bottles"
+                            }
+                        )
+                    }
+                }
+                backfill.message?.let { message ->
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            SectionCard("Storage locations") {
+                data.locations.forEach { location ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(location.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                "${data.wines.count { it.locationId == location.id }} wines",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                renameTarget = location
+                                renameText = location.name
+                            }
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Rename")
+                        }
+                        IconButton(
+                            onClick = { scope.launch { AppGraph.cellar.deleteLocation(location.id) } }
+                        ) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Delete")
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedTextField(
+                        value = newLocationName,
+                        onValueChange = { newLocationName = it },
+                        label = { Text("New location") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Button(
+                        onClick = {
+                            val name = newLocationName
+                            scope.launch {
+                                AppGraph.cellar.addLocation(name)
+                                newLocationName = ""
+                            }
+                        }
+                    ) {
+                        Text("Add")
+                    }
+                }
+            }
+
+            SectionCard("Advanced") {
+                Text(
+                    "Edit mytaste.md directly. It is the file the model judges wine against, and most people never need to open it: the quick start writes it from ten taps and the Taste tab shows what it knows. A file you write or import here is kept when the quick start runs again; one the quick start wrote is replaced.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onOpenAdvancedTaste) {
+                    Text("Edit mytaste.md")
+                }
+            }
+
+            SectionCard("Your data") {
+                Text(
+                    "Cellar, tasting notes and mytaste.md are stored in this app's private files on the phone. Photos are sent to Groq only when you tap Analyse or Send. There is no account and no server of ours.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                OutlinedButton(onClick = { confirmClearChat = true }) {
+                    Text("Clear chat history")
+                }
+            }
+
+            SectionCard("Backup and import") {
+                Text(
+                    "Your cellar lives in this app's private files, so keep a copy somewhere else. A backup is one JSON file with every wine, note and location plus your mytaste.md — the Groq key is never included.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { exportLauncher.launch(Backup.suggestedFileName()) },
+                        enabled = !busy
+                    ) {
+                        Text("Export backup")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            restoreLauncher.launch(
+                                arrayOf("application/json", "text/plain", "application/octet-stream")
+                            )
+                        },
+                        enabled = !busy
+                    ) {
+                        Text("Restore")
+                    }
+                }
+                OutlinedButton(
+                    onClick = {
+                        importLauncher.launch(
+                            arrayOf(
+                                "text/csv",
+                                "text/comma-separated-values",
+                                "text/plain",
+                                "application/vnd.ms-excel",
+                                "application/octet-stream"
+                            )
+                        )
+                    },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Import a CSV (CellarTracker, Vivino, any spreadsheet)")
+                }
+                Text(
+                    "CellarTracker: on the desktop site open My Cellar → Individual Bottles → Export and tick every column first. Any CSV whose headings include Wine, Producer, Vintage or Quantity works; duplicates are matched on producer, name and vintage, so re-importing is harmless.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                if (busy) CircularProgressIndicator()
+                dataMessage?.let { message ->
+                    Text(message, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            SectionCard("About") {
+                Text(
+                    "Vinoteca ${BuildConfig.VERSION_NAME} — a local cellar notebook with an AI sommelier on the side.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    "Expert notes and drinking windows produced by the model are estimates from general knowledge, not published critic reviews. Treat them as a starting point.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+
+    renameTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename location") },
+            text = {
+                OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("Name") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch { AppGraph.cellar.renameLocation(target.id, renameText) }
+                        renameTarget = null
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (confirmClearChat) {
+        AlertDialog(
+            onDismissRequest = { confirmClearChat = false },
+            title = { Text("Clear chat history?") },
+            text = { Text("The conversation is deleted. Your cellar and taste file are untouched.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        AppGraph.chat.clear()
+                        confirmClearChat = false
+                    }
+                ) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearChat = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    restoreCandidate?.let { candidate ->
+        AlertDialog(
+            onDismissRequest = { restoreCandidate = null },
+            title = { Text("Restore backup") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Exported ${formatDay(candidate.exportedAt)}" +
+                            if (candidate.appVersion.isBlank()) "." else " by Vinoteca ${candidate.appVersion}."
+                    )
+                    Text(
+                        "${candidate.cellar.wines.size} wines · ${candidate.bottles} bottles · " +
+                            "${candidate.cellar.locations.size} storage locations"
+                    )
+                    if (candidate.taste.isNotBlank()) Text("Includes the mytaste.md from that phone.")
+                    Text("Merge keeps what is on this phone and matches duplicates. Replace deletes it first.")
+                }
+            },
+            confirmButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                val outcome = AppGraph.cellar.mergeCellar(candidate.cellar)
+                                if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
+                                if (candidate.currency.isNotBlank()) {
+                                    AppGraph.settings.currency = candidate.currency
+                                    currency = candidate.currency
+                                }
+                                dataMessage = "Merged: ${outcome.added} new wines, ${outcome.updated} matched, " +
+                                    "${outcome.locationsAdded} locations added."
+                                restoreCandidate = null
+                            }
+                        }
+                    ) { Text("Merge") }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                AppGraph.cellar.replaceAll(candidate.cellar)
+                                if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
+                                if (candidate.currency.isNotBlank()) {
+                                    AppGraph.settings.currency = candidate.currency
+                                    currency = candidate.currency
+                                }
+                                dataMessage = "Restored ${candidate.cellar.wines.size} wines from the backup."
+                                restoreCandidate = null
+                            }
+                        }
+                    ) { Text("Replace") }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { restoreCandidate = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    importPreview?.let { preview ->
+        AlertDialog(
+            onDismissRequest = { importPreview = null },
+            title = { Text("Import ${preview.distinctWines} wines?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${preview.distinctWines} wines · ${preview.bottles} bottles from ${preview.source}.")
+                    if (preview.locationNames.isNotEmpty()) {
+                        Text(
+                            "Storage locations: ${preview.locationNames.joinToString(", ").take(140)}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    preview.rows.take(5).forEach { row ->
+                        Text("· ${row.wine.title}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (preview.rows.size > 5) {
+                        Text("…and ${preview.rows.size - 5} more.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    preview.notes.forEach { note ->
+                        Text(
+                            note,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        "Wines already in the cellar keep their notes and the higher bottle count.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            val outcome = AppGraph.cellar.mergeRows(preview.rows)
+                            dataMessage = "Imported ${outcome.added} wines · ${outcome.updated} matched existing " +
+                                "bottles · ${outcome.locationsAdded} locations added."
+                            importPreview = null
+                        }
+                    }
+                ) { Text("Add to cellar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { importPreview = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+private data class ProviderDraft(
+    val key: String = "",
+    val baseUrl: String = "",
+    val vision: String = "",
+    val text: String = "",
+    val rpm: String = ""
+)
+
+private data class TestResult(val ok: Boolean, val message: String)
+
+private fun draftOf(settings: SettingsStore, provider: AiProvider): ProviderDraft = ProviderDraft(
+    key = settings.key(provider),
+    baseUrl = settings.baseUrl(provider),
+    vision = settings.visionModels(provider).joinToString(", "),
+    text = settings.textModels(provider).joinToString(", "),
+    rpm = settings.requestsPerMinute(provider).toString()
+)
+
+@Composable
+private fun ProviderCard(
+    provider: AiProvider,
+    isPrimary: Boolean,
+    draft: ProviderDraft,
+    revealed: Boolean,
+    testing: Boolean,
+    result: TestResult?,
+    onDraftChange: (ProviderDraft) -> Unit,
+    onToggleReveal: () -> Unit,
+    onSave: () -> Unit,
+    onTest: () -> Unit,
+    onOpenKeyPage: () -> Unit
+) {
+    SectionCard(if (isPrimary) "${provider.label} — primary" else provider.label) {
+        Text(
+            provider.notes,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = draft.key,
+            onValueChange = { onDraftChange(draft.copy(key = it)) },
+            label = { Text("API key (${provider.keyHint})") },
+            singleLine = true,
+            visualTransformation = if (revealed) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(onClick = onToggleReveal) {
+                    Icon(
+                        imageVector = if (revealed) {
+                            Icons.Filled.VisibilityOff
+                        } else {
+                            Icons.Filled.Visibility
+                        },
+                        contentDescription = "Show or hide the key"
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onSave) { Text("Save") }
+            OutlinedButton(onClick = onTest, enabled = !testing) {
+                Text(if (testing) "Testing…" else "Test connection")
+            }
+            TextButton(onClick = onOpenKeyPage) { Text("Get a key") }
+        }
+        if (testing) CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+        result?.let { test ->
+            Text(
+                test.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (test.ok) {
+                    MaterialTheme.colorScheme.tertiary
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
+            )
+        }
+        OutlinedTextField(
+            value = draft.baseUrl,
+            onValueChange = { onDraftChange(draft.copy(baseUrl = it)) },
+            label = { Text("Base URL") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = draft.vision,
+            onValueChange = { onDraftChange(draft.copy(vision = it)) },
+            label = { Text("Vision models") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = draft.text,
+            onValueChange = { onDraftChange(draft.copy(text = it)) },
+            label = { Text("Chat models") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        OutlinedTextField(
+            value = draft.rpm,
+            onValueChange = { onDraftChange(draft.copy(rpm = it.filter { ch -> ch.isDigit() })) },
+            label = { Text("Requests per minute") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            "Model ids are comma separated. The queue reads one frame per request and rotates through every model of every configured provider. Keys come from ${provider.keyPageHint}.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+    }
+}
+
+private fun formatDay(epochMs: Long): String =
+    java.time.Instant.ofEpochMilli(epochMs)
+        .atZone(java.time.ZoneId.systemDefault())
+        .toLocalDate()
+        .toString()

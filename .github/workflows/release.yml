@@ -1,0 +1,52 @@
+name: Release APK
+
+# Tag a version and the APK builds itself:
+#   git tag v1.7.7 && git push origin v1.7.7
+# The sideload APK appears on the GitHub release a few minutes later.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install platform and build tools
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Build sideload APK
+        run: ./gradlew :app:assembleSideload --no-daemon --console=plain
+
+      - name: Check the version matches the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          CODE=$(grep -oP 'versionCode = \K\d+' app/build.gradle.kts)
+          NAME=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "tag=$TAG versionName=$NAME versionCode=$CODE"
+          test "$NAME" = "$TAG" || { echo "versionName $NAME does not match tag $TAG"; exit 1; }
+
+      - name: Collect the APK
+        run: cp app/build/outputs/apk/sideload/app-sideload.apk "vinoteca-${GITHUB_REF_NAME}.apk"
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: vinoteca-*.apk
+          generate_release_notes: true
