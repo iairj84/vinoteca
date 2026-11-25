@@ -77,6 +77,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.wineverdict.app.ai.LocalListRead
 import com.wineverdict.app.ai.LocalOcr
 
 /**
@@ -94,13 +95,15 @@ private const val SCAN_HINT =
  * that has not answered in twenty-five seconds is not about to: the earlier behaviour was a
  * spinner for two minutes and then an error nobody could act on.
  */
-private const val READ_TIMEOUT_MS = 25_000L
+// A photographed page of twenty wines is about two thousand output tokens, and a free tier
+// queues the request before it starts. 25s cut off reads that were still arriving.
+private const val READ_TIMEOUT_MS = 35_000L
 
 /** The smaller retry gets less time, because it carries less to upload. */
 private const val RETRY_TIMEOUT_MS = 20_000L
 
 /** The whole scan never outlives this: first byte to last card. No scan takes minutes. */
-private const val SCAN_DEADLINE_MS = 75_000L
+private const val SCAN_DEADLINE_MS = 95_000L
 
 /** Wait this long for the primary provider, then ask the second one too and take whichever wins. */
 // A healthy list read is done well before this; past it, asking the second key too is
@@ -136,7 +139,9 @@ fun ScanScreen(onReview: () -> Unit) {
     var elapsed by remember { mutableStateOf(0) }
     // What the phone itself could read in ~1s, shown before any provider answers. Provisional:
     // the AI ranking replaces it.
-    var instantLines by remember { mutableStateOf<List<String>?>(null) }
+            var instantLines by remember { mutableStateOf<List<String>?>(null) }
+    // True while the cards on screen are the phone's own reading and no model has confirmed them.
+    var localOnly by remember { mutableStateOf(false) }
     var work by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(loading) {
         if (!loading) return@LaunchedEffect
@@ -213,6 +218,7 @@ fun ScanScreen(onReview: () -> Unit) {
         waitedFor = 0L
         elapsed = 0
         instantLines = null
+        localOnly = false
         work?.cancel()
         work = scope.launch {
             val scanStart = System.currentTimeMillis()
@@ -262,6 +268,14 @@ fun ScanScreen(onReview: () -> Unit) {
                 }
                 instantLines = withTimeoutOrNull(1_500) { ocrJob.await() }
                     ?.takeIf { it.isNotEmpty() }
+                // The phone's own reading of a printed list, shown as real cards while the model
+                // works: names, prices and the order down the page are all on the photo already,
+                // and a provider that times out must not take them down with it.
+                val onPhone = instantLines?.let { LocalListRead.wines(it, currency) }
+                if (onPhone != null && scan == null) {
+                    scan = onPhone
+                    localOnly = true
+                }
                 val photoKb = (full.length * 3 / 4) / 1024
                 // One read, one deadline. Cancelling here cancels the HTTP call as well.
                 suspend fun <T> answer(block: suspend () -> T): T =
@@ -365,7 +379,7 @@ fun ScanScreen(onReview: () -> Unit) {
                                         jsonMode = false,
                                         thinking = Thinking.OFF,
                                         temperature = 0.1,
-                                        maxTokens = 1_600,
+                                        maxTokens = 2_600,
                                         provider = primary,
                                         onBudgetWait = hold
                                     )
@@ -394,7 +408,7 @@ fun ScanScreen(onReview: () -> Unit) {
                                         jsonMode = false,
                                         thinking = Thinking.OFF,
                                         temperature = 0.1,
-                                        maxTokens = 1_600,
+                                        maxTokens = 2_600,
                                         provider = second,
                                         onBudgetWait = hold
                                     )
@@ -498,8 +512,15 @@ fun ScanScreen(onReview: () -> Unit) {
                 }
 
                 if (parsed == null) {
-                    error = lastProblem?.takeIf { it.isNotBlank() }
-                        ?: "Nothing readable came back from that photo. Try again, or shoot the page in two halves."
+                    // The phone read the page and the model did not. The wines and prices are
+                    // already on screen, so the failure is a note, not a blank result.
+                    if (scan?.bottles?.isNotEmpty() == true) {
+                        localOnly = true
+                        error = null
+                    } else {
+                        error = lastProblem?.takeIf { it.isNotBlank() }
+                            ?: "Nothing readable came back from that photo. Try again, or shoot the page in two halves."
+                    }
                 }
 
                 // A bottle that only came out of the fallback read still gets the small print.
@@ -516,9 +537,13 @@ fun ScanScreen(onReview: () -> Unit) {
                     }
                 }
 
-                scan = parsed
+                if (parsed != null) {
+                    scan = parsed
+                    localOnly = false
+                }
             } catch (e: Exception) {
-                error = e.message ?: "Scan failed. Try again."
+                if (scan?.bottles?.isNotEmpty() == true) localOnly = true
+                else error = e.message ?: "Scan failed. Try again."
             } finally {
                 loading = false
             }
@@ -780,6 +805,13 @@ fun ScanScreen(onReview: () -> Unit) {
             }
 
             scan?.let { result ->
+                if (localOnly && result.bottles.isNotEmpty()) {
+                    Banner(
+                        "Read on your phone: these wines and prices come from the phone's own text " +
+                            "reader, ranked on price because nothing on a printed list says how a " +
+                            "bottle tastes. Tap Analyse again for a model's read and its ranking."
+                    )
+                }
                 if (result.bottles.isEmpty()) {
                     Banner(
                         when (result.scene) {

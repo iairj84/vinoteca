@@ -313,6 +313,22 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.6: the phone reads the list, so a stalled model no longer empties the screen
+
+The on-device text reader was already pulling every wine and its prices off a printed list
+in about a second — and the app showed that as raw text and threw it away. When all three
+providers failed on one photographed list (one ran out of room, two timed out), the usable
+answer had been sitting in the preview the whole time.
+
+A printed list is regular enough to parse on the phone: a wine's lines, then its "GLASS - 13
+BOTTLE - 50" line, with section headings marking the type. Those become real cards — name,
+producer, vintage, region, grapes, both prices — within a second or two of the photo, ranked
+on price because nothing on a list says how a bottle tastes. If the model answers, its read
+replaces them; if it does not, the cards stay and a note says where they came from.
+
+The line read also gets 2,600 output tokens and a 35-second ceiling, because twenty wines is
+about two thousand tokens and the old cap both cut answers off and timed them out.
+
 ### 1.0.5: the audit's quick wins
 
 An external read of the scan path, verified against the code and fixed where it checked out:
