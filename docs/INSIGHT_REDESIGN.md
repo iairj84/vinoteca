@@ -205,6 +205,31 @@ WINES
 
 **Done when:** the Spanish list scan shows 2–3 explained picks with correct names/prices, skips, and a glass pick.
 
+**Shipped** (`6f1d41c`, `b138047`). The advice is the result: picks as "Order this" / "Second" /
+"Third", each with the title and prices copied from `read.bottles[index]` — never from the model's
+prose — the headline and the WHY in full; then a by-the-glass block, the Skip list and the note,
+and the wines that were read follow with no ranks. The Buy/Leave chip is gone from list cards and
+stays on a shelf and a single bottle. When the advice answer does not survive, the older per-wine
+ranking is labelled "Basic ranking" so the two cannot be mistaken for each other.
+
+Three departures from the prompt above, all deliberate:
+
+- **No "More" collapse.** The prompt asks for 2–4 sentences, so the WHY is shown whole. A chatty
+  answer runs long rather than truncating, and length is a validator's job, not a fold's.
+- **The glass pick is a block inside the advice card**, not its own card: it is one line competing
+  with the picks beside it, not a separate recommendation.
+- **The Glass/Bottle/Not sure toggle was restored afterwards** (`b138047`): replacing the ranked
+  section took the pour choice with it, and choosing a pour is the first question at a table. Glass
+  keeps only picks with a printed glass price, Bottle hides the by-the-glass answer, and the block
+  starts on neither, showing both with a line that says so.
+
+The colour check from Step 6 gained one rule: a colour word introduced by `like`, `than`, `as` or
+`unlike` is a comparison, not a claim about this wine, so "drinks like a white but with the tannin
+of a red" no longer drops a red.
+
+Not verified on hardware: no device or emulator is available here, so the block has never been
+rendered.
+
 ---
 
 ## Step 8 — Pick the right text model for advice
@@ -213,6 +238,33 @@ WINES
 > In `ai/AiProvider.kt` add `defaultAdviceModels` per provider: Groq `openai/gpt-oss-120b`; Gemini a non-Lite Flash model (verify the current id with Settings → Test connection and use what the key lists); OpenRouter keep the current free model. Add an "Advice model" field per provider in Settings (same pattern as text/vision models). The advice call (Step 5) and the chat use the advice model; scans/reads keep their current models. Default provider order for advice: Groq first if it has a key, else Gemini. Make sure `Thinking.MEDIUM` maps correctly per provider in `AiClient.thinkingValue` and that a model rejecting the reasoning field gets one retry without it (existing behaviour — confirm). Update README "Keys" table. Commit.
 
 **Done when:** debug panel shows the advice request going to `gpt-oss-120b` (or the configured model) with reasoning on.
+
+**Shipped** (`b138047`). `AiProvider.defaultAdviceModels`, `SettingsStore.adviceModel()` under the
+`advice.<provider>` key, an "Advice model" field on every provider card, and `AiClient.complete(
+advice = true)` used by the Step 5 advice call and by the chat. Reads keep the vision and chat
+models and the primary-provider order. The debug panel's request row shows the provider and model
+that answered the advice call, with reasoning on.
+
+`AiProvider.adviceOrder` is a pure function — Groq, then Gemini, then OpenRouter — and
+`SettingsStore.adviceProviders` delegates to it. It is written that way because this is exactly the
+ordering that gets "cleaned up" into `configuredProviders` later, which would send a 4,000-token
+reasoning call to whichever provider was last chosen for photos.
+
+`Thinking.MEDIUM` maps to `medium` for Groq and Gemini and omits the field on OpenRouter, and the
+one-shot 400 retry (plainest payload, one image, no reasoning field) is still in `AiClient.attempt`.
+
+Two departures:
+
+- **Gemini keeps its Lite id.** The prompt asked for a non-Lite Flash model, but nobody has a
+  verified id for this key, and an invented one is a 404 the user has to debug. The field exists so
+  they can set the right id without an update.
+- **OpenRouter is unchanged** — its free model is the only one the key reaches.
+
+Not verified: a live advice call on Gemini's slot, since there is no Gemini key on the machine that
+built this, so only the Groq default is measured. And Groq's free tier allows 8,000 tokens a
+minute: one advice call (~2,000 prompt, up to ~5,800 completion with the reasoning reserve) can use
+the whole minute, with no room for a retry. Groq leading suits one list per sitting; a chatty
+session wants Gemini's 250,000-token minute in front, which is a one-line change in `adviceOrder`.
 
 ---
 
