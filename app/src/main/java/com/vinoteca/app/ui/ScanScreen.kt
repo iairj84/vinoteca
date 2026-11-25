@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import com.vinoteca.app.AppGraph
 import com.vinoteca.app.ScanHandoff
+import com.vinoteca.app.ai.AiException
 import com.vinoteca.app.ai.Prompts
 import com.vinoteca.app.ai.ScanParsing
 import com.vinoteca.app.ai.ScannedLabel
@@ -73,6 +74,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One shutter, no mode switch. The model names the scene in the same reply that reads the bottles,
@@ -83,6 +85,16 @@ private const val SCAN_HINT =
     "One photo of whatever is in front of you — a bottle's label, a shop shelf, or a restaurant wine " +
         "list. Every wine is read out of it and gets a buy-or-leave verdict from your own limits, the " +
         "price in front of you, and what your cellar is missing."
+
+/**
+ * How long one read may take before the screen gives up and says so. A free-tier vision request
+ * that has not answered in forty seconds is not about to: the earlier behaviour was a spinner for
+ * two minutes and then an error nobody could act on.
+ */
+private const val READ_TIMEOUT_MS = 40_000L
+
+/** The smaller retry gets less time, because it carries less to upload. */
+private const val RETRY_TIMEOUT_MS = 30_000L
 
 private fun abvLabel(value: Double): String =
     String.format(java.util.Locale.US, "%.1f%%", value)
@@ -196,12 +208,23 @@ fun ScanScreen(onReview: () -> Unit) {
                 // One image per request. The free tier bills an image at a fixed 2,048 tokens, and
                 // two of them left too little room for a long answer: that is what kept cutting the
                 // JSON off. The centre crop is a label-only tool and is sent later, on its own.
+                // 1800px at 85 is legible for a printed page and a label, and roughly a third of
+                // the bytes of the 2200px frame this used to send — the upload is part of the wait.
                 val full = withContext(Dispatchers.IO) {
                     Base64.encodeToString(
-                        ImageUtils.jpegBytes(context, uri, maxDim = 2200, quality = 90),
+                        ImageUtils.jpegBytes(context, uri, maxDim = 1800, quality = 85),
                         Base64.NO_WRAP
                     )
                 }
+                val photoKb = (full.length * 3 / 4) / 1024
+                // One read, one deadline. Cancelling here cancels the HTTP call as well.
+                suspend fun <T> answer(block: suspend () -> T): T =
+                    withTimeoutOrNull(READ_TIMEOUT_MS) { block() } ?: throw AiException(
+                        "$who did not answer within ${READ_TIMEOUT_MS / 1000} seconds. The photo goes " +
+                            "up at $photoKb KB, so this is the provider or the connection rather than " +
+                            "the reading: try again, or add the other provider's key in Settings and " +
+                            "it will answer instead."
+                    )
 
                 var lastProblem: String? = null
                 // A wait the limiter imposes is shown with its length: a mute spinner for a minute
@@ -212,7 +235,8 @@ fun ScanScreen(onReview: () -> Unit) {
                 // that gets those. Any failure here is survivable now.
                 val readJson: suspend () -> SceneScan? = {
                     runCatching {
-                        val raw = AppGraph.ai.complete(
+                        val raw = answer {
+                            AppGraph.ai.complete(
                             system = Prompts.scan(taste, currency, known),
                             turns = listOf(
                                 ChatMessage(
@@ -228,6 +252,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             maxTokens = 3600,
                             onBudgetWait = hold
                         )
+                        }
                         waitedFor = 0L
                         ScanParsing.parseScene(raw, currency)
                     }.onFailure { lastProblem = it.message }.getOrNull()
@@ -236,25 +261,61 @@ fun ScanScreen(onReview: () -> Unit) {
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
                 // half-written, and the scene and the order come back in the same answer. That is
                 // one round trip for a list instead of a cheap question followed by a real one.
+                // A frame that never comes back is retried once, smaller: a stalled vision request
+                // is usually the upload, and 1200px is about a third of the bytes.
+                suspend fun readPage(): String {
+                    val ask = listOf(
+                        ChatMessage(
+                            role = "user",
+                            text = "Read this photo: give me the scene line, then one line per wine."
+                        )
+                    )
+                    val first = withTimeoutOrNull(READ_TIMEOUT_MS) {
+                        AppGraph.ai.complete(
+                            system = Prompts.listLines(taste, currency),
+                            turns = ask,
+                            imagesBase64 = listOf(full),
+                            vision = true,
+                            jsonMode = false,
+                            thinking = Thinking.OFF,
+                            temperature = 0.1,
+                            maxTokens = 1_600,
+                            onBudgetWait = hold
+                        )
+                    }
+                    if (first != null) return first
+                    waitedFor = 0L
+                    stage = "Retrying with a smaller photo on $who"
+                    val small = withContext(Dispatchers.IO) {
+                        Base64.encodeToString(
+                            ImageUtils.jpegBytes(context, uri, maxDim = 1_200, quality = 75),
+                            Base64.NO_WRAP
+                        )
+                    }
+                    return withTimeoutOrNull(RETRY_TIMEOUT_MS) {
+                        AppGraph.ai.complete(
+                            system = Prompts.listLines(taste, currency),
+                            turns = ask,
+                            imagesBase64 = listOf(small),
+                            vision = true,
+                            jsonMode = false,
+                            thinking = Thinking.OFF,
+                            temperature = 0.1,
+                            maxTokens = 1_600,
+                            onBudgetWait = hold
+                        )
+                    } ?: throw AiException(
+                        "$who did not answer in ${READ_TIMEOUT_MS / 1000} seconds on the full photo, " +
+                            "nor in ${RETRY_TIMEOUT_MS / 1000} on a smaller one ($photoKb KB, then a " +
+                            "third of that). Nothing was saved. Try again on Wi-Fi; if it still " +
+                            "stalls, add the other provider's key in Settings and it will answer instead."
+                    )
+                }
+
                 stage = "Reading the page with $who"
                 var scene: Scene? = null
                 var parsed = runCatching {
-                    val raw = AppGraph.ai.complete(
-                        system = Prompts.listLines(taste, currency),
-                        turns = listOf(
-                            ChatMessage(
-                                role = "user",
-                                text = "Read this photo: give me the scene line, then one line per wine."
-                            )
-                        ),
-                        imagesBase64 = listOf(full),
-                        vision = true,
-                        jsonMode = false,
-                        thinking = Thinking.OFF,
-                        temperature = 0.1,
-                        maxTokens = 1_600,
-                        onBudgetWait = hold
-                    )
+                    val raw = readPage()
                     waitedFor = 0L
                     scene = ScanParsing.sceneLine(raw)?.takeIf { it != Scene.OTHER }
                     val labels = ScanParsing.parseListLines(raw, currency)

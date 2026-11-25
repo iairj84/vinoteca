@@ -4,7 +4,13 @@ import com.vinoteca.app.data.SettingsStore
 import com.vinoteca.app.model.ChatMessage
 import com.vinoteca.app.model.Wine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.Call
+import okhttp3.Callback
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -68,6 +74,8 @@ class AiClient(
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(150, TimeUnit.SECONDS)
         .writeTimeout(90, TimeUnit.SECONDS)
+        // The whole exchange, including the slow body read, so no single call can outlive this.
+        .callTimeout(150, TimeUnit.SECONDS)
         .build()
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
@@ -454,14 +462,31 @@ class AiClient(
         }
     }
 
-    private fun post(target: Target, payload: String): Response {
+    /**
+     * Sent asynchronously rather than with `execute()`, so a cancelled coroutine — the Stop button,
+     * or a scan deadline — actually cancels the HTTP call. A blocking execute keeps a thread parked
+     * on the socket for as long as the provider feels like taking, long after the screen gave up.
+     */
+    private suspend fun post(target: Target, payload: String): Response {
         val request = Request.Builder()
             .url("${target.baseUrl}/chat/completions")
             .addHeader("Authorization", "Bearer ${target.key}")
             .addHeader("Content-Type", "application/json")
             .post(payload.toRequestBody(jsonMedia))
             .build()
-        return http.newCall(request).execute()
+        return suspendCancellableCoroutine { continuation ->
+            val call = http.newCall(request)
+            continuation.invokeOnCancellation { call.cancel() }
+            call.enqueue(object : Callback {
+                override fun onResponse(call: Call, response: Response) {
+                    if (continuation.isActive) continuation.resume(response) else response.close()
+                }
+
+                override fun onFailure(call: Call, e: IOException) {
+                    if (continuation.isActive) continuation.resumeWithException(e)
+                }
+            })
+        }
     }
 
     private fun payload(

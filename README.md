@@ -309,6 +309,24 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.14: a read that cannot hang
+
+The screen sat at 121 seconds on "Reading the page with Google Gemini" with no answer: one HTTP
+request open the whole time. Three things made that possible, and each is closed now.
+
+- **A deadline per read.** A vision read gets 40 seconds. If it has not answered, the call is
+  cancelled and the same request is made once more on a 1200px frame (about a third of the bytes)
+  with 30 seconds to answer. Nothing readable in 70 seconds is reported as a failure, naming the
+  provider, what was uploaded and what to do about it.
+- **Cancellation reaches the network.** Requests were sent with a blocking `execute()`, so Stop and
+  any timeout only stopped waiting for a socket that stayed open. They are enqueued now, the
+  coroutine cancels the call, and a 150-second call cap is the backstop.
+- **Smaller frame.** The scan sends 1800px at quality 85 instead of 2200px at 90: the same page and
+  label text, roughly a third of the upload.
+
+The progress row already names the provider and counts seconds, so a stalled read is now a visible
+failure in under a minute rather than a spinner that may never end.
+
 ### 1.7.13: the pick says why
 
 The ranked banner named three bottles and stopped there: a shortlist with no case for the top one,

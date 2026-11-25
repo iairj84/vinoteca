@@ -13,8 +13,8 @@ android {
         applicationId = "com.vinoteca.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 28
-        versionName = "1.7.13"
+        versionCode = 29
+        versionName = "1.7.14"
         resourceConfigurations += listOf("en")
     }
 
