@@ -270,14 +270,14 @@ class ScanQueue(
         val known = cellar.data.value.wines.map { it.title }.distinct().take(KNOWN_BOTTLES)
         val system = if (item.frame) {
             Prompts.labelFrame(
-                tasteMd = taste.brief(3_000),
+                tasteMd = taste.brief(),
                 currency = settings.currency,
                 knownBottles = known
             )
         } else {
             // The same reader the Scan screen uses: one frame of one bottle, no scene chip.
             Prompts.scan(
-                tasteMd = taste.brief(3_000),
+                tasteMd = taste.brief(),
                 currency = settings.currency,
                 knownBottles = known
             )

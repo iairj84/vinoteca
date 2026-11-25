@@ -1,5 +1,6 @@
 package com.wineverdict.app.data
 
+import com.wineverdict.app.model.Wine
 import java.time.LocalDate
 
 /**
@@ -483,6 +484,161 @@ object PalateFile {
         "\"${label(profile, questionId) ?: "not answered"}\""
 
     private fun fmt(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
+
+    /** About 250 words: the whole taste brief that rides along with a list or a label. */
+    const val BRIEF_MAX_CHARS = 1_500
+
+    /**
+     * The taste brief a model actually reads.
+     *
+     * `mytaste.md` is a receipt: provenance on every line, gate tables, precedence rules, what the
+     * file does not know. That is the right shape for a person to audit and the wrong shape for a
+     * prompt. It runs to ~1,800 words of meta-rules, and two of those rules — "Unknown is not a
+     * pass" and "never from memory" — tell the model to ignore the knowledge that is the whole
+     * reason to ask it about a wine list. On a list, nothing prints ABV or oak, so a gate that
+     * needs those facts fails or goes unknown on every line.
+     *
+     * So the brief is short, first-person and permissive: what I drink, what I like, the bottles I
+     * loved, the budget in retail and restaurant terms, and how far a pick may stray. Oak and
+     * alcohol are stated as preferences, because that is what a tap can honestly support.
+     */
+    fun brief(
+        profile: PalateProfile,
+        rules: PalateRules = PalateRules.from(profile),
+        loved: List<Wine> = emptyList(),
+        disliked: List<Wine> = emptyList(),
+        links: String? = null,
+        notes: String = "",
+        maxChars: Int = BRIEF_MAX_CHARS
+    ): String {
+        val parts = mutableListOf<String>()
+
+        val pours = when (profile.choice(QuickStart.Q_POURS)) {
+            QuickStart.POUR_RED -> "red"
+            QuickStart.POUR_WHITE -> "white"
+            QuickStart.POUR_ROSE -> "rosé"
+            QuickStart.POUR_SPARKLING -> "sparkling"
+            QuickStart.POUR_DESSERT -> "sweet and dessert wine"
+            QuickStart.POUR_EVERYTHING -> "a bit of everything"
+            else -> null
+        }
+        val style = when (profile.choice(QuickStart.Q_STYLE)) {
+            QuickStart.STYLE_CRISP -> "crisp, fresh wines where the acid leads"
+            QuickStart.STYLE_SMOOTH -> "smooth, mellow wines where texture leads"
+            QuickStart.STYLE_BIG -> "big, structured wines"
+            QuickStart.STYLE_SWEET -> "a little sweetness, but not a dessert wine"
+            else -> null
+        }
+        val sweet = when (profile.choice(QuickStart.Q_SWEET)) {
+            QuickStart.SWEET_NONE -> "bone dry — no sweetness at all"
+            QuickStart.SWEET_TOUCH -> "dry, with a touch of sweetness allowed"
+            QuickStart.SWEET_SWEETER -> "sweeter than dry, balanced by acid"
+            else -> null
+        }
+
+        pours?.let { parts += "I mostly drink $it." }
+        style?.let { parts += "I like $it." }
+        sweet?.let { parts += "Sweetness: $it." }
+
+        // Oak and alcohol as preferences. A list prints neither, so a gate on them is a rule that
+        // can never be checked there — which is how every red on a list came back "unknown".
+        val preferences = mutableListOf<String>()
+        when (rules.oak) {
+            OakTolerance.NEUTRAL -> preferences += "restrained oak — vanilla and toast in the background, not the flavour"
+            OakTolerance.LIGHT -> preferences += "a little oak is fine"
+            OakTolerance.ANY -> preferences += "oak is welcome"
+            null -> Unit
+        }
+        if (rules.maxAlcohol != null) {
+            preferences += "moderate alcohol, about ${fmt(rules.maxAlcohol!!)}% or under when there is a choice"
+        } else if (QuickStart.AVOID_STRONG in profile.choices(QuickStart.Q_AVOID)) {
+            preferences += "moderate alcohol — strong, high-alcohol wines are not for me"
+        }
+        if (preferences.isNotEmpty()) {
+            // Semicolons, because each preference already carries a dash clause of its own.
+            parts += "I prefer ${preferences.joinToString("; ")}. Preferences, not rules."
+        }
+
+        val lovedLine = loved.take(4).map { bottleLine(it) }.filter { it.isNotBlank() }
+        if (lovedLine.isNotEmpty()) parts += "Bottles I loved: ${lovedLine.joinToString("; ")}."
+
+        val dislikedLine = disliked.take(3).map { bottleLine(it) }.filter { it.isNotBlank() }
+        if (dislikedLine.isNotEmpty()) parts += "Bottles I didn't enjoy: ${dislikedLine.joinToString("; ")}."
+
+        links?.trim()?.takeIf { it.isNotBlank() }?.let {
+            // Their own sentence, so do not staple a second full stop onto it.
+            parts += "What links them: ${it.take(200).trimEnd('.', '!', '?')}."
+        }
+
+        budgetBand(profile.choice(QuickStart.Q_BUDGET))?.let { retail ->
+            val restaurant = restaurantBand(profile.choice(QuickStart.Q_BUDGET))
+            parts += if (restaurant != null) {
+                "Budget: $retail a bottle at retail, about $restaurant on a restaurant list."
+            } else {
+                "Budget: $retail a bottle."
+            }
+        }
+
+        parts += "I want to know where a wine comes from and why it tastes the way it does."
+
+        when (profile.choice(QuickStart.Q_ADVENTURE)) {
+            QuickStart.ADVENTURE_FAMILIAR -> parts += "Keep picks close to what I already drink."
+            QuickStart.ADVENTURE_SIMILAR -> parts += "One step out is welcome: same style, a different producer or place."
+            QuickStart.ADVENTURE_SURPRISE -> parts += "Surprise me when the reason is good."
+            else -> Unit
+        }
+
+        if (parts.size <= 2) {
+            parts += "I have not told you what I like yet — recommend on the wines themselves and say why."
+        }
+
+        val notesBlock = notes.trim().take(600).takeIf { it.isNotBlank() }
+            ?.let { "\n\n## Notes\n$it" }.orEmpty()
+        val text = (parts.joinToString("\n") + notesBlock).trim()
+        if (text.length <= maxChars) return text
+        // A hard cap, cut at a line boundary when one falls late enough that keeping it still
+        // says something: half a sentence and an ellipsis beats half a word.
+        val room = text.take(maxChars - 1)
+        val boundary = room.lastIndexOf('\n')
+        val body = if (boundary > maxChars / 2) room.take(boundary) else room
+        val trimmed = body.trimEnd()
+        // A heading whose section did not fit is worse than no section at all.
+        val cleaned = if (trimmed.endsWith("## Notes")) {
+            trimmed.dropLast("## Notes".length).trimEnd()
+        } else {
+            trimmed
+        }
+        return cleaned + "…"
+    }
+
+    /** One loved or disliked bottle, named the way the user would name it. */
+    private fun bottleLine(wine: Wine): String {
+        val name = listOf(wine.producer, wine.name)
+            .map { it.trim() }.filter { it.isNotBlank() }.joinToString(" ")
+        val year = wine.vintage?.let { " $it" }.orEmpty()
+        val head = (name + year).trim().ifBlank { return "" }
+        val place = wine.region.trim().ifBlank { wine.country.trim() }
+        val withPlace = if (place.isBlank()) head else "$head, $place"
+        val tags = wine.flavorTags.take(3).joinToString(", ")
+        return if (tags.isBlank()) withPlace else "$withPlace — $tags"
+    }
+
+    private fun budgetBand(choice: String?): String? = when (choice) {
+        QuickStart.BUDGET_UNDER_12 -> "under \$12"
+        QuickStart.BUDGET_12_20 -> "\$12–20"
+        QuickStart.BUDGET_20_35 -> "\$20–35"
+        QuickStart.BUDGET_35_UP -> "\$35 and up"
+        else -> null
+    }
+
+    /** A list marks a bottle up: retail x 2.5 to 3.5 is the band to expect on a menu. */
+    private fun restaurantBand(choice: String?): String? = when (choice) {
+        QuickStart.BUDGET_UNDER_12 -> "up to about \$42"
+        QuickStart.BUDGET_12_20 -> "\$30–70"
+        QuickStart.BUDGET_20_35 -> "\$50–123"
+        QuickStart.BUDGET_35_UP -> "\$88 and up"
+        else -> null
+    }
 
     private val QUESTION_NUMBERS = mapOf(
         QuickStart.Q_POURS to "Q1",

@@ -41,9 +41,18 @@ class TasteStore(context: Context) {
     fun snapshot(maxChars: Int = TasteText.FULL_MAX_CHARS): String =
         TasteText.snapshot(_text.value, maxChars)
 
-    /** The taste-bearing sections only, as sent with a scan or a queued shelf frame. */
-    fun brief(maxChars: Int = TasteText.BRIEF_MAX_CHARS): String =
-        TasteText.brief(_text.value, maxChars)
+    /**
+     * What every model request reads as taste: the short brief generated from the stored profile
+     * and the cellar. [briefSource] is wired by AppGraph, because the profile, the rules and the
+     * cellar live in their own stores. Without it the file's own taste sections are the fallback.
+     *
+     * The file itself is unchanged and remains the thing the user reads and edits.
+     */
+    var briefSource: (() -> String)? = null
+
+    fun brief(): String =
+        briefSource?.invoke()?.takeIf { it.isNotBlank() }
+            ?: TasteText.brief(_text.value, TasteText.BRIEF_MAX_CHARS)
 
     fun lovedBottles(wines: List<Wine>): List<Wine> =
         wines.filter { it.favorite || (it.rating ?: 0) >= 4 }

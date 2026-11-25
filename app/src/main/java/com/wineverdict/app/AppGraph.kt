@@ -5,6 +5,7 @@ import com.wineverdict.app.ai.AiClient
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.NotesBackfill
+import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
@@ -54,6 +55,18 @@ object AppGraph {
         cellar = CellarRepository(app)
         chat = ChatRepository(app)
         ai = AiClient(settings)
+        // Every model request now reads the short brief, generated from the stored profile and the
+        // cellar rather than sliced out of the 1,800-word mytaste.md. The file stays the user's.
+        taste.briefSource = {
+            val profile = palate.profile.value
+            val wines = cellar.data.value.wines
+            PalateFile.brief(
+                profile = profile,
+                rules = palate.rules,
+                loved = taste.lovedBottles(wines),
+                disliked = wines.filter { (it.rating ?: 0) in 1..2 }
+            )
+        }
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
         notes = NotesBackfill(ai, cellar, scope)
         updater = Updater(app)
