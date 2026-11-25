@@ -1,6 +1,10 @@
-# Vinoteca
+# Wine Verdict
 
-An Android wine cellar notebook with an AI sommelier. Scan a label to add a bottle, photograph a
+An Android wine cellar notebook with an AI sommelier. It was called Vinoteca up to 1.7.17;
+1.0.0 renames it — a crowded name shared with several other wine apps — with no behaviour
+change. The applicationId is new (`com.wineverdict.app`), so it installs alongside any
+Vinoteca still on the phone; move the cellar across with Settings → Backup in the old app
+and Restore in this one. Scan a label to add a bottle, photograph a
 shop shelf to get a ranked buying recommendation, and ask questions about what you own — all
 against your own `mytaste.md` taste profile.
 
@@ -53,11 +57,11 @@ publishing to a store. Both builds are debug-signed.
 Push this repo to GitHub, then a version is one tag:
 
 ```
-git tag v1.7.7 && git push origin v1.7.7
+git tag v1.0.0 && git push origin v1.0.0
 ```
 
 `.github/workflows/release.yml` builds `:app:assembleSideload` on GitHub's machines and attaches
-`vinoteca-v1.7.7.apk` to the release — no local toolchain needed. The workflow refuses to publish
+`wine-verdict-v1.0.0.apk` to the release — no local toolchain needed. The workflow refuses to publish
 when `versionName` in `app/build.gradle.kts` does not match the tag, so bump both together
 (`versionCode` +1, `versionName` to the tag) before tagging. Install the release APK straight from
 the release page; it is signed with the debug key, same as the local sideload build.
@@ -309,6 +313,15 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.0: a new name, because the old one was taken
+
+Vinoteca belongs to several wine apps already, so this one is now Wine Verdict: same code,
+same signing key, new applicationId. It installs as a fresh app next to any Vinoteca on the
+phone, and the version restarts at 1.0.0 — which also keeps those old installs quiet, since
+their updater only offers what is numerically newer. Backups move across: export from the
+old app and import here; the importer reads both `vinoteca-backup` and `wineverdict-backup`
+files.
+
 ### 1.7.17: a small APK, and a release that survives GitHub
 
 v1.7.16 shipped a 41.7 MB APK: the bundled ML Kit text recogniser carries its OCR pipeline four
@@ -428,7 +441,7 @@ one sentence, in plain text with no markdown.
 
 ## Backup, restore and importing
 
-**Settings → Backup and import.** The export is one JSON file (`vinoteca-backup-YYYY-MM-DD.json`)
+**Settings → Backup and import.** The export is one JSON file (`wineverdict-backup-YYYY-MM-DD.json`)
 holding every wine, storage location and your `mytaste.md`, plus the currency. API keys are never
 included. Restore offers **Merge** (keeps what is on the phone, matches duplicates) or **Replace**.
 
@@ -492,7 +505,7 @@ tokens — the app caps the cellar digest at 55 bottles.
 ## How `mytaste.md` works
 
 The file is seeded on first run and lives in the app's private files directory
-(`/data/data/com.vinoteca.app/files/mytaste.md`). It has two halves:
+(`/data/data/com.wineverdict.app/files/mytaste.md`). It has two halves:
 
 ```markdown
 ## What I enjoy
@@ -592,7 +605,7 @@ backup** is for: one JSON file with the cellar, the locations and `mytaste.md`.
 ## Code map
 
 ```
-app/src/main/java/com/vinoteca/app/
+app/src/main/java/com/wineverdict/app/
 ├─ MainActivity.kt            bottom nav + navigation graph
 ├─ AppGraph.kt                service locator, scan→editor handoff
 ├─ model/Models.kt            Wine, CellarData, drinking-window logic

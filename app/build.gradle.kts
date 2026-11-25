@@ -6,15 +6,15 @@ plugins {
 }
 
 android {
-    namespace = "com.vinoteca.app"
+    namespace = "com.wineverdict.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.vinoteca.app"
+        applicationId = "com.wineverdict.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 32
-        versionName = "1.7.17"
+        versionCode = 1
+        versionName = "1.0.0"
         resourceConfigurations += listOf("en")
     }
 

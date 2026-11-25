@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Vinoteca"
+rootProject.name = "WineVerdict"
 include(":app")
