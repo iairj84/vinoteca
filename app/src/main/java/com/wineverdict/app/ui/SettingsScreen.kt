@@ -1,5 +1,7 @@
 package com.wineverdict.app.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -322,6 +324,16 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                         saveProvider(provider)
                         scope.launch { snackbarHostState.showSnackbar("${provider.shortLabel} saved") }
                     },
+                    onCopy = {
+                        val key = (drafts[provider] ?: ProviderDraft()).key
+                        if (key.isBlank()) {
+                            scope.launch { snackbarHostState.showSnackbar("No key to copy") }
+                        } else {
+                            context.getSystemService(ClipboardManager::class.java)
+                                ?.setPrimaryClip(ClipData.newPlainText("${provider.shortLabel} API key", key))
+                            scope.launch { snackbarHostState.showSnackbar("Key copied — paste it in the other app") }
+                        }
+                    },
                     onTest = { testProvider(provider) },
                     onOpenKeyPage = {
                         runCatching {
@@ -482,7 +494,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
 
             SectionCard("Backup and import") {
                 Text(
-                    "Your cellar lives in this app's private files, so keep a copy somewhere else. A backup is one JSON file with every wine, note and location plus your mytaste.md — the Groq key is never included.",
+                    "Your cellar lives in this app's private files, so keep a copy somewhere else. A backup is one JSON file with every wine, note and location plus your mytaste.md — no API key is ever included.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -826,6 +838,7 @@ private fun ProviderCard(
     onDraftChange: (ProviderDraft) -> Unit,
     onToggleReveal: () -> Unit,
     onSave: () -> Unit,
+    onCopy: () -> Unit,
     onTest: () -> Unit,
     onOpenKeyPage: () -> Unit
 ) {
@@ -861,6 +874,7 @@ private fun ProviderCard(
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onSave) { Text("Save") }
+            OutlinedButton(onClick = onCopy) { Text("Copy key") }
             OutlinedButton(onClick = onTest, enabled = !testing) {
                 Text(if (testing) "Testing…" else "Test connection")
             }

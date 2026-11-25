@@ -313,6 +313,13 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.1: the key moves in one tap
+
+Moving from Vinoteca meant retyping a 40-character key you can no longer see — the field
+masks it and the provider dashboard may not show it again. Each provider card now has a
+**Copy key** button: one tap copies the saved key, paste it into the other app, Save, Test
+connection. Vinoteca 1.7.18 carries the same button, so the copy starts there.
+
 ### 1.0.0: a new name, because the old one was taken
 
 Vinoteca belongs to several wine apps already, so this one is now Wine Verdict: same code,
