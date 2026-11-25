@@ -309,6 +309,13 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.7.18: one tap to take your key to Wine Verdict
+
+The rename strands one thing: the API key, which lives in this app's private storage and
+never in a backup. Retyping a masked 40-character key is the worst part of moving, and the
+provider dashboard may not show it again. Each provider card now has a **Copy key** button:
+one tap copies the saved key — paste it into Wine Verdict, Save, Test connection.
+
 ### 1.7.17: a small APK, and a release that survives GitHub
 
 v1.7.16 shipped a 41.7 MB APK: the bundled ML Kit text recogniser carries its OCR pipeline four
