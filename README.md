@@ -313,6 +313,27 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.8: the judgement says what the wines are, not what they cost
+
+A photographed list came back as nine cards that each said the same thing — nothing is against
+it — plus the cheapest and the priciest. If you do not know the producer, that is not an answer:
+price was the one thing you could already read off the page.
+
+The judgement was the fault. It asked only how well each bottle matched `mytaste.md`, and with
+that file empty the honest answer is "neutral" for every line, which ranks nothing. It now asks
+the model for what the reader actually needs: what each wine is — the style, the standing of the
+producer or the appellation, how it tastes — and which bottle is the better wine for the money
+on that page. The taste file moves a wine up or down instead of being the only thing consulted.
+
+- **A "what it is" line per wine.** `Prompts.listJudge` returns `number | rank | fit | what | why`,
+  and the description is kept as the wine's notes when it is added to the cellar. The vision read
+  carries the same field, so a photo path gets it too.
+- **The ranking is no longer optional.** It gets 45 seconds of the scan's budget, and when it
+  fails the app reads the page from the photo instead of leaving a price order on screen.
+- **Less noise under each card.** "Your first bottle from Catalonia" is a cellar curiosity, not
+  an argument for ordering off a menu, and the missing-ABV caveat is said once per list rather
+  than under every line.
+
 ### 1.0.7: lists are judged from text, not shown to a vision model
 
 The phone reads the names and prices; judging them never needed eyes. A list the phone

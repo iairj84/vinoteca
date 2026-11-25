@@ -197,9 +197,11 @@ object ScanParsing {
         val glass = number(7)?.takeIf { it < 5000.0 }?.takeIf { bottle == null || it < bottle }
         val declared = text(8).lowercase()
         val rank = text(9).replace(Regex("[^0-9]"), "").toIntOrNull()?.takeIf { it in 1..24 }
-        // The read's one-line case for this bottle's place on the page. It is what makes a ranked
-        // card explain itself instead of carrying a bare "Best pick".
-        val why = text(10).take(160)
+        // What the wine is, then why it sits where it does. A twelve-field answer carries both; an
+        // eleven-field one is the older shape and its tenth field is the reason alone.
+        val described = parts.size >= 12
+        val what = if (described) text(10).take(120) else ""
+        val why = text(if (described) 11 else 10).take(160)
         val confidence = when {
             declared.startsWith("hi") -> "high"
             declared.startsWith("lo") -> "low"
@@ -214,6 +216,7 @@ object ScanParsing {
             grapes = grapes,
             price = bottle,
             currency = currencyFallback,
+            expertNotes = what,
             source = "wine-list"
         )
         return ScannedLabel(
@@ -233,10 +236,11 @@ object ScanParsing {
 
 
     /**
-     * The text-only judgement on a list the phone read: "index | rank | fit | why" lines matched
-     * to the wines by number. A line that does not parse, a rank outside the page, or a template
-     * echo for the reason is dropped. Null when fewer than two lines survived, because one
-     * placed wine is not a ranking — the phone's price order then stands as it is.
+     * The text-only judgement on a list the phone read: "index | rank | fit | what | why" lines
+     * matched to the wines by number. A line that does not parse, a rank outside the page, or a
+     * template echo for the reason is dropped. Null when fewer than two lines survived, because
+     * one placed wine is not a ranking — the caller then reads the page from the photo instead of
+     * leaving a price order on screen.
      */
     fun applyJudgement(read: SceneScan, raw: String): SceneScan? {
         val count = read.bottles.size
@@ -251,23 +255,46 @@ object ScanParsing {
                     ?.takeIf { it in 1..count } ?: return@mapNotNull null
                 val fit = parts[2].replace(Regex("[^0-9]"), "").toIntOrNull()
                     ?.takeIf { it in 1..5 }
-                val why = parts[3].take(160).trim()
+                // Five fields carry "what it is" as well as the reason; a four-field answer is the
+                // older shape and still parses, with no description.
+                val what = if (parts.size >= 5) parts[3].take(120).trim() else ""
+                // A reason that itself contains a pipe is kept whole rather than cut at its first
+                // clause: only the leading fields are positional.
+                val why = (if (parts.size >= 5) parts.drop(4).joinToString(" | ") else parts[3])
+                    .take(160).trim()
                 if (why.isBlank() || placeholder(why)) return@mapNotNull null
-                Triple(index, rank, fit to why)
+                Judged(index, rank, fit, what.takeUnless { placeholder(it) }.orEmpty(), why)
             }
-            .distinctBy { it.first }
+            .distinctBy { it.index }
         if (placed.size < 2) return null
-        val byIndex = placed.associate { it.first to it }
+        val byIndex = placed.associateBy { it.index }
         val bottles = read.bottles.mapIndexed { index, label ->
             val hit = byIndex[index] ?: return@mapIndexed label
             label.copy(
-                fitScore = hit.third.first,
-                fitReason = hit.third.second,
-                listRank = hit.second
+                fitScore = hit.fit,
+                fitReason = hit.why,
+                listRank = hit.rank,
+                // "what it is" belongs on the record as well as the card: it is the line that
+                // tells someone who has never heard of the wine what they are looking at, and it
+                // is worth keeping when the bottle is added to the cellar.
+                wine = if (hit.what.isBlank()) {
+                    label.wine
+                } else {
+                    label.wine.copy(expertNotes = hit.what)
+                }
             )
         }
         return read.copy(bottles = bottles)
     }
+
+    /** One judged line of a list, matched back to its wine by number. */
+    private data class Judged(
+        val index: Int,
+        val rank: Int,
+        val fit: Int?,
+        val what: String,
+        val why: String
+    )
 
     fun parseLabel(raw: String, currencyFallback: String): ScannedLabel =
         labelFrom(AiJson.objectFrom(raw), currencyFallback)

@@ -211,45 +211,86 @@ object Prompts {
     }
 
     /**
-     * The judgement on a list the phone already read. No image goes up: the wines, regions and
-     * prices are given as text, and the model only ranks and explains — a short text answer at a
-     * fraction of the tokens, in the shape a free tier answers fastest. The lines it returns are
-     * matched to the wines by number, so a garbled name changes nothing.
+     * The judgement on a list the phone already read.
+     *
+     * No image goes up: the wines, regions and prices are text, and the model answers as the
+     * sommelier a diner asks when every name on the page is unfamiliar. It used to be asked only
+     * how well each bottle matched `mytaste.md`, and with that file empty it honestly scored every
+     * line neutral — which left a nine-bottle page ranked on price, the one thing the reader could
+     * already see. So the judgement is about the wines themselves now: what each one is, and which
+     * is the better bottle for the money. The taste file moves a wine up or down; it is no longer
+     * the only thing the model is allowed to consult.
      */
     fun listJudge(tasteMd: String, currency: String, bottles: List<ScannedLabel>): String {
         val menu = bottles.mapIndexed { index, label ->
             val wine = label.wine
             buildString {
                 append("${index + 1}. ${wine.title}")
-                if (wine.region.isNotBlank()) append(" — ${wine.region}")
-                if (wine.grapes.isNotEmpty()) append(" (${wine.grapes.joinToString(", ")})")
-                append(" — ${wine.type.label.lowercase()}")
-                wine.price?.let { append(", bottle $currency ${"%.0f".format(java.util.Locale.US, it)}") }
-                label.glassPrice?.let { append(", glass $currency ${"%.0f".format(java.util.Locale.US, it)}") }
+                val place = listOf(wine.appellation, wine.region, wine.country)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(", ")
+                if (place.isNotBlank()) append(" — ").append(place)
+                if (wine.grapes.isNotEmpty()) {
+                    append(" (").append(wine.grapes.joinToString(", ")).append(")")
+                }
+                append(" — ").append(wine.type.label.lowercase())
+                wine.price?.let {
+                    append(", bottle ").append(currency).append(' ')
+                        .append("%.0f".format(java.util.Locale.US, it))
+                }
+                label.glassPrice?.let {
+                    append(", glass ").append(currency).append(' ')
+                        .append("%.0f".format(java.util.Locale.US, it))
+                }
             }
         }.joinToString("\n")
+        val taste = tasteMd.trim().ifBlank {
+            "(I have not told you what I like — rank on the wines)"
+        }
         return """
-        Rank these wines from a restaurant list against MY TASTE FILE below. The names and prices
-        were read off the page by the phone and are correct: do not change, correct or re-read
-        any of them, and invent no wine, price or vintage.
+        You are the sommelier a diner asks when every name on the list is unfamiliar. They cannot
+        tell a Cava from a Crémant and they are not going to look up nine producers at the table:
+        tell them what each wine is, and which one to order.
 
-        For every numbered wine reply with exactly one line:
-        number | rank | fit | why
+        The names and prices below were read off the page by the phone. They may be misspelled.
+        Do not change a price, do not invent a wine that is not there, and if a line looks garbled,
+        judge the wine you can recognise and say so in "what".
 
-        - "number" is the wine's number from the list above.
-        - "rank" is 1 for the bottle to order first from this page down to ${bottles.size}, with
-          every number from 1 to ${bottles.size} used exactly once. Rank the wines against each
-          other: the grape, the region, the vintage, the style and the price. Where the taste
-          file decides, it decides.
-        - "fit" is 1-5 for how well this wine suits MY TASTE FILE (3 = neutral).
-        - "why" is one short reason, at most twelve words, naming what sets this bottle apart on
-          this page. Never empty, never "good wine", never "nice".
+        Use what you know. The producer, the appellation, the grape and the vintage are the whole
+        point of this answer: that a Chablis is Chardonnay grown cold, that a Barolo needs a
+        decade, that a small grower's Cava is not the supermarket one at the same price. Say which
+        bottle is worth the money on this page. Never answer that nothing is against a wine, never
+        repeat the price back as the reason, and never rank the lines level.
+
+        For every numbered wine reply with exactly one line, in this exact shape:
+        number | rank | fit | what | why
+
+        - "number" is the wine's number above.
+        - "rank" is 1 for the bottle to order first on this page down to ${bottles.size}, with
+          every number from 1 to ${bottles.size} used exactly once and no ties. Rank on which is
+          the better wine for what it costs here: the producer's standing, the appellation's
+          quality tier, the vintage, the style, and the price asked.
+        - "fit" is 1-5 for how well this wine suits MY TASTE FILE below (3 = neutral). When that
+          file is empty, score how good the bottle is at its price: 5 a genuinely good bottle,
+          3 ordinary, 1 poor.
+        - "what" is at most fourteen words on what this wine actually is — the style, the standing
+          of the producer or the appellation, and how it tastes. This is the line that tells me
+          what I am looking at. If you do not know the wine, say that ("unfamiliar producer,
+          generic tank-made Cava") instead of inventing a reputation, a score, an award or a
+          tasting note.
+        - "why" is at most fourteen words on why it sits where it does on this page. Never blank,
+          never "good wine", never "nice", never a restatement of the price.
+
+        Where MY TASTE FILE names something I dislike, move a wine that has it below one that does
+        not. That is a nudge, not the ranking: with the file empty the wines still get an order.
 
         WINES
         $menu
 
         MY TASTE FILE
-        $tasteMd
+        $taste
         """.trimIndent()
     }
 
@@ -325,7 +366,7 @@ object Prompts {
      */
     fun listLines(tasteMd: String, currency: String): String {
         val taste = tasteMd.trim().ifBlank {
-            "(my taste file is empty — rank on what the page itself says)"
+            "(my taste file is empty — rank on the wines)"
         }
         return """
         Read the photo, and copy every wine in it into lines. No JSON. No headings. No commentary
@@ -344,7 +385,7 @@ object Prompts {
         Then one line per wine, in the order printed: down the left column, then the right. Separate
         the fields with " | " in this exact order:
 
-        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence | rank | why
+        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence | rank | what | why
 
         Rules:
         - Write "-" for any field the page does not print. Never guess and never estimate.
@@ -359,12 +400,15 @@ object Prompts {
         - "confidence" is high, medium or low, for that line on its own.
         - "rank" is where this line belongs on this page: 1 is the one you would order first, 2 the
           second, and so on. Use every number from 1 to the number of wines exactly once — no ties,
-          no repeats, never blank. Rank on what the page says about the wines: grape, region,
-          vintage, style and price. Where my taste file below says something, it decides.
-        - "why" is one short line, at most twelve words, saying what puts this wine where it is on
-          this page: the grape, the region, the vintage, the style, the price, or the one thing that
-          sets it apart. For rank 1 it says why it beats the rest. Never "good wine", never
-          "nice", never blank.
+          no repeats, never blank. You know these wines: rank on the producer, the appellation, the
+          vintage, the style and what the price asks, not on the order they are printed in. Where
+          my taste file below says something, it moves a wine up or down.
+        - "what" is at most fourteen words on what this wine actually is — the style, the standing
+          of the producer or the appellation, and how it tastes. Say "unfamiliar producer" rather
+          than inventing a reputation, a score or an award.
+        - "why" is one short line, at most fourteen words, saying what puts this wine where it is
+          on this page. For rank 1 it says why it beats the rest. Never "good wine", never "nice",
+          never blank, never a restatement of the price.
         - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.

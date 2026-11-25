@@ -102,6 +102,13 @@ private const val READ_TIMEOUT_MS = 35_000L
 /** The smaller retry gets less time, because it carries less to upload. */
 private const val RETRY_TIMEOUT_MS = 20_000L
 
+/**
+ * The judgement is the whole answer for a list — nothing else runs after it — so it gets longer
+ * than a retry. A free tier queues a text request for tens of seconds; cutting it at twenty was
+ * what left a page of wines ranked on price alone.
+ */
+private const val JUDGE_TIMEOUT_MS = 45_000L
+
 /** The whole scan never outlives this: first byte to last card. No scan takes minutes. */
 private const val SCAN_DEADLINE_MS = 95_000L
 
@@ -346,10 +353,12 @@ fun ScanScreen(onReview: () -> Unit) {
 
                 // The judgement on a list the phone read: text in, ranks out, no image. A short
                 // text answer is what a free tier is fastest at, and the lines match the wines by
-                // number, so the model's spelling changes nothing on the cards.
+                // number, so the model's spelling changes nothing on the cards. This is the answer
+                // for a list — what the wines are and which to order — so it gets the longest
+                // budget of any text call.
                 suspend fun judgeList(read: SceneScan): SceneScan? {
                     return runCatching {
-                        val raw = withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
+                        val raw = withTimeoutOrNull(minOf(JUDGE_TIMEOUT_MS, remainingMs())) {
                             AppGraph.ai.complete(
                                 system = Prompts.listJudge(taste, currency, read.bottles),
                                 turns = listOf(
@@ -500,14 +509,17 @@ fun ScanScreen(onReview: () -> Unit) {
                     // and explains from the text, which is the shape a free tier answers fastest.
                     // A bottle the phone could not read never arrives here — it takes the vision
                     // path below, unchanged.
-                    stage = "Ranking the list"
+                    stage = "Judging the wines — what they are and which to order"
                     parsed = judgeList(onPhone)
                     if (parsed != null) {
                         scan = parsed
                         localOnly = false
                     }
                 }
-                if (parsed == null && onPhone == null) {
+                // The phone read the page but the judgement did not come back: read it from the
+                // photo instead of leaving the price order on screen. A list with no ranking is
+                // the one result this screen must not settle for.
+                if (parsed == null) {
                     stage = "Reading the page with $who"
                     parsed = runCatching {
                         val raw = readPage()
@@ -849,11 +861,11 @@ fun ScanScreen(onReview: () -> Unit) {
             }
 
             scan?.let { result ->
-                if (localOnly && result.bottles.isNotEmpty()) {
+                if (localOnly && !loading && result.bottles.isNotEmpty()) {
                     Banner(
-                        "Read on your phone: these wines and prices come from the phone's own text " +
-                            "reader, ranked on price because nothing on a printed list says how a " +
-                            "bottle tastes. Tap Analyse again for a model's read and its ranking."
+                        "These wines and prices are the phone's own reading of the page, and the " +
+                            "ranking did not come back — so all this page can tell you is which " +
+                            "costs more. Tap Analyse again to have the wines judged."
                     )
                 }
                 if (result.bottles.isEmpty()) {
@@ -914,16 +926,16 @@ fun ScanScreen(onReview: () -> Unit) {
                         // The read came back level, which is what an empty taste file produces. Say
                         // so, and say the one thing the page does separate, rather than sending the
                         // user to another screen before the list will say anything.
-                        ListPicks.Basis.PRICE -> {
+                        ListPicks.Basis.PRICE -> if (!localOnly) {
                             val cheap = ranking.cheapest?.let { result.bottles[it].wine }
                             val dear = ranking.priciest?.let { result.bottles[it].wine }
                             Banner(
-                                "The read put these lines on the same footing, so there is no best " +
-                                    "bottle on the page. What the list itself separates is price: " +
+                                "The judgement came back level, so no bottle is crowned here. The " +
+                                    "one thing the page separates is price: " +
                                     "${cheap?.title?.take(40)} at " +
-                                    "${formatMoney(cheap?.price, cheap?.currency.orEmpty())} is the " +
-                                    "cheapest, ${dear?.title?.take(40)} at " +
-                                    "${formatMoney(dear?.price, dear?.currency.orEmpty())} the priciest."
+                                    "${formatMoney(cheap?.price, cheap?.currency.orEmpty())} and " +
+                                    "${dear?.title?.take(40)} at " +
+                                    "${formatMoney(dear?.price, dear?.currency.orEmpty())}."
                             )
                         }
                         ListPicks.Basis.NONE -> Banner(
@@ -940,10 +952,10 @@ fun ScanScreen(onReview: () -> Unit) {
                 // Only worth saying when it is the reason the page could not be ranked.
                 if (rules.isEmpty && result.bottles.isNotEmpty() && ranking?.separated != true) {
                     Banner(
-                        "Your limits are not set — no alcohol ceiling, no sweetness or oak " +
-                            "preference and no budget band — so nothing here can be checked against " +
-                            "your taste: every card can only say that nothing is against it. Set them " +
-                            "in Taste and the cards start ruling bottles out."
+                        "Your limits are not set, so these picks are the model's own read of the " +
+                            "wines rather than a filter against your taste. Set an alcohol ceiling, " +
+                            "a sweetness or oak preference, or a budget band in Taste and bottles " +
+                            "that break them drop out of the ranking."
                     )
                 }
                 if (hideAbvUnknown) {
@@ -1183,7 +1195,9 @@ private fun VerdictBlock(
     }
     // The gap a bottle would fill sits below the reasons, quieter: it is a reason to be curious
     // about the bottle, not a reason to buy it, and it never lifts the verdict on its own.
-    advice.gaps.forEach { line ->
+    // On a list there is no cellar purchase to be curious about: "your first bottle from
+    // Catalonia" is not an argument for ordering it off a menu.
+    if (!restaurant) advice.gaps.forEach { line ->
         Text(
             text = "\u00b7  $line",
             style = MaterialTheme.typography.labelSmall,
@@ -1243,11 +1257,23 @@ private fun BottleVerdictCard(
                 result.wine.alcohol?.let { Pill(abvLabel(it)) }
                 if (result.wine.drinkWindowLabel != "unknown") Pill(result.wine.drinkWindowLabel)
             }
+            // What the wine actually is, in the judgement's own words: on a list of names nobody
+            // recognises, this is the line that answers "what am I looking at".
+            if (result.wine.expertNotes.isNotBlank()) {
+                Text(
+                    result.wine.expertNotes,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
             VerdictBlock(result.wine, restaurant, hideAbvUnknown, pick, result.fitReason)
             val shelfDoubt = buildList {
                 if (result.uncertainFields.isNotEmpty()) add("Unsure: " + result.uncertainFields.joinToString(", "))
                 if (result.nextTip.isNotBlank()) add(result.nextTip)
-                else if (result.wine.alcohol == null && !hideAbvUnknown) add("ABV not visible — the alcohol rule cannot be checked from this photo.")
+                // No printed list carries an ABV, so on a list this is a fact about menus, said
+                // once in a banner, not a caveat repeated under every card.
+                else if (!restaurant && result.wine.alcohol == null) {
+                    add("ABV not visible — the alcohol rule cannot be checked from this photo.")
+                }
             }
             shelfDoubt.forEach { line ->
                 Text(
