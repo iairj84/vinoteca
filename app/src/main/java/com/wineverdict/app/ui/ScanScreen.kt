@@ -1494,6 +1494,20 @@ private fun LabelResult(
  * never text — so a pick cannot show a wine or a price the page does not print. The reason is the
  * model's own words, in full: it is the part of the answer worth reading.
  */
+/**
+ * The pour line, worded for the advice block.
+ *
+ * [unitLine] asks the reader to choose a pour, which is right above a ranked section that is
+ * showing nothing until they do — but the advice block shows picks, glass and bottle from the
+ * first frame, so its idle line has to say what is on screen, not what is missing.
+ */
+private fun adviceUnitLine(service: Service?): String = when (service) {
+    null -> "Showing everything: bottle picks and the glass pour."
+    Service.GLASS -> "Answering for a glass."
+    Service.BOTTLE -> "Answering for a bottle."
+    Service.UNSURE -> "Answering for either — glass and bottle both shown."
+}
+
 @Composable
 private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
     if (advice.picks.isEmpty()) return
@@ -1509,7 +1523,7 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
     }
     SectionCard("What to order") {
         Text(
-            unitLine(service),
+            adviceUnitLine(service),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
