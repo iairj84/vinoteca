@@ -313,6 +313,34 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.11: the answer states its unit, and earns its reasons
+
+A photographed list used to print one bottle price and one glass price on
+the same card with one `Order it` button that committed to neither, let one
+producer hold two of three picks, and let portable prose ("classic blend",
+"unique grape variety" naming no grape) pass as reasons.
+
+- **Unit first.** A Glass / Bottle / Not sure toggle sits above the picks;
+  the answer states its unit in one line, re-ranks by the price actually
+  paid, and filters before capping — a bottle-only rank leader no longer
+  takes its glass-poured sibling down with it. A glass answer cannot contain
+  a bottle-only wine; a bottle-only list says so and offers the bottle.
+  The button carries its unit (`Order a glass` / `Order the bottle`) and is
+  disabled until one is chosen. Not sure ranks by bottle and names the
+  recommended pour, with any cheaper pour as a separate note.
+- **One producer, one pick.** At most one wine per producer; the slot is
+  dropped, never substituted.
+- **Reasons must be earned.** Every description and reason is validated:
+  it must name a grape, subregion, vintage, ABV or producer contrast unique
+  to its row (cuvée words don't count), carry no neighbour's fact, no
+  superlative about the list, and no unrecorded claim (`old vines`,
+  `hand-harvested`, `estate-bottled`, `family`). Failures fall back to a
+  facts-only line.
+- **The strip.** Every card carries ABV, both real prices, the integer
+  break-even, the most specific place — with per-field provenance
+  (`(menu)` for printed prices, `(as read)` elsewhere) instead of a blanket
+  source claim.
+
 ### 1.0.10: one card, one wine — no more mixed bottles
 
 A recommendation card could show one wine's name and price next to another

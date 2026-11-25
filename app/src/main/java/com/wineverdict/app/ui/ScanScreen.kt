@@ -67,14 +67,13 @@ import com.wineverdict.app.data.ListPicks
 import com.wineverdict.app.data.Scored
 import com.wineverdict.app.data.Service
 import com.wineverdict.app.data.assertUniformUnit
-import com.wineverdict.app.data.cheapestPourLine
 import com.wineverdict.app.data.effectiveService
-import com.wineverdict.app.data.enforceProducerCap
 import com.wineverdict.app.data.orderButtonLabel
 import com.wineverdict.app.data.rankForService
 import com.wineverdict.app.data.strip
 import com.wineverdict.app.data.toServiceRow
 import com.wineverdict.app.data.unitLine
+import com.wineverdict.app.data.unsurePourLine
 import com.wineverdict.app.data.validatedText
 import com.wineverdict.app.data.toCatalogRow
 import com.wineverdict.app.data.PendingScan
@@ -949,14 +948,12 @@ fun ScanScreen(onReview: () -> Unit) {
                                     Scored(id, bottleById[id]?.fitReason.orEmpty())
                                 }
                             }
-                            // D1: at most one wine per producer. Drops, never substitutes.
-                            val capped = remember(scored) {
-                                enforceProducerCap(scored, serviceById)
-                            }
-                            // D5: re-rank by the unit that will actually be paid. Glass
-                            // eligibility comes from a menu glass price only — never inferred.
-                            val ranked = remember(capped, service) {
-                                rankForService(capped, serviceById, service)
+                            // D5 then D1: filter by the unit that will actually be
+                            // paid, then cap to one wine per producer, then rank.
+                            // Capping first would drop the only pour in the chosen
+                            // unit. Glass eligibility is a menu glass price only.
+                            val ranked = remember(scored, service) {
+                                rankForService(scored, serviceById, service)
                             }
                             val rendered = remember(ranked, catalog) {
                                 ListIdentity.renderCards(
@@ -1012,7 +1009,7 @@ fun ScanScreen(onReview: () -> Unit) {
                                 )
                             }
                             if (service == Service.UNSURE) {
-                                cheapestPourLine(serviceRows)?.let { line ->
+                                unsurePourLine(ranked, serviceById)?.let { line ->
                                     Text(
                                         line + ".",
                                         style = MaterialTheme.typography.bodySmall,

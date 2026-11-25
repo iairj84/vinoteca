@@ -60,12 +60,35 @@ private fun norm(s: String): String =
 private val TOKEN = Regex("[a-z0-9]{4,}")
 private fun tokens(s: String): Set<String> = TOKEN.findAll(norm(s)).map { it.value }.toSet()
 
+/* Credited facts are grape, subregion, vintage, ABV, or a producer contrast.
+ * The cuvee/title is deliberately excluded: on a list where only one line is
+a Cava, "it's a Cava" would otherwise pass as distinctive without saying anything. */
 private fun factsOf(r: ServiceRow): String = buildList {
-    add(r.producer); add(r.cuvee ?: "")
+    add(r.producer)
     addAll(r.grapes); add(r.region)
     if (r.vintage != null) add(r.vintage.toString())
     if (r.abvPct != null) add(r.abvPct.toString())
 }.joinToString(" ")
+
+/** Fact-ish phrases that fail a reason unless the record itself contains them. */
+private val INVENTED_FACT_STEMS = listOf("old vine", "hand-harvest", "estate-bottl", "family")
+
+fun containsUnrecordedClaim(reason: String, row: ServiceRow): Boolean {
+    val lower = norm(reason)
+    val record = norm(
+        (listOf(row.producer, row.cuvee ?: "", row.description) +
+            row.grapes + listOf(row.region, row.vintage?.toString().orEmpty()))
+            .joinToString(" ")
+    )
+    return INVENTED_FACT_STEMS.any { stem -> lower.contains(stem) && !record.contains(stem) }
+}
+
+/** ABV digits are too short for the token rule, so an ABV mention is credited directly. */
+private fun mentionsOwnAbv(reason: String, row: ServiceRow, pool: List<ServiceRow>): Boolean {
+    val abv = row.abvPct ?: return false
+    if (!reason.contains(abv.toString())) return false
+    return pool.none { it.id != row.id && it.abvPct == abv }
+}
 
 /** Tokens unique to [row] inside [pool]. Shared grapes/regions are not distinctive. */
 fun distinctiveTokens(row: ServiceRow, pool: List<ServiceRow>): Set<String> {
@@ -95,9 +118,12 @@ private val SUPERLATIVE = Regex(
 fun reasonIsPortable(reason: String, row: ServiceRow, pool: List<ServiceRow>): Boolean {
     if (SUPERLATIVE.containsMatchIn(reason)) return true
     if (BANNED_GENERIC.any { norm(reason).contains(it) }) return true
+    // Specificity without provenance is invention: "ninety-year-old vines" passes
+    // the token check via Trepat but the vines claim exists nowhere on record.
+    if (containsUnrecordedClaim(reason, row)) return true
     val own = distinctiveTokens(row, pool)
     val lower = norm(reason)
-    if (own.none { lower.contains(it) }) return true
+    if (own.none { lower.contains(it) } && !mentionsOwnAbv(reason, row, pool)) return true
     for (other in pool) {
         if (other.id == row.id) continue
         for (t in distinctiveTokens(other, pool)) {
@@ -166,14 +192,17 @@ fun serviceOrdinal(n: Int): String {
 
 fun money(v: Double): String = String.format(java.util.Locale.US, "$%.2f", v)
 
+/* Provenance is per field, never a blanket claim. Only numbers printed on the
+ * menu are tagged (menu): the parser only sets a price from a printed figure.
+ * Region, grapes and ABV are tagged (as read) — they may come from the menu
+ * line or from the read, and the strip must not claim otherwise. */
 fun strip(r: ServiceRow): String {
     val parts = mutableListOf<String>()
-    parts += if (r.abvPct != null) "ABV ${r.abvPct}%" else "ABV unknown — check the label"
-    r.glassUsd?.let { parts += "glass ${money(it)}" }
-    r.bottleUsd?.let { parts += "bottle ${money(it)}" }
+    parts += if (r.abvPct != null) "ABV ${r.abvPct}% (as read)" else "ABV unknown — check the label"
+    r.glassUsd?.let { parts += "glass ${money(it)} (menu)" }
+    r.bottleUsd?.let { parts += "bottle ${money(it)} (menu)" }
     bottlePaysFrom(r)?.let { parts += "bottle pays from the ${serviceOrdinal(it)} glass" }
-    if (r.region.isNotBlank()) parts += r.region
-    parts += "source: ${r.source}"
+    if (r.region.isNotBlank()) parts += "${r.region} (as read)"
     return parts.joinToString(" · ")
 }
 
@@ -197,9 +226,22 @@ fun validatedText(text: String, row: ServiceRow, pool: List<ServiceRow>, service
     return text
 }
 
+/** Rows with a real price in the unit that will actually be paid, in model order.
+ * Glass eligibility comes from a menu glass price only — never inferred. */
+fun filterByUnit(
+    picksInModelOrder: List<Scored>,
+    rows: Map<String, ServiceRow>,
+    service: Service?
+): List<Scored> {
+    val eff = effectiveService(service)
+    if (eff == Service.GLASS && rows.values.none { it.glassUsd != null }) return emptyList()
+    return picksInModelOrder.filter { priceIn(eff, rows[it.id] ?: return@filter false) != null }
+}
+
 /**
- * Re-rank for the unit that will actually be paid: filter to rows with that
- * price, then sort by it (known ABV first on ties, then model order).
+ * The pipeline order is filter-by-unit → cap → rank. Capping first can drop
+ * the only pour available in the chosen unit: a bottle-only rank leader must
+ * not take its glass-poured sibling down with it.
  * UNSURE/null ranks by bottle.
  */
 fun rankForService(
@@ -208,10 +250,9 @@ fun rankForService(
     service: Service?
 ): List<Scored> {
     val eff = effectiveService(service)
-    if (eff == Service.GLASS && rows.values.none { it.glassUsd != null }) return emptyList()
-    val eligible = picksInModelOrder.filter { priceIn(eff, rows[it.id] ?: return@filter false) != null }
+    val capped = enforceProducerCap(filterByUnit(picksInModelOrder, rows, service), rows)
     val orderIndex = picksInModelOrder.mapIndexed { i, s -> s.id to i }.toMap()
-    return eligible.sortedWith(
+    return capped.sortedWith(
         compareBy<Scored> { priceIn(eff, rows[it.id]!!)!! }
             .thenBy { if (rows[it.id]!!.abvPct != null) 0 else 1 }
             .thenBy { orderIndex[it.id] ?: Int.MAX_VALUE }
@@ -231,9 +272,20 @@ fun unitLine(service: Service?): String = when (service) {
     null -> "Choose glass or bottle to answer for."
 }
 
-fun cheapestPourLine(pool: List<ServiceRow>): String? {
-    val poured = pool.filter { it.glassUsd != null }
-    if (poured.isEmpty()) return null
-    val best = poured.minByOrNull { it.glassUsd!! } ?: return null
-    return "if you're having one glass, the cheapest pour is ${best.producer} at ${money(best.glassUsd!!)}"
+/** Unsure mode names the pour actually recommended (the top pick's glass),
+ * with a cheaper pour — if one exists — as a separate note, never the headline. */
+fun unsurePourLine(ranked: List<Scored>, rows: Map<String, ServiceRow>): String? {
+    val withGlass = ranked.mapNotNull { rows[it.id] }.filter { it.glassUsd != null }
+    if (withGlass.isEmpty()) return null
+    val top = rows[ranked.first().id]
+    val recommended = if (top != null && top.glassUsd != null) top
+        else withGlass.minByOrNull { it.glassUsd!! }!!
+    var line = "for one glass, have ${recommended.producer} at ${money(recommended.glassUsd!!)}"
+    val cheaper = withGlass
+        .filter { it.id != recommended.id && it.glassUsd!! < recommended.glassUsd!! }
+        .minByOrNull { it.glassUsd!! }
+    if (cheaper != null) {
+        line += "; cheapest pour on the list is ${cheaper.producer} at ${money(cheaper.glassUsd!!)}"
+    }
+    return line
 }
