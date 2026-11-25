@@ -313,6 +313,13 @@ So the list path no longer uses JSON at all.
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
 
+### 1.0.2: the updater learns its own name
+
+One repo now publishes two product lines, and /releases/latest points at Vinoteca 1.7.18 —
+so Wine Verdict offered the old app's APK as its own update. The check now walks the release
+list and takes the newest release carrying a wine-verdict APK, ignoring the other line
+entirely. If 1.0.1 already prompts you to "update", dismiss it: that prompt is the bug.
+
 ### 1.0.1: the key moves in one tap
 
 Moving from Vinoteca meant retyping a 40-character key you can no longer see — the field
