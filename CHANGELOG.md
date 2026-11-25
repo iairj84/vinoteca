@@ -34,6 +34,12 @@ timeout or a rate limit, because a second 4,000-token request cannot fit in the 
 debug panel labels it. Picks are matched by line number; the reason text arrives on the cards in a later
 step.
 
+**Advice is checked before it is shown.** Every line the model writes about a list is verified
+against the page: the line number has to exist, a glass has to be a wine the menu pours by the
+glass, a wine cannot be called red when its section says rosado (or the reverse), and one bottle is
+picked once. A line that fails is dropped rather than repaired, and the scan details panel lists
+what was dropped and why. If no pick survives, the per-wine fallback runs as before.
+
 **The list gets long enough to answer.** The judgement on a photographed wine list now asks for
 4,000 tokens (plus a reasoning reserve on the way out) instead of 800, gets 130 seconds instead of
 the 95-second scan budget, and shows "Thinking about the list…" while it works. The judge's own

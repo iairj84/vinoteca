@@ -110,6 +110,24 @@ data class SceneScan(
     val notes: String
 )
 
+/** One bottle the advice points at, by its position on the page. */
+data class AdvicePick(
+    /** 0-based index into [SceneScan.bottles]: the card is built from that bottle, never the text. */
+    val index: Int,
+    val headline: String,
+    val why: String
+)
+
+/** The advice answer, with every line that failed a check already removed. */
+data class ListAdvice(
+    val picks: List<AdvicePick>,
+    val glass: AdvicePick? = null,
+    val skips: List<AdvicePick> = emptyList(),
+    val note: String = "",
+    /** Why a line was thrown away. For the debug panel only — never shown as advice. */
+    val dropped: List<String> = emptyList()
+)
+
 object ScanParsing {
 
     /**
@@ -236,34 +254,208 @@ object ScanParsing {
 
 
     /**
-     * The advice answer's PICK lines, in order, as the page's ranks.
+     * The advice answer, parsed and checked.
      *
-     * Step 5's stop-gap until the validated reader lands: only the picks are placed — two or three
-     * explained bottles, which is what the answer is for — and the rest of the page stays unranked
-     * until someone asks about it. Validation here is deliberately shallow: a line number that
-     * exists on the page, no duplicates, three at most. Colour, glass price and the WHY text come
-     * with the real parser, so nothing is shown that has not been checked.
+     * A model writes prose about a page it cannot see, so every line is a claim to verify against
+     * the bottle it names. Five checks, and a line that fails one is dropped rather than repaired:
+     * the line number must exist on the page; a GLASS pick must be a wine the menu actually sells
+     * by the glass; a line may not call a wine red when the list puts it under ROSADO, or the
+     * reverse; one bottle is picked once; and no pick left means null, so the caller can fall back.
+     *
+     * Tags are matched in any case with leading bullets and stray whitespace forgiven, multi-line
+     * WHY text is joined until the next tag, and a line that is not a tag is ignored.
      */
-    fun applyAdvice(read: SceneScan, raw: String): SceneScan? {
+    fun parseAdvice(raw: String, read: SceneScan): ListAdvice? {
+        val drafts = adviceDrafts(raw)
+        val dropped = mutableListOf<String>()
+        val used = mutableSetOf<Int>()
         val count = read.bottles.size
-        val picks = raw.lines()
-            .map { it.trim().removePrefix("- ").removePrefix("* ").removePrefix("• ").trim() }
-            .mapNotNull { line ->
-                val parts = line.split('|').map { it.trim() }
-                if (parts.size < 2 || !parts[0].uppercase().startsWith("PICK")) return@mapNotNull null
-                parts[1].replace(Regex("[^0-9]"), "").toIntOrNull()?.minus(1)
-                    ?.takeIf { it in 0 until count }
+
+        fun resolve(draft: AdviceDraft): Int? {
+            val index = draft.index
+            if (index == null || index !in 0 until count) {
+                dropped += "${draft.kind} ${draft.number ?: "?"} — no such line on the page"
+                return null
             }
-            .distinct()
-            .take(3)
+            return index
+        }
+
+        // A wine's colour is the section it is listed under, whatever the grape usually makes.
+        fun colourAgrees(draft: AdviceDraft, index: Int): Boolean {
+            val type = read.bottles[index].wine.type
+            val expected = colourOf(type) ?: return true
+            val claimed = colourClaims(draft.headline + " " + draft.why)
+            if (claimed.isEmpty() || expected in claimed) return true
+            dropped += "${draft.kind} ${index + 1} — described as ${claimed.joinToString(" / ")}, " +
+                "listed as ${type.label.lowercase()}"
+            return false
+        }
+
+        val picks = mutableListOf<AdvicePick>()
+        drafts.filter { it.kind == "PICK" }.forEach { draft ->
+            val index = resolve(draft) ?: return@forEach
+            if (draft.headline.isBlank()) {
+                dropped += "PICK ${index + 1} — no headline"
+                return@forEach
+            }
+            if (!used.add(index)) {
+                dropped += "PICK ${index + 1} — already picked"
+                return@forEach
+            }
+            if (!colourAgrees(draft, index)) return@forEach
+            if (picks.size < 3) {
+                picks += AdvicePick(index, draft.headline, draft.why.toString().trim())
+            } else {
+                dropped += "PICK ${index + 1} — more than three picks"
+            }
+        }
         if (picks.isEmpty()) return null
-        val rankOf = picks.mapIndexed { position, index -> index to position + 1 }.toMap()
+
+        val glass = drafts.firstOrNull { it.kind == "GLASS" }?.let { draft ->
+            val index = resolve(draft) ?: return@let null
+            if (read.bottles[index].glassPrice == null) {
+                dropped += "GLASS ${index + 1} — no glass price is printed"
+                return@let null
+            }
+            if (!colourAgrees(draft, index)) return@let null
+            AdvicePick(index, draft.headline, draft.why.toString().trim())
+        }
+
+        val skips = drafts.filter { it.kind == "SKIP" }
+            .mapNotNull { draft ->
+                val index = resolve(draft) ?: return@mapNotNull null
+                if (!colourAgrees(draft, index)) return@mapNotNull null
+                AdvicePick(index, draft.headline, draft.why.toString().trim())
+            }
+            .distinctBy { it.index }
+            .take(4)
+
+        val note = drafts.lastOrNull { it.kind == "NOTE" }?.why?.toString()?.trim().orEmpty()
+        return ListAdvice(picks, glass, skips, note, dropped)
+    }
+
+    /** One tag line and the text that follows it, before any validation. */
+    private class AdviceDraft(
+        val kind: String,
+        val number: String?,
+        val index: Int?,
+        val headline: String
+    ) {
+        val why = StringBuilder()
+        var open = false
+    }
+
+    private fun adviceDrafts(raw: String): List<AdviceDraft> {
+        val out = mutableListOf<AdviceDraft>()
+        var last: AdviceDraft? = null
+        raw.lines().forEach { rawLine ->
+            val line = rawLine.trim().removePrefix("- ").removePrefix("* ").removePrefix("• ").trim()
+            if (line.isEmpty()) return@forEach
+            val upper = line.uppercase()
+            when {
+                upper.startsWith("PICK") || upper.startsWith("GLASS") || upper.startsWith("SKIP") -> {
+                    val kind = when {
+                        upper.startsWith("PICK") -> "PICK"
+                        upper.startsWith("GLASS") -> "GLASS"
+                        else -> "SKIP"
+                    }
+                    val parts = line.split('|', limit = 3).map { it.trim() }
+                    val number = parts.getOrNull(1).orEmpty()
+                    val draft = AdviceDraft(
+                        kind = kind,
+                        number = number.ifBlank { null },
+                        index = number.replace(Regex("[^0-9]"), "").toIntOrNull()?.minus(1),
+                        headline = parts.getOrNull(2).orEmpty().trim()
+                    )
+                    out += draft
+                    last = draft
+                }
+                upper.startsWith("WHY") && line.contains(':') -> {
+                    val draft = last
+                    if (draft != null && draft.kind != "NOTE") {
+                        draft.why.append(line.substringAfter(':').trim())
+                        draft.open = true
+                    }
+                }
+                upper.startsWith("NOTE") && line.contains(':') -> {
+                    val draft = AdviceDraft("NOTE", null, null, "")
+                    draft.why.append(line.substringAfter(':').trim())
+                    draft.open = true
+                    out += draft
+                    last = draft
+                }
+                else -> {
+                    // A WHY or NOTE that wrapped across lines: keep it until the next tag.
+                    val draft = last
+                    if (draft != null && draft.open) draft.why.append(' ').append(line)
+                }
+            }
+        }
+        return out
+    }
+
+    /** The colour the list's section says a wine is, or null when the section says nothing. */
+    private fun colourOf(type: WineType): String? = when (type) {
+        WineType.RED -> "red"
+        WineType.WHITE -> "white"
+        WineType.ROSE -> "rosé"
+        WineType.SPARKLING -> "sparkling"
+        WineType.ORANGE -> "orange"
+        WineType.DESSERT, WineType.FORTIFIED -> null
+    }
+
+    private val COLOUR_WORDS = mapOf(
+        "red" to "red",
+        "white" to "white",
+        "rose" to "rosé",
+        "rosé" to "rosé",
+        "rosado" to "rosé",
+        "sparkling" to "sparkling",
+        "bubbles" to "sparkling",
+        "orange" to "orange"
+    )
+
+    /**
+     * "Red fruit", "white pepper" and "orange peel" are tasting notes, not statements about the
+     * wine's colour, so the word after a colour is what decides whether it is a claim.
+     */
+    private val FLAVOUR_AFTER_COLOUR = setOf(
+        "fruit", "fruits", "fruited", "cherry", "cherries", "plum", "plums", "berry", "berries",
+        "currant", "currants", "apple", "apples", "grape", "grapes", "meat", "meats", "sauce",
+        "onion", "onions", "pepper", "peppers", "flowers", "floral", "peel", "citrus", "liquorice"
+    )
+
+    private fun colourClaims(text: String): Set<String> {
+        val words = text.lowercase()
+            .replace(Regex("[^\\p{L}\\s-]"), " ")
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+        val out = mutableSetOf<String>()
+        words.forEachIndexed { index, word ->
+            val colour = COLOUR_WORDS[word] ?: return@forEachIndexed
+            if (words.getOrNull(index + 1).orEmpty() in FLAVOUR_AFTER_COLOUR) return@forEachIndexed
+            out += colour
+        }
+        return out
+    }
+
+    /**
+     * The validated picks as the page's ranks, for the cards.
+     *
+     * Only the picks are placed — two or three explained bottles, which is what the answer is for —
+     * and the rest of the page stays unranked until someone asks about it.
+     */
+    fun applyAdvice(read: SceneScan, advice: ListAdvice): SceneScan {
+        val rankOf = advice.picks.mapIndexed { position, pick -> pick.index to position + 1 }.toMap()
         return read.copy(
             bottles = read.bottles.mapIndexed { index, label ->
                 rankOf[index]?.let { label.copy(listRank = it) } ?: label
             }
         )
     }
+
+    fun applyAdvice(read: SceneScan, raw: String): SceneScan? =
+        parseAdvice(raw, read)?.let { applyAdvice(read, it) }
 
     /**
      * The text-only judgement on a list the phone read: "index | rank | fit | what | why" lines

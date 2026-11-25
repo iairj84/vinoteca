@@ -38,7 +38,9 @@ data class ScanTrace(
     val lines: List<String>,
     val requests: List<TraceRequest>,
     val answer: String,
-    val answerStep: String
+    val answerStep: String,
+    /** Advice lines the parser threw away, and why. Debug only: never shown as advice. */
+    val dropped: List<String> = emptyList()
 ) {
     val answerChars: Int get() = answer.length
 }
@@ -51,6 +53,7 @@ class TraceBuilder {
     var lines: List<String> = emptyList()
     var answer: String = ""
     var answerStep: String = ""
+    var dropped: List<String> = emptyList()
 
     fun request(
         step: String,
@@ -70,7 +73,8 @@ class TraceBuilder {
         lines = lines,
         requests = requests.toList(),
         answer = answer,
-        answerStep = answerStep
+        answerStep = answerStep,
+        dropped = dropped
     )
 }
 

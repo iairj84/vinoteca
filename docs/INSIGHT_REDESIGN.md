@@ -311,7 +311,8 @@ These supersede the steps above where they conflict.
     single call, so a retry in the same minute 429s. That is why the per-wine fallback is *not*
     attempted when the advice call fails on a budget problem: a timeout or a rate limit is the one
     failure a second 4,000-token call would repeat rather than fix, so the scan goes to the page
-    read instead. `Thinking.MEDIUM` maps to `medium` on Groq. Until the validated reader lands,
-    only the `PICK` line numbers are used (`ScanParsing.applyAdvice`): picks are placed 1..3 and
-    the rest of the page is unranked. The WHY text is in the trace and nowhere on screen until
-    Step 7.
+    read instead. `Thinking.MEDIUM` maps to `medium` on Groq. Step 6 then replaced the stop-gap:
+    `ScanParsing.parseAdvice` validates every line (the line exists, a glass price is printed, the
+    colour matches the section, no duplicate bottle, null when nothing survives) and only the picks
+    are ranked, so the rest of the page stays unranked. The WHY text is parsed and carried, but the
+    cards still show a rank without a reason until Step 7 renders it.

@@ -473,7 +473,11 @@ fun ScanScreen(onReview: () -> Unit) {
                             "advice", judgeWho, judgeModel, raw.length,
                             System.currentTimeMillis() - judgeStart, true
                         )
-                        ScanParsing.applyAdvice(read, raw)?.let { return it }
+                        // The panel shows what was thrown away and why: a pick the page
+                        // contradicts is a fact about the answer, not something to hide.
+                        val parsed = ScanParsing.parseAdvice(raw, read)
+                        trace.dropped = parsed?.dropped.orEmpty()
+                        parsed?.let { return ScanParsing.applyAdvice(read, it) }
                     }
                     advice.exceptionOrNull()?.let { failure ->
                         lastProblem = failure.message
@@ -1797,6 +1801,16 @@ private fun ScanDetailsPanel(trace: ScanTrace?, basis: String?) {
                 color = if (request.ok) MaterialTheme.colorScheme.onSurfaceVariant
                 else MaterialTheme.colorScheme.error
             )
+        }
+        if (trace.dropped.isNotEmpty()) {
+            Text("Advice lines dropped", style = MaterialTheme.typography.labelMedium)
+            trace.dropped.forEach { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
         if (trace.answerStep.isNotBlank()) {
             Text(
