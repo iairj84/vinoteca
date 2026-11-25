@@ -106,7 +106,7 @@ jobs:
       - name: Write the release notes
         run: |
           TAG="${GITHUB_REF_NAME#v}"
-          awk -v tag="### $TAG:" 'index($0, tag) == 1 { on = 1; next } /^### / { on = 0 } on' README.md > release-notes.md
+          awk -v tag="### $TAG:" 'index($0, tag) == 1 { on = 1; next } /^### / { on = 0 } on' CHANGELOG.md > release-notes.md
           if [ ! -s release-notes.md ]; then
             echo "Wine Verdict $TAG." > release-notes.md
           fi
