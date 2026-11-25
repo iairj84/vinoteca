@@ -13,8 +13,8 @@ android {
         applicationId = "com.vinoteca.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "1.7.15"
+        versionCode = 31
+        versionName = "1.7.16"
         resourceConfigurations += listOf("en")
     }
 
@@ -93,6 +93,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("androidx.exifinterface:exifinterface:1.3.7")
+    // v1 bundles the Latin model on-device: instant OCR with no download, no network.
+    implementation("com.google.mlkit:text-recognition:16.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

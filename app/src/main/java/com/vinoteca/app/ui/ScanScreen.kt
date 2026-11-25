@@ -71,10 +71,13 @@ import com.vinoteca.app.model.formatMoney
 import com.vinoteca.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import com.vinoteca.app.ai.LocalOcr
 
 /**
  * One shutter, no mode switch. The model names the scene in the same reply that reads the bottles,
@@ -88,13 +91,19 @@ private const val SCAN_HINT =
 
 /**
  * How long one read may take before the screen gives up and says so. A free-tier vision request
- * that has not answered in forty seconds is not about to: the earlier behaviour was a spinner for
- * two minutes and then an error nobody could act on.
+ * that has not answered in twenty-five seconds is not about to: the earlier behaviour was a
+ * spinner for two minutes and then an error nobody could act on.
  */
-private const val READ_TIMEOUT_MS = 40_000L
+private const val READ_TIMEOUT_MS = 25_000L
 
 /** The smaller retry gets less time, because it carries less to upload. */
-private const val RETRY_TIMEOUT_MS = 30_000L
+private const val RETRY_TIMEOUT_MS = 20_000L
+
+/** The whole scan never outlives this: first byte to last card. No scan takes minutes. */
+private const val SCAN_DEADLINE_MS = 75_000L
+
+/** Wait this long for the primary provider, then ask the second one too and take whichever wins. */
+private const val HEDGE_DELAY_MS = 12_000L
 
 private fun abvLabel(value: Double): String =
     String.format(java.util.Locale.US, "%.1f%%", value)
@@ -123,6 +132,9 @@ fun ScanScreen(onReview: () -> Unit) {
     var stage by remember { mutableStateOf("") }
     var waitedFor by remember { mutableStateOf(0L) }
     var elapsed by remember { mutableStateOf(0) }
+    // What the phone itself could read in ~1s, shown before any provider answers. Provisional:
+    // the AI ranking replaces it.
+    var instantLines by remember { mutableStateOf<List<String>?>(null) }
     var work by remember { mutableStateOf<Job?>(null) }
     LaunchedEffect(loading) {
         if (!loading) return@LaunchedEffect
@@ -165,6 +177,7 @@ fun ScanScreen(onReview: () -> Unit) {
                 imageUri = captured
                 scan = null
                 error = null
+                instantLines = null
             }
         }
     }
@@ -182,6 +195,7 @@ fun ScanScreen(onReview: () -> Unit) {
             imageUri = uri
             scan = null
             error = null
+            instantLines = null
         }
     }
 
@@ -196,8 +210,18 @@ fun ScanScreen(onReview: () -> Unit) {
         stage = "Reading the photo"
         waitedFor = 0L
         elapsed = 0
+        instantLines = null
         work?.cancel()
         work = scope.launch {
+            val scanStart = System.currentTimeMillis()
+            // On-device text first: ~1s, no network. Shown immediately so a stalled provider
+            // never means a blank screen.
+            stage = "Reading the words on your phone"
+            instantLines = runCatching { LocalOcr.previewLines(context, uri) }.getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+            // Remaining budget for the network reads; every step below spends from it.
+            fun remainingMs(): Long =
+                SCAN_DEADLINE_MS - (System.currentTimeMillis() - scanStart)
             try {
                 val taste = AppGraph.taste.brief()
                 val known = AppGraph.cellar.data.value.wines.map { it.title }.distinct()
@@ -261,47 +285,100 @@ fun ScanScreen(onReview: () -> Unit) {
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
                 // half-written, and the scene and the order come back in the same answer. That is
                 // one round trip for a list instead of a cheap question followed by a real one.
-                // A frame that never comes back is retried once, smaller: a stalled vision request
-                // is usually the upload, and 1200px is about a third of the bytes.
+                // Hedged when two keys exist: after 12s with no answer the second provider is
+                // asked too and whichever answers first wins — one stalled provider no longer
+                // costs its full timeout before the other is tried.
                 suspend fun readPage(): String {
+                    val ocrHint = instantLines
+                        ?.takeIf { it.isNotEmpty() }
+                        ?.joinToString("\n") { "- $it" }
+                        ?.let { "\n\nThe phone itself read these lines (may have errors, use the photo):\n$it" }
+                        .orEmpty()
                     val ask = listOf(
                         ChatMessage(
                             role = "user",
-                            text = "Read this photo: give me the scene line, then one line per wine."
+                            text = "Read this photo: give me the scene line, then one line per wine." + ocrHint
                         )
                     )
-                    val first = withTimeoutOrNull(READ_TIMEOUT_MS) {
-                        AppGraph.ai.complete(
-                            system = Prompts.listLines(taste, currency),
-                            turns = ask,
-                            imagesBase64 = listOf(full),
-                            vision = true,
-                            jsonMode = false,
-                            thinking = Thinking.OFF,
-                            temperature = 0.1,
-                            maxTokens = 1_600,
-                            onBudgetWait = hold
-                        )
+                    val system = Prompts.listLines(taste, currency)
+                    val primary = AppGraph.settings.configuredProviders.firstOrNull()
+                    val second = AppGraph.settings.configuredProviders.drop(1).firstOrNull()
+                    val hedged: String? = coroutineScope {
+                        // runCatching inside: a failure is a null answer, never an exception the
+                        // polling loop below would choke on while the other request is still in flight.
+                        val first = async {
+                            withTimeoutOrNull(READ_TIMEOUT_MS) {
+                                runCatching {
+                                    AppGraph.ai.complete(
+                                        system = system,
+                                        turns = ask,
+                                        imagesBase64 = listOf(full),
+                                        vision = true,
+                                        jsonMode = false,
+                                        thinking = Thinking.OFF,
+                                        temperature = 0.1,
+                                        maxTokens = 1_600,
+                                        provider = primary,
+                                        onBudgetWait = hold
+                                    )
+                                }.getOrNull()
+                            }
+                        }
+                        if (second == null) return@coroutineScope first.await()
+                        val late = async {
+                            delay(HEDGE_DELAY_MS)
+                            if (first.isCompleted) return@async null
+                            stage = "Still waiting — asking " +
+                                "${second.shortLabel} too and taking whichever answers"
+                            withTimeoutOrNull(RETRY_TIMEOUT_MS) {
+                                runCatching {
+                                    AppGraph.ai.complete(
+                                        system = system,
+                                        turns = ask,
+                                        imagesBase64 = listOf(full),
+                                        vision = true,
+                                        jsonMode = false,
+                                        thinking = Thinking.OFF,
+                                        temperature = 0.1,
+                                        maxTokens = 1_600,
+                                        provider = second,
+                                        onBudgetWait = hold
+                                    )
+                                }.getOrNull()
+                            }
+                        }
+                        val winner = withTimeoutOrNull(READ_TIMEOUT_MS + HEDGE_DELAY_MS) {
+                            var answer: String? = null
+                            while (answer == null && (first.isActive || late.isActive)) {
+                                delay(200L)
+                                if (first.isCompleted) answer = first.getCompleted()
+                                else if (late.isCompleted) answer = late.getCompleted()
+                            }
+                            answer
+                        }
+                        first.cancel()
+                        late.cancel()
+                        winner
                     }
-                    if (first != null) return first
+                    if (hedged != null) return hedged
                     waitedFor = 0L
-                    // A stalled provider is the one thing the retry can route around: the second
-                    // key answers instead, with a third of the upload.
-                    val next = AppGraph.settings.configuredProviders.drop(1).firstOrNull()
-                    stage = if (next != null) {
-                        "Retrying on ${next.shortLabel} · ${AppGraph.settings.visionModel(next)}"
-                    } else {
-                        "Retrying with a smaller photo on $who"
-                    }
+                    // Neither answered in time: one smaller retry on whatever budget is left.
+                    val left = remainingMs()
+                    if (left < 8_000L) throw AiException(
+                        "$who did not answer in time ($photoKb KB up). Nothing was saved — " +
+                            "try again on Wi-Fi, or add the other provider's key in Settings."
+                    )
+                    stage = "Retrying with a smaller photo" +
+                        (second?.let { " on ${it.shortLabel}" } ?: " on $who")
                     val small = withContext(Dispatchers.IO) {
                         Base64.encodeToString(
                             ImageUtils.jpegBytes(context, uri, maxDim = 1_200, quality = 75),
                             Base64.NO_WRAP
                         )
                     }
-                    return withTimeoutOrNull(RETRY_TIMEOUT_MS) {
+                    return withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, left)) {
                         AppGraph.ai.complete(
-                            system = Prompts.listLines(taste, currency),
+                            system = system,
                             turns = ask,
                             imagesBase64 = listOf(small),
                             vision = true,
@@ -309,14 +386,15 @@ fun ScanScreen(onReview: () -> Unit) {
                             thinking = Thinking.OFF,
                             temperature = 0.1,
                             maxTokens = 1_600,
-                            provider = next,
+                            provider = second,
                             onBudgetWait = hold
                         )
                     } ?: throw AiException(
-                        "$who did not answer in ${READ_TIMEOUT_MS / 1000} seconds on the full photo, " +
-                            "nor in ${RETRY_TIMEOUT_MS / 1000} on a smaller one ($photoKb KB, then a " +
-                            "third of that). Nothing was saved. Try again on Wi-Fi; if it still " +
-                            "stalls, add the other provider's key in Settings and it will answer instead."
+                        "$who did not answer in ${READ_TIMEOUT_MS / 1000}s on the full photo, " +
+                            "nor the backup in ${RETRY_TIMEOUT_MS / 1000}s on a smaller one " +
+                            "($photoKb KB, then a third of that). Nothing was saved. Try again on " +
+                            "Wi-Fi; if it still stalls, add the other provider's key in Settings " +
+                            "and it will answer instead."
                     )
                 }
 
@@ -337,9 +415,10 @@ fun ScanScreen(onReview: () -> Unit) {
                 waitedFor = 0L
 
                 // A bottle is worth the richer read on top: notes, window and the model's own fit.
+                // Skipped when the budget is nearly spent — the line read already has the bottle.
                 val bottle = scene == Scene.BOTTLE ||
                     (scene == null && parsed?.bottles?.size == 1)
-                if (bottle) {
+                if (bottle && remainingMs() > 12_000L) {
                     stage = "Reading the label with $who"
                     val rich = readJson()
                     if (rich != null && rich.bottles.isNotEmpty()) parsed = rich
@@ -358,9 +437,11 @@ fun ScanScreen(onReview: () -> Unit) {
                 // A single bottle missing its ABV or vintage gets the small-print pass on the crop.
                 // Those two figures decide the verdict and the window, so they are worth one more
                 // cheap request — the answer is a dozen short fields, not a whole reading.
+                // Skipped when the scan budget is nearly spent: no scan takes minutes.
                 val only = parsed?.bottles?.singleOrNull()
                 if (parsed != null && only != null &&
-                    (only.wine.alcohol == null || only.wine.vintage == null)
+                    (only.wine.alcohol == null || only.wine.vintage == null) &&
+                    remainingMs() > 10_000L
                 ) {
                     val crop = withContext(Dispatchers.IO) {
                         Base64.encodeToString(
@@ -369,21 +450,23 @@ fun ScanScreen(onReview: () -> Unit) {
                         )
                     }
                     val fineRaw = runCatching {
-                        AppGraph.ai.complete(
-                            system = Prompts.finePrint(currency),
-                            turns = listOf(
-                                ChatMessage(
-                                    role = "user",
-                                    text = "Read the small print: ABV, vintage, volume, appellation, grapes, barcode."
-                                )
-                            ),
-                            imagesBase64 = listOf(crop),
-                            vision = true,
-                            jsonMode = true,
-                            thinking = Thinking.OFF,
-                            temperature = 0.1,
-                            maxTokens = 600
-                        )
+                        withTimeoutOrNull(minOf(RETRY_TIMEOUT_MS, remainingMs())) {
+                            AppGraph.ai.complete(
+                                system = Prompts.finePrint(currency),
+                                turns = listOf(
+                                    ChatMessage(
+                                        role = "user",
+                                        text = "Read the small print: ABV, vintage, volume, appellation, grapes, barcode."
+                                    )
+                                ),
+                                imagesBase64 = listOf(crop),
+                                vision = true,
+                                jsonMode = true,
+                                thinking = Thinking.OFF,
+                                temperature = 0.1,
+                                maxTokens = 600
+                            )
+                        }
                     }.getOrNull()
                     val fine = fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
                     if (fine != null) {
@@ -572,6 +655,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             imageUri = null
                             scan = null
                             error = null
+                            instantLines = null
                         }
                     ) {
                         Icon(Icons.Filled.Close, contentDescription = null)
@@ -622,6 +706,24 @@ fun ScanScreen(onReview: () -> Unit) {
                             loading = false
                         }
                     ) { Text("Stop") }
+                }
+            }
+
+            // On-device preview: what the phone itself read, before any provider answers.
+            // Provisional — the ranked cards replace it — but a stalled network never leaves
+            // a blank screen.
+            if (scan == null && instantLines != null) {
+                SectionCard("On your phone already — ranking follows") {
+                    instantLines!!.take(12).forEach { line ->
+                        Text(line, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (instantLines!!.size > 12) {
+                        Text(
+                            "+${instantLines!!.size - 12} more lines",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
 

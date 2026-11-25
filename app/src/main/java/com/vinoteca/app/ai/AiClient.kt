@@ -72,10 +72,10 @@ class AiClient(
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(150, TimeUnit.SECONDS)
-        .writeTimeout(90, TimeUnit.SECONDS)
-        // The whole exchange, including the slow body read, so no single call can outlive this.
-        .callTimeout(150, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        // Backstop only: the screen bounds every read well below this and cancels the call.
+        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
