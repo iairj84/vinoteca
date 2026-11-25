@@ -198,7 +198,7 @@ every line and therefore the same output. So a list is ranked against itself in 
 The first version of that ranking leaned on `personal_fit`, which is a judgment of one wine against
 `mytaste.md` — and with that file empty, as it is on a fresh install or after the app data is cleared,
 the model honestly scores every wine neutral and the page ranks flat again. So the read now returns
-`list_rank` as well: the model's own order down the page, 1 for the bottle it would order first, a
+`list_rank` as well (from the line reader for a list, from the structured reader for a bottle): the model's own order down the page, 1 for the bottle it would order first, a
 different number for every line, with `fit_reason` naming what puts that bottle there. That is a
 comparison between the bottles on the page rather than a verdict on each in isolation, so it keeps
 its meaning with an empty taste file. `ListPicks` sorts on that order first, then on `personal_fit`,
@@ -308,6 +308,29 @@ So the list path no longer uses JSON at all.
 
 Two requests instead of one, but both are small: the scene check is a word, the list read is about
 eighteen short lines. That should take seconds, not a minute.
+
+### 1.7.12: one request for a list, and a wait that says what it is
+
+A scan that sat on "Reading carefully — a few extra seconds…" for over a minute was doing two
+things at once: two round trips before a list produced a single card, and, on a free tier, a wait
+inside the rate limiter that nothing on screen mentioned.
+
+- **The scene question moved into the list read.** `Prompts.sceneCheck` was a second request on a
+  second image, asked before the real one. The list reader now answers it in its first line
+  (`SCENE: list`), so a list or a shelf is one request instead of two. `ScanParsing.sceneLine` reads
+  it, and when a model leaves it out the scene is inferred from how many wines came back. A bottle
+  still gets the richer JSON read on top, because that is what carries notes, window and fit.
+- **`rank` is part of the line format.** The ranking added in 1.7.10 was parsed out of the JSON
+  reader, which a list never reaches — the line reader is the one that runs on a list. Each line now
+  ends with its place on the page, every number used once, so `ListPicks` has an order to sort on
+  instead of falling back to price.
+- **The wait is on screen.** Both scan requests pass `onBudgetWait`, and the progress row shows the
+  provider and model that is actually answering ("Reading the page with Groq · qwen/qwen3.8-27b"),
+  the seconds elapsed, and, when the limiter is holding the request, "Waiting 38s for Groq's
+  per-minute free-tier limit". A **Stop** button cancels it. Silence was the one thing that made a
+  slow answer look like a hung app.
+- **The privacy line names the provider that has the key.** It said Groq on every install, which is
+  wrong for anyone reading with Gemini.
 
 ### 1.7.6: no single request decides whether the scan works
 

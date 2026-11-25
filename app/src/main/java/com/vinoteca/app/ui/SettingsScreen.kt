@@ -472,7 +472,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
 
             SectionCard("Your data") {
                 Text(
-                    "Cellar, tasting notes and mytaste.md are stored in this app's private files on the phone. Photos are sent to Groq only when you tap Analyse or Send. There is no account and no server of ours.",
+                    "Cellar, tasting notes and mytaste.md are stored in this app's private files on the phone. Photos are sent only to the provider whose key you pasted, only when you tap Analyse or Send. There is no account and no server of ours.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 OutlinedButton(onClick = { confirmClearChat = true }) {

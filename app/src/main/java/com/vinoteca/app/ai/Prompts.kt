@@ -270,34 +270,37 @@ object Prompts {
     """.trimIndent()
 
     /**
-     * One tiny question, asked before the real read: what am I looking at?
+     * The whole photo in one request: what it is, every wine on it, and the order they belong in.
      *
-     * It is twelve tokens of answer on a small image, and it buys the right reader: a printed list
-     * needs a plain line-per-wine format, not a JSON object per bottle. Asking the model to classify
-     * inside the big answer meant one format had to serve three jobs, and the list lost.
+     * The scene used to be a separate question, which meant two round trips before a list said
+     * anything — and on a free tier a round trip is the expensive part. It costs ten tokens to
+     * answer here, next to a transcription the model is doing anyway.
+     *
+     * The format is still plain lines, not JSON: a cut-off answer loses its last lines and the rest
+     * parses. Eighteen nested objects in one free-tier reply is how a list came back unreadable.
      */
-    fun sceneCheck(): String = """
-        Look at the photo and reply with exactly one word and nothing else:
-        bottle — one bottle's label fills the frame
-        shelf — two or more bottles standing in a row
-        list — a printed wine list, menu or drinks card, mostly text
-        other — no wine is visible
-    """.trimIndent()
+    fun listLines(tasteMd: String, currency: String): String {
+        val taste = tasteMd.trim().ifBlank {
+            "(my taste file is empty — rank on what the page itself says)"
+        }
+        return """
+        Read the photo, and copy every wine in it into lines. No JSON. No headings. No commentary
+        before or after.
 
-    /**
-     * A wine list, copied as lines. No JSON, no nesting, no braces to break: a cut-off answer loses
-     * its last lines and the rest still parses. That is the whole reason this exists — a page of
-     * eighteen wines is a transcription problem, and asking a vision model for eighteen nested
-     * objects inside one free-tier reply is how three scans in a row came back unreadable.
-     */
-    fun listLines(currency: String): String = """
-        Read the printed wine list in this photo and copy it into lines. No JSON. No headings. No
-        commentary before or after — just the lines.
+        The first line is the scene, exactly one of these four:
+        SCENE: list
+        SCENE: shelf
+        SCENE: bottle
+        SCENE: other
 
-        One line per wine, in the order printed: down the left column, then the right. Separate the
-        fields with " | " in this exact order:
+        "list" is a printed wine list, menu or drinks card, mostly text. "shelf" is two or more
+        bottles standing together. "bottle" is one bottle's label filling the frame. "other" is no
+        wine in the photo at all.
 
-        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence
+        Then one line per wine, in the order printed: down the left column, then the right. Separate
+        the fields with " | " in this exact order:
+
+        producer | name | vintage | region | grapes | type | bottle price | glass price | confidence | rank
 
         Rules:
         - Write "-" for any field the page does not print. Never guess and never estimate.
@@ -310,11 +313,19 @@ object Prompts {
         - "bottle price" is the BOTTLE figure, "glass price" is the GLASS figure, in $currency,
           numbers only. Never swap them. "-" when one is not printed.
         - "confidence" is high, medium or low, for that line on its own.
+        - "rank" is where this line belongs on this page: 1 is the one you would order first, 2 the
+          second, and so on. Use every number from 1 to the number of wines exactly once — no ties,
+          no repeats, never blank. Rank on what the page says about the wines: grape, region,
+          vintage, style and price. Where my taste file below says something, it decides.
         - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.
         - At most 24 lines. If the page holds more, stop at 24.
-    """.trimIndent()
+
+        MY TASTE FILE
+        $taste
+        """.trimIndent()
+    }
 
     /**
      * The small print, on its own. A phone photo of a 1.5-litre label loses the figures the buying

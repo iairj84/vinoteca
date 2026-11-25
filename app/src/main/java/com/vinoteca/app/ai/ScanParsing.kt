@@ -132,6 +132,17 @@ object ScanParsing {
      * A line that does not split into at least six fields is not a wine line and is dropped, and a
      * reply that stops early simply yields fewer wines instead of nothing at all.
      */
+    /**
+     * The `SCENE: list` line the list read now starts with. Null when the model skipped it, in
+     * which case the scene is inferred from how many wines came back.
+     */
+    fun sceneLine(raw: String): Scene? =
+        Regex("(?im)^[\\s*>-]*SCENE\\s*[:\\-]\\s*([a-zA-Z]+)")
+            .find(raw)
+            ?.groupValues
+            ?.get(1)
+            ?.let { Scene.from(it) }
+
     fun parseListLines(raw: String, currencyFallback: String): List<ScannedLabel> =
         raw.lines()
             .map { it.trim().removePrefix("- ").removePrefix("* ").removePrefix("\u2022 ").trim() }
@@ -163,6 +174,7 @@ object ScanParsing {
         // A "glass" that costs more than the bottle is the two figures swapped or one read twice.
         val glass = number(7)?.takeIf { it < 5000.0 }?.takeIf { bottle == null || it < bottle }
         val declared = text(8).lowercase()
+        val rank = text(9).replace(Regex("[^0-9]"), "").toIntOrNull()?.takeIf { it in 1..24 }
         val confidence = when {
             declared.startsWith("hi") -> "high"
             declared.startsWith("lo") -> "low"
@@ -189,7 +201,8 @@ object ScanParsing {
             readNotes = "",
             wineFound = true,
             valueVerdict = "unknown",
-            glassPrice = glass
+            glassPrice = glass,
+            listRank = rank
         )
     }
 

@@ -69,6 +69,7 @@ import com.vinoteca.app.model.Wine
 import com.vinoteca.app.model.formatMoney
 import com.vinoteca.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -93,6 +94,10 @@ fun ScanScreen(onReview: () -> Unit) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val currency = AppGraph.settings.currency
+    // Whose key and whose model actually answer the scan. The footer used to name Groq on every
+    // install, which is wrong the moment a Gemini key is the one doing the reading.
+    val providerName = AppGraph.settings.configuredProviders.firstOrNull()?.label
+        ?: "your provider"
 
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
@@ -101,6 +106,20 @@ fun ScanScreen(onReview: () -> Unit) {
     var scan by remember { mutableStateOf<SceneScan?>(null) }
     var reReading by remember { mutableStateOf(false) }
     var batch by remember { mutableStateOf(false) }
+    // What the read is doing, how long it has been doing it, and any wait the free tier has
+    // imposed. A spinner with nothing next to it is indistinguishable from a hung app.
+    var stage by remember { mutableStateOf("") }
+    var waitedFor by remember { mutableStateOf(0L) }
+    var elapsed by remember { mutableStateOf(0) }
+    var work by remember { mutableStateOf<Job?>(null) }
+    LaunchedEffect(loading) {
+        if (!loading) return@LaunchedEffect
+        elapsed = 0
+        while (loading) {
+            delay(1_000L)
+            elapsed += 1
+        }
+    }
     val queueItems by AppGraph.scanQueue.items.collectAsStateWithLifecycle()
     val queueWaitingUntil by AppGraph.scanQueue.waitingUntil.collectAsStateWithLifecycle()
     val queueRunning by AppGraph.scanQueue.running.collectAsStateWithLifecycle()
@@ -162,10 +181,18 @@ fun ScanScreen(onReview: () -> Unit) {
         }
         loading = true
         error = null
-        scope.launch {
+        stage = "Reading the photo"
+        waitedFor = 0L
+        elapsed = 0
+        work?.cancel()
+        work = scope.launch {
             try {
                 val taste = AppGraph.taste.brief()
                 val known = AppGraph.cellar.data.value.wines.map { it.title }.distinct()
+                val primary = AppGraph.settings.configuredProviders.firstOrNull()
+                val who = primary
+                    ?.let { "${it.shortLabel} · ${AppGraph.settings.visionModel(it)}" }
+                    .orEmpty()
                 // One image per request. The free tier bills an image at a fixed 2,048 tokens, and
                 // two of them left too little room for a long answer: that is what kept cutting the
                 // JSON off. The centre crop is a label-only tool and is sent later, on its own.
@@ -175,59 +202,11 @@ fun ScanScreen(onReview: () -> Unit) {
                         Base64.NO_WRAP
                     )
                 }
-                val small = withContext(Dispatchers.IO) {
-                    Base64.encodeToString(
-                        ImageUtils.jpegBytes(context, uri, maxDim = 1200, quality = 80),
-                        Base64.NO_WRAP
-                    )
-                }
-
-                // What is this photo? A single word on a small image, and if that question fails it
-                // changes nothing: every path has a fallback below.
-                val scene = runCatching {
-                    val word = AppGraph.ai.complete(
-                        system = Prompts.sceneCheck(),
-                        turns = listOf(ChatMessage(role = "user", text = "One word: what is in this photo?")),
-                        imagesBase64 = listOf(small),
-                        vision = true,
-                        jsonMode = false,
-                        thinking = Thinking.OFF,
-                        temperature = 0.0,
-                        maxTokens = 24
-                    )
-                    ScanParsing.sceneWord(word)
-                }.getOrNull()
 
                 var lastProblem: String? = null
-
-                // Plain lines: no braces, no schema, nothing that can arrive half-written. It handles
-                // a list, a shelf and a single bottle, and it is the fallback for every failure.
-                val readLines: suspend () -> SceneScan? = {
-                    runCatching {
-                        val raw = AppGraph.ai.complete(
-                            system = Prompts.listLines(currency),
-                            turns = listOf(
-                                ChatMessage(
-                                    role = "user",
-                                    text = "Copy every wine in this photo as one line each."
-                                )
-                            ),
-                            imagesBase64 = listOf(full),
-                            vision = true,
-                            jsonMode = false,
-                            thinking = Thinking.OFF,
-                            temperature = 0.1,
-                            maxTokens = 1_600
-                        )
-                        val labels = ScanParsing.parseListLines(raw, currency)
-                        if (labels.isEmpty()) null
-                        else SceneScan(
-                            scene = if (labels.size == 1) Scene.BOTTLE else if (scene == Scene.LIST) Scene.LIST else Scene.SHELF,
-                            bottles = labels,
-                            notes = ""
-                        )
-                    }.onFailure { lastProblem = it.message }.getOrNull()
-                }
+                // A wait the limiter imposes is shown with its length: a mute spinner for a minute
+                // reads as a hung app, and a free-tier window is usually what the minute is.
+                val hold: (Long) -> Unit = { ms -> waitedFor = if (ms > 0) ms else 0L }
 
                 // The structured reader: richer per bottle (notes, window, fit), and the only path
                 // that gets those. Any failure here is survivable now.
@@ -246,17 +225,60 @@ fun ScanScreen(onReview: () -> Unit) {
                             jsonMode = true,
                             thinking = Thinking.LOW,
                             temperature = 0.1,
-                            maxTokens = 3600
+                            maxTokens = 3600,
+                            onBudgetWait = hold
                         )
+                        waitedFor = 0L
                         ScanParsing.parseScene(raw, currency)
                     }.onFailure { lastProblem = it.message }.getOrNull()
                 }
 
-                // A bottle is worth the richer read; a list or shelf is not, and gets lines first.
-                var parsed = if (scene == Scene.BOTTLE) {
-                    readJson()?.takeIf { it.bottles.isNotEmpty() } ?: readLines()
-                } else {
-                    readLines() ?: readJson()?.takeIf { it.bottles.isNotEmpty() }
+                // Plain lines, and the first request: no braces, no schema, nothing that can arrive
+                // half-written, and the scene and the order come back in the same answer. That is
+                // one round trip for a list instead of a cheap question followed by a real one.
+                stage = "Reading the page with $who"
+                var scene: Scene? = null
+                var parsed = runCatching {
+                    val raw = AppGraph.ai.complete(
+                        system = Prompts.listLines(taste, currency),
+                        turns = listOf(
+                            ChatMessage(
+                                role = "user",
+                                text = "Read this photo: give me the scene line, then one line per wine."
+                            )
+                        ),
+                        imagesBase64 = listOf(full),
+                        vision = true,
+                        jsonMode = false,
+                        thinking = Thinking.OFF,
+                        temperature = 0.1,
+                        maxTokens = 1_600,
+                        onBudgetWait = hold
+                    )
+                    waitedFor = 0L
+                    scene = ScanParsing.sceneLine(raw)?.takeIf { it != Scene.OTHER }
+                    val labels = ScanParsing.parseListLines(raw, currency)
+                    if (labels.isEmpty()) null
+                    else SceneScan(
+                        scene = scene ?: if (labels.size == 1) Scene.BOTTLE else Scene.SHELF,
+                        bottles = labels,
+                        notes = ""
+                    )
+                }.onFailure { lastProblem = it.message }.getOrNull()
+                waitedFor = 0L
+
+                // A bottle is worth the richer read on top: notes, window and the model's own fit.
+                val bottle = scene == Scene.BOTTLE ||
+                    (scene == null && parsed?.bottles?.size == 1)
+                if (bottle) {
+                    stage = "Reading the label with $who"
+                    val rich = readJson()
+                    if (rich != null && rich.bottles.isNotEmpty()) parsed = rich
+                }
+                // Nothing came out of the line read: try the structured one on the same photo.
+                if (parsed == null) {
+                    stage = "Trying a closer read with $who"
+                    parsed = readJson()?.takeIf { it.bottles.isNotEmpty() }
                 }
 
                 if (parsed == null) {
@@ -503,10 +525,34 @@ fun ScanScreen(onReview: () -> Unit) {
             if (loading) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     CircularProgressIndicator()
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(
+                            if (waitedFor > 0L) {
+                                "Waiting ${(waitedFor + 999) / 1000}s for $providerName's " +
+                                    "per-minute free-tier limit"
+                            } else {
+                                stage.ifBlank { "Reading the photo" }
+                            },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            "${elapsed}s",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(
+                        onClick = {
+                            work?.cancel()
+                            work = null
+                            waitedFor = 0L
+                            loading = false
+                        }
+                    ) { Text("Stop") }
                 }
             }
 
@@ -653,7 +699,8 @@ fun ScanScreen(onReview: () -> Unit) {
             }
 
             Text(
-                "Photos are compressed on the phone and sent to Groq only when you tap Analyse. Nothing is stored in the cloud.",
+                "Photos are compressed on the phone and sent to $providerName with your own key, " +
+                    "only when you tap Analyse. Nothing is stored in the cloud.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )
