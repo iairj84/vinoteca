@@ -5,6 +5,14 @@ Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
 ### Unreleased
 
+**A bottle explains itself.** Confirming a scanned label now asks, once, *why* the bottle tastes
+the way it does: a headline, three to six cause-and-effect reasons — printed plainly when the model
+is confident, hedged with "Typically" when it is reasoning from the region, and dropped when it is
+guessing — a tasting profile, a drinking window, food pairings and a line for you. The answer is
+kept on the bottle and cached by normalized producer/name/vintage, so the same wine scanned twice is
+answered once, and a bottle met again on a shelf takes the explanation it already has. Reference
+notes from a web lookup now say "From the web" with the pages they came from.
+
 **A shelf is answered, not scored.** A shop shelf now gets the same treatment as a wine list: one
 advice request over every bottle the photo printed, up to three bottles worth taking — each with the
 price from the record, why it earns the spot and, when a price was read, a good/fair/poor value call

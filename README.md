@@ -16,7 +16,12 @@ Gemini or Groq — with your own key.
 
 - **Scan a label** — photo → a vision model reads producer, name, vintage, region, grapes,
   style, ABV, drinking window, sommelier-style reference notes and, when the model offers one, a
-  1–5 match against your taste profile. Everything is shown for review before it is saved.
+  1–5 match against your taste profile. Everything is shown for review before it is saved. Saving
+  it also asks once *why* the bottle tastes the way it does: cause-and-effect reasons tagged with
+  the confidence behind each (plain when high, "Typically" when it is reasoning from the region,
+  hidden when it is guessing), a tasting profile, a drinking window, pairings and a line for you.
+  The answer is kept on the bottle and cached per wine, so the same bottle is never asked twice and
+  a shelf that holds a wine you already know takes the explanation it already has.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
   from the photo, why it earns the spot and — when a price is printed — whether that price is good,
@@ -292,6 +297,7 @@ classes with a note that none of them are written into the file, and the full te
 | Taste profile | `files/mytaste.md` |
 | Quick-start answers | private `SharedPreferences` (`vinoteca_palate`) |
 | Pending batch scans + their photos | `files/scan-queue.json`, `files/scan-queue/` |
+| "Why it tastes this way" answers, cached by wine | `files/insights.json` |
 | API keys, base URLs, model ids, pace, currency | private `SharedPreferences` (`vinoteca_settings`) |
 | Captured photos | app cache, deleted by the system |
 

@@ -492,6 +492,54 @@ Insight prompt rules: reason region → grape → vintage → producer; producer
 
 **Done when:** scanning a bottle shows a "why" section; rescanning the same wine shows it instantly with no AI request in the debug panel.
 
+**Shipped.** `Prompts.bottleInsight` asks for the JSON in the schema above; `InsightParsing` reads it
+through the same tolerant JSON extractor as every other reply; `Wine` gained `insightJson`,
+`insightModel` and `insightDate` (all defaulted, so every existing record loads unchanged);
+`data/InsightStore` owns the cache at `files/insights.json`, capped at 300 wines; and
+`WineDetailScreen` renders the block between the drinking window and the reference notes. The web
+lookup's output now reads `From the web · <hosts>` instead of `Read from:`.
+
+Where it is asked for, and why:
+
+- **At the confirmation, not at the read.** A single bottle is confirmed in the editor, so the save
+  that follows a scan's draft (`ScanHandoff.hasDraft()`) is what triggers the call. A scan the user
+  walks away from costs one vision read and nothing more.
+- **A shelf card never pays for one.** "Add" on a shelf or list card stamps the answer the wine
+  already has, if any (`stampCached`), and asks for nothing. Explaining a shelf bottle per tap would
+  turn browsing into a billing event.
+- **The stored answer keeps the schema's key names.** `@SerialName` pins `why_it_tastes_this_way`,
+  `tasting_profile`, `drinking_window`, `food_pairings` and `for_you`, because the record is read
+  back through the same parser that reads the model's reply. See the live run: without it, a bottle
+  page showed a headline and nothing else.
+
+**Live run, 2026-11-26** (emulator, real Gemini key, `.screens/seed/label.png` — one label rendered
+to fill the frame). The read came back as `2018 Ultreia Mencia · RAUL PEREZ`, confidence high, AI
+match 4/5; `Review and add to cellar` opened the editor with the draft, and the save produced the
+insight on the record within 20 s: `gemini-3.1-flash-lite`, a headline, four claims (three high, one
+medium), body medium / tannin medium / acidity medium, five flavour notes, a 2026–2028 window at high
+confidence, three pairings and a "For you" line.
+
+The page showed exactly the intended split (`.screens/insight-light-1.png`, `-2.png`): three claims
+plain, the vintage one hedged `Typically, …`, and the low-confidence one the model was told to omit
+never appeared. The older Tintilla record, added before this step, showed no section at all — the
+null default doing its job.
+
+**What the first render exposed.** Only the headline appeared: the answer was stored as JSON with
+the data class's own field names (`why`, `taste`, `window`, `pairings`, `forYou`), and the parser
+looks for the schema's. The fix is in two halves — `@SerialName` so what is written is what the
+parser reads, and both spellings accepted on the way in, so an answer that echoes the short names
+still renders. `theShortFieldNamesAreReadToo` and `aStoredInsightReadsBackAsTheAnswerItWas` hold both.
+
+**The cache, measured.** After the first save, `files/insights.json` held one entry under the key
+`raul perez|ultreia mencia|2018` — accents folded, lowercase, punctuation collapsed. Scanning and
+saving the same label a second time produced a second record whose `insightDate` was identical to
+the first's (`1795667218950`) and left the cache file unchanged: the answer came from the cache, not
+the model. A fresh call would have stamped a new time.
+
+Not verified: the dark theme render, the `From the web` line (no lookup was run, so nothing carried a
+source), the shelf reuse path (`stampCached` is code-only so far — it needs a shelf card whose wine is
+in the cache), Groq as the advice provider (Gemini answered first every time), and a real phone.
+
 ---
 
 ## Step 11 — Regression check and docs

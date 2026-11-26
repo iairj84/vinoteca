@@ -1441,6 +1441,12 @@ val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine
                                 scope.launch {
                                     AppGraph.cellar.upsert(record)
                                     snackbarHostState.showSnackbar("Added ${record.title}")
+                                    // One bottle confirmed from a label is worth an explanation; a
+                                    // shelf of them is not, so a shelf card takes the answer this
+                                    // wine already has and never pays for a second one.
+                                    AppGraph.scope.launch {
+                                        runCatching { AppGraph.insights.stampCached(record) }
+                                    }
                                 }
                             },
                             onReview = {

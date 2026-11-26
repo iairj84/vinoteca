@@ -58,6 +58,8 @@ fun WineEditorScreen(wineId: String?, onDone: () -> Unit) {
     val existing = remember(wineId, data.wines) {
         wineId?.let { id -> data.wines.firstOrNull { it.id == id } }
     }
+    // A draft only exists when a scan handed the editor a bottle; a new manual record has none.
+    val fromScan = remember { existing == null && ScanHandoff.hasDraft() }
     val initial = remember { existing ?: ScanHandoff.take() ?: Wine(currency = AppGraph.settings.currency) }
     val isNew = existing == null
     val scope = rememberCoroutineScope()
@@ -118,6 +120,12 @@ fun WineEditorScreen(wineId: String?, onDone: () -> Unit) {
         )
         scope.launch {
             AppGraph.cellar.upsert(updated)
+            // Confirming a scanned label is the moment the bottle becomes the user's, and the one
+            // moment "why it tastes this way" is worth a request. It runs on the app's scope so
+            // leaving the editor does not cancel the answer being saved onto the record.
+            if (fromScan && updated.insightJson.isNullOrBlank()) {
+                AppGraph.scope.launch { runCatching { AppGraph.insights.explain(updated) } }
+            }
             onDone()
         }
     }

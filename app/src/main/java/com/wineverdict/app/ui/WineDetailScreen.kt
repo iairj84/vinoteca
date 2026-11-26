@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.ai.InsightParsing
 import com.wineverdict.app.data.GateVerdict
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
@@ -230,6 +231,61 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 LabeledValue("Added", stamp)
             }
 
+            // Read from the record, so a re-scan of the same wine shows it without a request: the
+            // store stamps the answer onto the wine the first time it is asked for.
+            val insight = remember(wine.insightJson) { InsightParsing.parse(wine.insightJson) }
+            if (insight != null) {
+                SectionCard("Why it tastes this way") {
+                    if (insight.headline.isNotBlank()) {
+                        Text(insight.headline, style = MaterialTheme.typography.bodyMedium)
+                    }
+                    insight.visibleClaims().forEach { claim ->
+                        Text(
+                            text = "\u00b7  $claim",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    insight.taste?.let { taste ->
+                        if (taste.summary.isNotBlank()) LabeledValue("Body", taste.summary)
+                        if (taste.notes.isNotEmpty()) {
+                            LabeledValue("Flavours", taste.notes.joinToString(", "))
+                        }
+                    }
+                    insight.window?.let { window ->
+                        LabeledValue(
+                            "Drink",
+                            listOfNotNull(
+                                window.label.takeIf { it.isNotBlank() },
+                                window.confidence.takeIf { it.isNotBlank() }?.let { "confidence: $it" }
+                            ).joinToString(" \u00b7 ")
+                        )
+                    }
+                    if (insight.pairings.isNotEmpty()) {
+                        LabeledValue("With food", insight.pairings.joinToString(" \u00b7 "))
+                    }
+                    insight.forYou?.let {
+                        Text("For you: $it", style = MaterialTheme.typography.bodySmall)
+                    }
+                    val written = remember(wine.insightDate, wine.insightModel) {
+                        val day = if (wine.insightDate > 0L) {
+                            SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(wine.insightDate))
+                        } else {
+                            ""
+                        }
+                        listOf("Written by ${wine.insightModel.ifBlank { "the model" }}", day)
+                            .filter { it.isNotBlank() }
+                            .joinToString(" \u00b7 ")
+                    }
+                    Text(
+                        written,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    AiDisclaimer()
+                }
+            }
+
             SectionCard("Reference notes") {
                 if (wine.expertNotes.isBlank()) {
                     Text(
@@ -245,7 +301,7 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                     Text(wine.expertNotes, style = MaterialTheme.typography.bodyMedium)
                     if (wine.notesSource.isNotBlank()) {
                         Text(
-                            text = "Read from: ${sourceHosts(wine.notesSource)}",
+                            text = "From the web \u00b7 ${sourceHosts(wine.notesSource)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

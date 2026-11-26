@@ -501,6 +501,81 @@ object Prompts {
     }
 
     /**
+     * "Why it tastes this way" for one bottle.
+     *
+     * Text only, and about the wine rather than about the reader: the reason it is worth a request
+     * is that a label says what a bottle is and never why it tastes of anything. Every claim has to
+     * carry a cause, and the confidence is asked for per claim so the page can print the solid ones
+     * plainly and hedge the rest instead of averaging the whole answer into mush.
+     */
+    fun bottleInsight(wine: Wine, label: ScannedLabel?, brief: String): String {
+        val printed = label?.labelText?.trim().orEmpty()
+        val record = buildString {
+            appendLine("producer: ${wine.producer.ifBlank { "(not read)" }}")
+            appendLine("name: ${wine.name.ifBlank { "(not read)" }}")
+            appendLine("vintage: ${wine.vintage ?: "(not printed)"}")
+            appendLine("type: ${wine.type.label}")
+            if (wine.grapes.isNotEmpty()) appendLine("grapes: ${wine.grapes.joinToString(", ")}")
+            val place = listOf(wine.appellation, wine.region, wine.country)
+                .map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            if (place.isNotEmpty()) appendLine("place: ${place.joinToString(", ")}")
+            if (wine.alcohol != null) appendLine("alcohol: ${wine.alcohol}%")
+            if (wine.drinkFrom != null || wine.drinkTo != null) {
+                appendLine("drink window: ${wine.drinkWindowLabel}")
+            }
+            if (wine.expertNotes.isNotBlank()) appendLine("notes already on the record: ${wine.expertNotes.take(400)}")
+        }.trimEnd()
+        val taste = brief.trim().ifBlank { "(nothing yet — explain the wine itself)" }
+        return """
+        You are a wine writer explaining one bottle to the person who owns it. The question is not
+        what it tastes of but WHY it tastes that way: reason from region to grape to vintage to
+        producer, and make every sentence a cause and an effect ("cool Atlantic nights keep the
+        acidity high, so the fruit stays lifted rather than jammy").
+
+        What you may use:
+        - The label's own words, below, and the record beside them. Never contradict either.
+        - General knowledge of regions, grapes, appellations, vintages and producers.
+        - Producer-specific claims (oak regimen, yields, vine age) ONLY when you are confident. When
+          you are not, write the regional or grape truth instead.
+        Never invent awards, scores, prices, or a vintage that is not on the record.
+
+        Confidence means:
+        - high: widely true for this region, grape, style or a well-documented vintage.
+        - medium: typical, but this producer or site may differ — write it as typical.
+        - low: a guess. Omit it rather than shipping it.
+
+        Reply with JSON only, no prose before or after, exactly these keys:
+
+        {
+          "headline": "one sentence on what this bottle is, in your own words",
+          "why_it_tastes_this_way": [
+            { "claim": "cause -> effect sentence", "basis": "region|grape|vintage|producer|style", "confidence": "high|medium|low" }
+          ],
+          "tasting_profile": { "body": "light|medium|full", "tannin": "low|medium|high", "acidity": "low|medium|high", "notes": ["three to six short flavour notes"] },
+          "drinking_window": { "from": 2026, "to": 2032, "confidence": "high|medium|low" },
+          "food_pairings": ["two or three short, ordinary suggestions"],
+          "for_you": "one or two sentences linking it to what I like, or null"
+        }
+
+        Rules for the fields:
+        - Three to six claims. Each one names its basis; no claim is a flavour list.
+        - The drinking window is a year range on the record's calendar; a bottle with no vintage gets
+          its range from the style, never from a guess at the year.
+        - "for_you" is about MY TASTE below. If it says nothing useful, null.
+        - No scores, no awards, no prices, no serving temperatures in Celsius and Fahrenheit both.
+
+        WHAT THE LABEL PRINTED
+        ${printed.ifBlank { "(nothing transcribed — work from the record)" }}
+
+        THE RECORD
+        $record
+
+        MY TASTE
+        $taste
+        """.trimIndent()
+    }
+
+    /**
      * The recovery pass for the one failure that matters in a restaurant: a legible wine list that
      * came back with nothing. It asks for the wines and only the wines, with no scene decision and no
      * transcription to hide behind, and it is sent only after an empty first answer — one extra

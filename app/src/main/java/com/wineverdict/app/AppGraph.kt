@@ -4,6 +4,7 @@ import android.content.Context
 import com.wineverdict.app.ai.AiClient
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
+import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.NotesBackfill
 import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
@@ -40,6 +41,8 @@ object AppGraph {
         private set
     lateinit var scanQueue: ScanQueue
         private set
+    lateinit var insights: InsightStore
+        private set
     lateinit var notes: NotesBackfill
         private set
     lateinit var updater: Updater
@@ -70,12 +73,15 @@ object AppGraph {
             )
         }
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
+        // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
+        insights = InsightStore(app, ai, cellar) { taste.brief() }
         notes = NotesBackfill(ai, cellar, scope)
         updater = Updater(app)
         scope.launch {
             cellar.load()
             chat.load()
             taste.load()
+            insights.load()
             scanQueue.load()
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
@@ -115,6 +121,9 @@ object ScanHandoff {
     fun put(wine: Wine) {
         draft = wine
     }
+
+    /** Whether the editor was opened with a scan's draft, which is what makes a save a confirmation. */
+    fun hasDraft(): Boolean = draft != null
 
     fun take(): Wine? {
         val current = draft

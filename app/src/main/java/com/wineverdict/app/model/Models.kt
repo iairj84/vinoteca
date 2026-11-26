@@ -73,7 +73,16 @@ data class Wine(
     val fitReason: String = "",
     val source: String = "manual",
     val addedAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    /**
+     * "Why it tastes this way", as the model wrote it. Null until it has been asked for, which is
+     * why it is a nullable field with a default: every record from before this step loads as null
+     * and the page simply has nothing to show.
+     */
+    val insightJson: String? = null,
+    val insightModel: String = "",
+    /** When the insight was written; 0 = never asked. */
+    val insightDate: Long = 0
 ) {
     val title: String
         get() {
