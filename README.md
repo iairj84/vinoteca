@@ -154,8 +154,7 @@ limited or fails.
 
 Each provider keeps its own key, base URL, model ids and pace, all editable in Settings — point the
 base URL at any other OpenAI-compatible endpoint and it works too. There are three model fields: the
-vision models that read a photo, the chat models that read and name a bottle, and the advice model
-that answers a wine list and the chat. The advice call and the chat go to the advice model, but they do
+vision models that read a photo, the chat models that read and name a bottle, and the advice model that answers a wine list, explains a bottle and runs the chat. The advice call, the bottle insight and the chat go to the advice model, but they do
 not share a provider order. The advice call leads with Groq whenever it has a key — one large
 reasoning request, then you read the answer. The chat leads with Gemini, because every turn resends
 the conversation and Groq's free tier is 8,000 tokens a minute, which is two or three turns. Either
@@ -223,6 +222,9 @@ The file is seeded on first run and lives in the app's private files directory
   whole sections of the file instead: what I enjoy, what I avoid, grapes and styles, house
   rules, then the gates and history, until 3,000 characters are spent. Sections are never cut
   in half, and a file with no `##` headings falls back to a stated cut of the top.
+- **The advice calls** — a wine list, a shelf, one bottle's insight — read the short brief instead
+  of the file: the quick-start answers plus the loved bottles, so three wines are weighed against
+  your taste rather than against a page of settings.
 - A blind head cut was the 1.3 behaviour and it was wrong: a real file opens with scoring
   tables, so the first 2,600 characters were all machinery and none of the preferences. The
   assistant then invented verdicts its own rules forbade — the same bottle for a Caesar, a
@@ -352,6 +354,12 @@ this avoids a database and its migration surface entirely.
   emulator (Pixel 6 AVD `vinoteca-test`, light and dark), so the layout has been looked at. No real
   phone run is recorded here, and the emulator's camera is a synthetic scene, so camera capture and
   the photo picker have not been exercised on hardware.
+- A shop shelf and a restaurant list are told apart by the model rather than by the app, and it is
+  not perfectly steady: the same four-bottle shelf photo was read as a list on one of three tries,
+  and a list the *model* read (rather than the phone's OCR) gets no advice at all — the ranking
+  fallback stands in for it.
+- "Why it tastes this way" needs the advice model. Without a key the bottle page offers the request
+  and shows what failed; nothing is invented in its place.
 - The scan result's advice block needs a provider key to reach. For layout work, a debug build reads
   two files from the app's `files/` — `debug-scan.json` and `debug-advice.txt` — through the app's
   own `ScanParsing` and shows them as a finished list scan. Release builds never read them; the

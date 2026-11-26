@@ -3,7 +3,14 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased
+### 1.1.0: the list explains itself
+
+This is the insight redesign. A restaurant wine list and a shop shelf are answered with two or three
+bottles and the reason for each, instead of a buy-or-leave verdict under every line; a bottle you
+confirm explains *why* it tastes the way it does, once, and keeps the answer; and the verdict that
+remains is only facts the app can check — a limit broken, a window passed, a bottle already at home.
+The advice calls lead with Groq, retry a 503 once, and a shelf's answer covers the whole batch from
+one tap.
 
 **A bottle explains itself.** Confirming a scanned label now asks, once, *why* the bottle tastes
 the way it does: a headline, three to six cause-and-effect reasons — printed plainly when the model

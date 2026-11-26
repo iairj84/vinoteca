@@ -566,6 +566,31 @@ in the cache), Groq as the advice provider (Gemini answered first every time), a
 2. Scan one bottle. Expected: a "why it tastes this way" section with cause→effect claims; rescan is instant.
 3. Scan a shop shelf. Expected: 1–3 explained picks; chips only for known facts.
 
+**Shipped.** `ListAdviceFixtureTest` builds `Prompts.listAdvice` over the fixture the live runs used
+(`app/src/test/resources/lists/spanish_list_26.txt`) and asserts the properties that fail quietly: all
+26 lines are numbered in printed order, each carrying the wine and the section it sits under; a line's
+prices are the printed ones (`USD 58 bottle` / `USD 15 glass` for the Olabarri, `USD 380 bottle` and no
+glass for the Tondonia magnum); the brief rides in whole and stays under 1,500 characters; and the
+prompt contains none of the "never from memory" wording the redesign removed. The step text says
+"31-wine fixture": the photograph has 26, so the test asserts 26 and says why rather than padding a
+list nobody shot.
+
+README: the advice model's job now reads "answers a wine list, explains a bottle and runs the chat";
+"How mytaste.md works" records that the list, the shelf and the insight read the short brief rather
+than the file; and "Known limits" gains the two things a reader would otherwise find the hard way —
+the scene is the model's call and it wobbles (4-bottle shelf read as a list on 1 of 3 attempts), and a
+list the *model* read gets no advice at all, because the advice branch runs only on the phone's OCR.
+
+CHANGELOG: the three Unreleased entries become `### 1.1.0: the list explains itself`, with a lead
+paragraph describing the redesign, and `versionCode` 14 / `versionName` 1.1.0. The release workflow
+matches `### $TAG:`, so the heading had to start with the tag exactly.
+
+Not verified: the release build itself (`assembleSideload`, signing, the workflow's version/tag
+check) — only `assembleDebug` and the JVM tests ran; the fixture test is a JVM test and never touches
+a device; and the three manual acceptance items above still want a phone and a Groq key, since every
+live run in this document went to Gemini (Groq's free minute has not been available in these
+sessions).
+
 ---
 
 ## Rollback
