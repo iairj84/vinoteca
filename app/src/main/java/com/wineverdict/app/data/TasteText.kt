@@ -60,34 +60,50 @@ object TasteText {
     const val ASSISTANT_NOTES = "## Notes for the assistant"
 
     /**
-     * The `## Notes for the assistant` block of a file, heading included, or "" when it has none.
+     * Every `Notes…` section of a file, heading and body, in file order.
      *
-     * The body of the block is everything under the heading up to the next `##`.
+     * Two kinds exist: the seeded `## Notes for the assistant`, and `## Notes from my previous file
+     * (kept)`, which is where a hand-edited or imported file survives a regeneration. Both are the
+     * user's own words and neither can be rendered from the profile, so both are what a rewrite has
+     * to carry and what the brief has to send — the same list serves both, which is what keeps them
+     * from disagreeing.
+     *
+     * A body that opens with its own `# title` drops that title: the carried block already has the
+     * heading above it, and a second H1 reads like a pasted document.
      */
-    fun assistantNotes(text: String): String {
-        val lines = text.lines()
-        val start = lines.indexOfFirst { it.trim().equals(ASSISTANT_NOTES, ignoreCase = true) }
-        if (start < 0) return ""
-        val body = lines.drop(start + 1)
-            .takeWhile { !it.trimStart().startsWith("## ") }
-            .joinToString("\n")
-            .trim()
-        return if (body.isBlank()) "" else "$ASSISTANT_NOTES\n$body"
+    fun noteSections(text: String): List<String> =
+        sectionsOf(text)
+            .filter { it.heading.lowercase().startsWith("note") }
+            .mapNotNull { section ->
+                val body = withoutTitle(section.body)
+                if (body.isBlank()) null else "## ${section.heading}\n$body"
+            }
+
+    private fun withoutTitle(body: String): String {
+        val lines = body.trim().lines()
+        val rest = if (lines.firstOrNull()?.trimStart()?.startsWith("# ") == true) {
+            lines.drop(1)
+        } else {
+            lines
+        }
+        return rest.joinToString("\n").trim()
     }
 
     /**
-     * The regenerated file, with the old one's assistant notes carried over.
+     * The regenerated file, with the old one's notes carried over.
      *
      * A quick start replaces the file it wrote, which is right for the answers — they are rendered
-     * again from the profile — but it also dropped the seeded "prefer bottles I already own" lines.
-     * Those are the only part of the seed the user never typed and no question collects, and the
-     * brief sends them, so losing them silently changed what every request read. Carried only when
+     * again from the profile — but it also dropped the seeded "prefer bottles I already own" lines
+     * and any hand-written text kept below them. Neither is collected by a question and both are
+     * sent in the brief, so losing them silently changed what every request read. Carried only when
      * the old file actually has them: a file whose notes were deleted stays deleted.
      */
-    fun keepAssistantNotes(body: String, existing: String): String {
-        val notes = assistantNotes(existing)
-        if (notes.isBlank() || body.contains(ASSISTANT_NOTES, ignoreCase = true)) return body
-        return body.trimEnd() + "\n\n" + notes + "\n"
+    fun keepNoteSections(body: String, existing: String): String {
+        val missing = noteSections(existing).filterNot { section ->
+            body.contains(section.substringBefore('\n'), ignoreCase = true)
+        }
+        if (missing.isEmpty()) return body
+        return body.trimEnd() + "\n\n" + missing.joinToString("\n\n") + "\n"
     }
 
     /**
@@ -99,16 +115,7 @@ object TasteText {
      * under "Notes from my previous file". That is the part the brief used to drop entirely.
      */
     fun userNotes(text: String, maxChars: Int = 900): String =
-        sectionsOf(text)
-            // Only the "Notes…" sections: the preamble and the taste sections are generated from
-            // the profile, so they would arrive a second time. The notes are the part no question
-            // collects.
-            .filter { section -> section.heading.lowercase().startsWith("note") }
-            .map { it.body.trim() }
-            .filter { it.isNotBlank() }
-            .joinToString("\n\n")
-            .take(maxChars)
-            .trim()
+        noteSections(text).joinToString("\n\n").take(maxChars).trim()
 
     private fun sectionsOf(text: String): List<TasteSection> {
         val sections = mutableListOf<TasteSection>()

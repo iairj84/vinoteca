@@ -492,7 +492,7 @@ private fun ReviewStep(profile: PalateProfile, onSave: () -> Unit) {
     // The preview has to be the file that will be saved, so it goes through the same carry-over:
     // the seeded assistant notes are added on the way to disk, not by the builder.
     val body = remember(profile, ratings) {
-        TasteText.keepAssistantNotes(
+        TasteText.keepNoteSections(
             PalateFile.build(profile, ratings = ratings),
             AppGraph.taste.text.value
         )

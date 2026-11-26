@@ -627,8 +627,11 @@ object PalateFile {
             parts += "I have not told you what I like yet — recommend on the wines themselves and say why."
         }
 
+        // The carried sections arrive with their own headings, so adding "## Notes" above them
+        // stacked two headings; plain text still gets one.
         val notesBlock = notes.trim().take(600).takeIf { it.isNotBlank() }
-            ?.let { "\n\n## Notes\n$it" }.orEmpty()
+            ?.let { if (it.startsWith("## ")) "\n\n$it" else "\n\n## Notes\n$it" }
+            .orEmpty()
         val text = (parts.joinToString("\n") + notesBlock).trim()
         if (text.length <= maxChars) return text
         // A hard cap, cut at a line boundary when one falls late enough that keeping it still

@@ -119,7 +119,7 @@ class TasteStore(context: Context) {
         val keep = keepExisting && existing.isNotBlank() && existing.trim() != DEFAULT_TEMPLATE.trim()
         write(
             if (keep) mergeKept(body, existing)
-            else TasteText.keepAssistantNotes(body, existing)
+            else TasteText.keepNoteSections(body, existing)
         )
     }
 

@@ -32,6 +32,12 @@ A file whose notes were deleted stays deleted, and a new file that already has t
 get a second copy. The review screen's preview goes through the same carry-over, so "This is your
 mytaste.md" now shows the file that actually gets saved rather than one without them.
 
+The carry-over covers **every** `Notes…` section, not just the seeded one. A hand-edited or imported
+file keeps its own text under `## Notes from my previous file (kept)`, and that was the next thing a
+quick start would have thrown away. Those sections also drop any `# title` line they were pasted
+with, and the brief no longer stacks its own `## Notes` heading above a section that already has
+one.
+
 **A legible list gets advice even when the phone cannot read it.** The advice was reached only
 through the on-device OCR pass, so a device without the ML Kit text module — an emulator, or any
 phone whose Play services OCR is missing — read a wine list perfectly with the model and then showed
