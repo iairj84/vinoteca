@@ -3,6 +3,20 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.11: the card says when the bottle is already yours
+
+**A candidate you already own looked new.** The add-by-name search matches a bottle on its
+normalised producer, name and vintage, and the tap then puts one more bottle on that record instead
+of making a twin — but the card said nothing about it, so the only way to learn that the pick would
+become the fourth bottle of a wine you already had was to add it and go and look.
+
+**The card says what the tap does.** When a candidate's identity is already in the cellar, the card
+says so under the title — `Already in your cellar — 3 bottles. Adding makes 4.` — and its last line
+changes from *Tap to add this bottle* to *Tap to add one more bottle*. A record that is in the cellar
+with none left reads *In your cellar, none left. Adding brings it back.* A candidate for another
+vintage is another wine and gets no hint. The card and the add use the same identity, so the note
+and the tap cannot disagree.
+
 ### 1.2.10: the search box searches the cellar again, and + asks for the bottle
 
 **1.2.9 put the new question in the room where the old one lived.** The cellar's search box is how

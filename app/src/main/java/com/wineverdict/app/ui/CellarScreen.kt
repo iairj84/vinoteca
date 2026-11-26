@@ -74,6 +74,11 @@ private enum class CellarFilter(val label: String) {
 @Composable
 fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: () -> Unit) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    // A candidate the cellar already holds is a second bottle, not a twin: the same identity the
+    // add matches on, so a card can say what the tap will do before it is tapped.
+    val owned = remember(data) {
+        data.wines.associateBy { InsightStore.key(it) }
+    }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(CellarFilter.ALL) }
 
@@ -238,6 +243,7 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
     if (addOpen) {
         AddBottleDialog(
             words = words,
+            owned = owned,
             onWords = { words = it },
             asked = asked,
             searching = searching,
@@ -270,6 +276,7 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
 @Composable
 private fun AddBottleDialog(
     words: String,
+    owned: Map<String, Wine>,
     onWords: (String) -> Unit,
     asked: String?,
     searching: Boolean,
@@ -363,6 +370,7 @@ private fun AddBottleDialog(
                         else -> candidates.forEach { candidate ->
                             CandidateCard(
                                 candidate = candidate,
+                                existing = owned[InsightStore.key(candidate.toWine())],
                                 busy = adding == candidate.key,
                                 enabled = adding == null,
                                 onClick = { onPick(candidate) }
@@ -384,6 +392,7 @@ private fun AddBottleDialog(
 @Composable
 private fun CandidateCard(
     candidate: BottleCandidate,
+    existing: Wine?,
     busy: Boolean,
     enabled: Boolean,
     onClick: () -> Unit
@@ -402,6 +411,19 @@ private fun CandidateCard(
             verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(candidate.title, style = MaterialTheme.typography.titleSmall)
+            existing?.let { wine ->
+                Text(
+                    if (wine.quantity > 0) {
+                        "Already in your cellar — ${wine.quantity} " +
+                            (if (wine.quantity == 1) "bottle" else "bottles") +
+                            ". Adding makes ${wine.quantity + 1}."
+                    } else {
+                        "In your cellar, none left. Adding brings it back."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
             val facts = listOf(
                 candidate.type.label,
                 candidate.region.ifBlank { candidate.country },
@@ -427,7 +449,11 @@ private fun CandidateCard(
                 )
             }
             Text(
-                if (busy) "Adding…" else "Tap to add this bottle",
+                when {
+                    busy -> "Adding…"
+                    existing != null -> "Tap to add one more bottle"
+                    else -> "Tap to add this bottle"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary
             )
