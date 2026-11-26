@@ -3,7 +3,7 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased: four gates again, and a prompt that is rendered not written
+### 1.2.2: four gates, a rendered prompt, and the dish that reaches them
 
 **Two gates had gone missing, and the numbering kept the scars.** The generated profile ran G1
 sweetness and G3 alcohol, nothing between them — G2 Place and G4 Style words had been dropped while
@@ -39,6 +39,16 @@ answers.
 here has read them into one sentence" while the sentence sat in the input. A written anchor is a
 *Yours* field and survives regeneration; only its absence says "not set yet", and then it names the
 missing answer.
+
+**The allowances now fire outside the tests.** The 14.0–14.5% tier and the spice allowance for an
+off-dry wine were written and tested, but every caller passed no dish, so a 14.2% bottle with dinner
+still failed a rule that was authored to allow it. Ask now reads the dish from the question itself
+and otherwise from the standing food-context answer, and that dish is what the cellar digest, the
+shop verdict and the wine-list ranking check against. On the emulator, a 14.2% Syrah beside
+chicken tikka came back recommended with the number stated ("14.2%, which is above your 14.0%
+limit, but it is allowed for this dish"); the same bottle with "what should I open tonight" and a
+food answer of "wine on its own" came back as failing the gate; and with a takeout food answer it
+came back as allowed for the food.
 
 **Confidence is computed, not typed.** `14.0% or under` stays *Yours*; the 4.0 g/L threshold is
 *Ours*; turning "I don't want heavy oak" into "restrained oak, vanilla in the background" is an
