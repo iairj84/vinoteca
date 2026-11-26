@@ -111,12 +111,16 @@ class TasteStore(context: Context) {
 
     /**
      * Writes the file the quick start generated. A file the user wrote or imported is kept below the
-     * new one; a file an earlier quick start wrote is replaced, because retaking it means exactly that.
+     * new one; a file an earlier quick start wrote is replaced, because retaking it means exactly
+     * that — except for its assistant notes, which no question collects and the brief sends.
      */
     fun writeFromQuickStart(body: String, keepExisting: Boolean) {
         val existing = _text.value
         val keep = keepExisting && existing.isNotBlank() && existing.trim() != DEFAULT_TEMPLATE.trim()
-        write(if (keep) mergeKept(body, existing) else body)
+        write(
+            if (keep) mergeKept(body, existing)
+            else TasteText.keepAssistantNotes(body, existing)
+        )
     }
 
     /** Appends a dated line to the "Notes for the assistant" area. */

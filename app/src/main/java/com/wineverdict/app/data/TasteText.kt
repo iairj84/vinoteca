@@ -56,6 +56,40 @@ object TasteText {
         return out.toString().trim().ifEmpty { snapshot(text, maxChars) }
     }
 
+    /** The heading the seeded file uses for the assistant's standing instructions. */
+    const val ASSISTANT_NOTES = "## Notes for the assistant"
+
+    /**
+     * The `## Notes for the assistant` block of a file, heading included, or "" when it has none.
+     *
+     * The body of the block is everything under the heading up to the next `##`.
+     */
+    fun assistantNotes(text: String): String {
+        val lines = text.lines()
+        val start = lines.indexOfFirst { it.trim().equals(ASSISTANT_NOTES, ignoreCase = true) }
+        if (start < 0) return ""
+        val body = lines.drop(start + 1)
+            .takeWhile { !it.trimStart().startsWith("## ") }
+            .joinToString("\n")
+            .trim()
+        return if (body.isBlank()) "" else "$ASSISTANT_NOTES\n$body"
+    }
+
+    /**
+     * The regenerated file, with the old one's assistant notes carried over.
+     *
+     * A quick start replaces the file it wrote, which is right for the answers — they are rendered
+     * again from the profile — but it also dropped the seeded "prefer bottles I already own" lines.
+     * Those are the only part of the seed the user never typed and no question collects, and the
+     * brief sends them, so losing them silently changed what every request read. Carried only when
+     * the old file actually has them: a file whose notes were deleted stays deleted.
+     */
+    fun keepAssistantNotes(body: String, existing: String): String {
+        val notes = assistantNotes(existing)
+        if (notes.isBlank() || body.contains(ASSISTANT_NOTES, ignoreCase = true)) return body
+        return body.trimEnd() + "\n\n" + notes + "\n"
+    }
+
     /**
      * The sections the user wrote themselves, for the brief's `## Notes` tail.
      *

@@ -23,6 +23,14 @@ file that used to be ignored entirely is no longer lost; and the interview's ans
 each. The cap moved from 1,500 to 2,000 characters because a fully answered profile was running past
 it and the cut fell on the closing lines rather than on anything redundant.
 
+**Finishing the quick start no longer throws away the seeded notes.** The file is regenerated from the
+profile, which is right for the answers — but it also replaced the seeded *Notes for the assistant*
+("prefer bottles I already own", "say so plainly when a bottle is past its window") with nothing, and
+the brief sends those lines, so completing the flow silently changed what every request read. A
+rewrite now carries that section over from the file it replaces, still under its 900-character cap.
+A file whose notes were deleted stays deleted, and a new file that already has the section does not
+get a second copy.
+
 **A legible list gets advice even when the phone cannot read it.** The advice was reached only
 through the on-device OCR pass, so a device without the ML Kit text module — an emulator, or any
 phone whose Play services OCR is missing — read a wine list perfectly with the model and then showed

@@ -745,3 +745,11 @@ case and asserts the budget line survives.
 Not measured: the flow on hardware. The JVM suite covers the data properties (160+ tests), and the
 screens are compile-checked only — no emulator run of the new gate, the ceiling step or the Taste
 tab was done for this change.
+
+**Fixed, 2026-11-26.** The walking report found it on the emulator: a brand-new install seeded
+`mytaste.md` with "Notes for the assistant", the brief sent those lines, and completing the quick
+start replaced the file with a generated one that had none — so the notes vanished from every
+subsequent request. `TasteText.keepAssistantNotes` now carries that section over on a rewrite
+(`TasteStore.writeFromQuickStart`), only when the file being replaced actually has it, so deleting
+them stays deleted. `TasteAssistantNotesTest` covers the carry-over, its trip into the brief, the
+deleted case and the no-duplicate case.
