@@ -57,9 +57,10 @@ data class SourcedNotes(
 /**
  * One client for every OpenAI-compatible provider Wine Verdict can use.
  *
- * A request with no explicit provider walks [SettingsStore.configuredProviders] — primary first —
- * and returns the first answer. A caller that names a provider (the scan queue does, so it can
- * spread frames across several) gets exactly that one, and handles the retry itself.
+ * A request with no explicit provider walks the providers [AiProvider.order] puts in front for its
+ * job — primary first for a scan, Groq for the advice call, Gemini for the chat — and returns the
+ * first answer. A caller that names a provider (the scan queue does, so it can spread frames across
+ * several) gets exactly that one, and handles the retry itself.
  */
 class AiClient(
     private val settings: SettingsStore,
@@ -387,15 +388,10 @@ class AiClient(
         provider: AiProvider?,
         model: String?,
         vision: Boolean,
-        job: AiJob = AiJob.READ
+        job: AiJob
     ): List<Target> {
-        val providers = if (provider != null) {
-            listOf(provider)
-        } else when (job) {
-            AiJob.ADVICE -> settings.adviceProviders
-            AiJob.CHAT -> settings.chatProviders
-            AiJob.READ -> settings.configuredProviders
-        }
+        val providers = provider?.let { listOf(it) }
+            ?: AiProvider.order(job, settings.configuredProviders)
         return providers.mapNotNull { candidate ->
             val key = settings.key(candidate)
             if (key.isBlank()) return@mapNotNull null

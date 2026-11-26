@@ -90,20 +90,6 @@ class SettingsStore(context: Context) {
 
     fun adviceModel(provider: AiProvider): String = adviceModels(provider).first()
 
-    /**
-     * Who answers the advice question and the chat.
-     *
-     * Groq leads whenever it has a key, because reasoning about a wine list is the job its model
-     * does best on a free tier; Gemini is the fallback, and the primary provider setting does not
-     * apply here. A scan read is a different question and keeps [configuredProviders].
-     */
-    val adviceProviders: List<AiProvider>
-        get() = AiProvider.adviceOrder(configuredProviders)
-
-    /** A chat turn resends the conversation every time, so it leads with the larger free budget. */
-    val chatProviders: List<AiProvider>
-        get() = AiProvider.chatOrder(configuredProviders)
-
     fun requestsPerMinute(provider: AiProvider): Int =
         prefs.getInt(name("rpm", provider), provider.defaultRequestsPerMinute).coerceAtLeast(1)
 

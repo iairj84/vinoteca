@@ -102,29 +102,30 @@ enum class AiProvider(
          * accident would send a 4,000-token reasoning call to whichever provider was last chosen
          * for photos.
          */
-        fun adviceOrder(providers: Collection<AiProvider>): List<AiProvider> = providers.sortedBy {
-            when (it) {
-                GROQ -> 0
-                GEMINI -> 1
-                OPENROUTER -> 2
-            }
-        }
-
         /**
-         * Which provider answers a chat turn, and why it is not [adviceOrder].
+         * Who answers first, for a given job.
          *
-         * A chat turn resends the brief, the cellar and every previous message, at 2,500 tokens of
-         * headroom each. Groq's free tier is 8,000 tokens a minute, so two or three turns exhaust
-         * it — and a chat is exactly where the user keeps going. Gemini's free minute is 250,000
-         * tokens, which is the shape a conversation needs. The advice call is the opposite: one
-         * large request, then the diner reads it, so Groq stays in front there.
+         * A scan read keeps the order it was given, which is the primary provider first. The advice
+         * call and the chat do not lead with the same provider, because they are not the same kind
+         * of request:
+         *
+         * - **Advice** leads with Groq. It is one 4,000-token reasoning request, and then the diner
+         *   reads the answer — the shape an 8,000-token free minute fits.
+         * - **Chat** leads with Gemini. Every turn resends the brief, the cellar and the whole
+         *   conversation at 2,500 tokens of headroom, so two or three turns empty that same free
+         *   minute, and a conversation is exactly where the user keeps going. Gemini's free minute
+         *   is 250,000 tokens.
+         *
+         * The rest keep their relative order, so a user who made Gemini primary still gets Gemini
+         * before OpenRouter on the advice call.
          */
-        fun chatOrder(providers: Collection<AiProvider>): List<AiProvider> = providers.sortedBy {
-            when (it) {
-                GEMINI -> 0
-                GROQ -> 1
-                OPENROUTER -> 2
+        fun order(job: AiJob, providers: Collection<AiProvider>): List<AiProvider> {
+            val lead = when (job) {
+                AiJob.READ -> return providers.toList()
+                AiJob.ADVICE -> GROQ
+                AiJob.CHAT -> GEMINI
             }
+            return providers.sortedBy { if (it == lead) 0 else 1 }
         }
     }
 }

@@ -5,44 +5,64 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The advice call and the chat do not go wherever the scan goes.
+ * Which provider each job puts in front.
  *
- * Reasoning over a whole wine list at 4,000 tokens is a different job from reading a label, so it
- * has its own model field and its own provider order. The advice call and the chat do not share
- * that order: one is a single large reasoning step, the other resends the conversation every turn.
+ * Reasoning over a whole wine list at 4,000 tokens is a different job from reading a label, and a
+ * chat turn is a third, because every turn resends the conversation. One function decides the order
+ * for all three, so "who answers first" has exactly one home.
  */
 class AdviceModelTest {
 
     @Test
-    fun groqLeadsEvenWhenGeminiIsPrimary() {
+    fun aScanKeepsThePrimaryProviderFirst() {
         assertEquals(
-            listOf(AiProvider.GROQ, AiProvider.GEMINI),
-            AiProvider.adviceOrder(listOf(AiProvider.GEMINI, AiProvider.GROQ))
+            listOf(AiProvider.GEMINI, AiProvider.GROQ),
+            AiProvider.order(AiJob.READ, listOf(AiProvider.GEMINI, AiProvider.GROQ))
         )
     }
 
     @Test
-    fun geminiLeadsTheChatEvenWhenGroqCouldAnswer() {
+    fun groqLeadsTheAdviceCallEvenWhenGeminiIsPrimary() {
+        assertEquals(
+            listOf(AiProvider.GROQ, AiProvider.GEMINI),
+            AiProvider.order(AiJob.ADVICE, listOf(AiProvider.GEMINI, AiProvider.GROQ))
+        )
+    }
+
+    @Test
+    fun geminiLeadsTheChatEvenWhenGroqIsPrimary() {
         // A chat turn resends the conversation; Groq's 8,000-token minute is two or three turns.
         assertEquals(
             listOf(AiProvider.GEMINI, AiProvider.GROQ),
-            AiProvider.chatOrder(listOf(AiProvider.GROQ, AiProvider.GEMINI))
+            AiProvider.order(AiJob.CHAT, listOf(AiProvider.GROQ, AiProvider.GEMINI))
         )
     }
 
     @Test
-    fun theChatAndTheAdviceCallDoNotShareAnOrder() {
+    fun theChatAndTheAdviceCallDoNotShareALeadProvider() {
         val both = listOf(AiProvider.GROQ, AiProvider.GEMINI)
-        assertEquals(AiProvider.GROQ, AiProvider.adviceOrder(both).first())
-        assertEquals(AiProvider.GEMINI, AiProvider.chatOrder(both).first())
+        assertEquals(AiProvider.GROQ, AiProvider.order(AiJob.ADVICE, both).first())
+        assertEquals(AiProvider.GEMINI, AiProvider.order(AiJob.CHAT, both).first())
     }
 
     @Test
-    fun geminiAnswersWhenGroqHasNoKey() {
+    fun theRestKeepTheirRelativeOrder() {
+        // A user with three keys and OpenRouter primary still gets Gemini before OpenRouter on the
+        // advice call: only the lead moves.
         assertEquals(
-            listOf(AiProvider.GEMINI, AiProvider.OPENROUTER),
-            AiProvider.adviceOrder(listOf(AiProvider.OPENROUTER, AiProvider.GEMINI))
+            listOf(AiProvider.GROQ, AiProvider.OPENROUTER, AiProvider.GEMINI),
+            AiProvider.order(
+                AiJob.ADVICE,
+                listOf(AiProvider.OPENROUTER, AiProvider.GEMINI, AiProvider.GROQ)
+            )
         )
+    }
+
+    @Test
+    fun reorderingNeverAddsAProviderWithoutAKey() {
+        // order() only reorders what the configured list returned; it cannot conjure a provider.
+        assertEquals(listOf(AiProvider.GROQ), AiProvider.order(AiJob.CHAT, listOf(AiProvider.GROQ)))
+        assertEquals(emptyList<AiProvider>(), AiProvider.order(AiJob.READ, emptyList()))
     }
 
     @Test

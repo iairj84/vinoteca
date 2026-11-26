@@ -269,8 +269,11 @@ the whole minute, with no room for a retry. Groq leading therefore suits one lis
 brief, the cellar and every earlier message at 2,500 tokens of headroom, so two or three turns
 empty Groq's free minute — and a conversation is where the user keeps going. `AiClient.complete`
 now takes `job: AiJob` (`READ`, `ADVICE`, `CHAT`) instead of an `advice` flag; `READ` keeps the
-text/vision models and the primary order, `ADVICE` leads with `adviceOrder` (Groq), `CHAT` leads
-with `chatOrder` (Gemini) while still using the advice model. A request carrying a photo takes the
+text/vision models and the primary order, `ADVICE` leads with Groq, `CHAT` with Gemini, and both use
+the advice model. A review pass then collapsed the two named order functions and the two
+`SettingsStore` properties that wrapped them into one `AiProvider.order(job, providers)`; the
+provider's own list hands it `configuredProviders`, so there is one place where "who answers first"
+is decided. A request carrying a photo takes the
 vision model first whichever job asked — the Step 8 version would have sent a chat photo to a
 text-only advice model.
 
