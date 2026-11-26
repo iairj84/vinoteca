@@ -55,13 +55,24 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.AiJob
+import com.wineverdict.app.ai.AiProvider
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
+import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/**
+ * How much of the conversation goes with a turn.
+ *
+ * A Gemini minute is 250,000 tokens and carries the whole window; a Groq minute is 8,000, and the
+ * prompt (cellar digest, palate brief, history) plus a 2,500-token answer has to fit inside it.
+ */
+private const val HISTORY_WIDE_TOKENS = 8_000
+private const val HISTORY_THIN_TOKENS = 2_000
 
 private val suggestions = listOf(
     "What should I open with chicken pot pie tonight?",
@@ -120,11 +131,21 @@ fun ChatScreen() {
                             imageBase64 = base64
                         )
                         AppGraph.chat.append(userMessage)
-                        // The last few exchanges only: the previous answer is what the repetition
-                        // rule needs, while the whole transcript would crowd the token budget.
-                        val history = AppGraph.chat.messages.value
-                            .takeLast(12)
-                            .map { if (it.id == userMessage.id) it else it.copy(imageBase64 = null) }
+                        // The provider that will actually answer, not the primary: the primary
+                        // governs scans, and both budgets below are about this one request.
+                        val chatLead = AiProvider
+                            .order(AiJob.CHAT, AppGraph.settings.configuredProviders)
+                            .firstOrNull()
+                        val wide = (chatLead?.tokenBudgetPerMinute ?: 0) >= 100_000
+                        // A window closed on tokens, not on a count of messages: the previous
+                        // answer is what the repetition rule needs, and twelve long answers were
+                        // still more than the fallback's minute can carry. Only the newest
+                        // message keeps its photo.
+                        val history = chatHistory(
+                            AppGraph.chat.messages.value
+                                .map { if (it.id == userMessage.id) it else it.copy(imageBase64 = null) },
+                            budgetTokens = if (wide) HISTORY_WIDE_TOKENS else HISTORY_THIN_TOKENS
+                        )
                         val system = Prompts.chat(
                             AppGraph.taste.snapshot(),
                             AppGraph.cellar.data.value,
@@ -132,13 +153,7 @@ fun ChatScreen() {
                             AppGraph.palate.rules,
                             // A hundred bottles is a long digest. Gemini's free tier carries it;
                             // Groq's 8k tokens a minute does not, so it keeps the shortlist.
-                            digestLimit = if (
-                                AppGraph.settings.primaryProvider.tokenBudgetPerMinute >= 100_000
-                            ) {
-                                140
-                            } else {
-                                55
-                            }
+                            digestLimit = if (wide) 140 else 55
                         )
                         val answer = AppGraph.ai.complete(
                             system = system,

@@ -141,20 +141,25 @@ workflow file is a leaked key, and the fix is to revoke it at the provider, not 
 | Requests/minute | 10 | 30 |
 | Token budget/minute | 250,000 | 8,000 |
 
-**Which provider runs first** in Settings is the order requests try; the other one is the fallback.
-Scans and questions always send the same request shape, so switching is a setting, not a code path.
+**Which provider runs first** in Settings is the order scans try; the other configured one is the
+fallback. The advice call and the chat override the lead, because they are not the same shape of
+request: a list is one large reasoning call (Groq leads), a chat resends the conversation every turn
+(Gemini's 250,000-token minute leads). Switching either is still a setting, not a code path.
 
 Thinking is set per request. The structured ones — label scan, shelf frame, the scan queue — ask for
-JSON with thinking off (`reasoning_effort: "none"` on Groq, which honours it; Gemini's compatibility
-layer only goes as low as `"low"`), because a schema is faster and more reliable without the model
-talking itself out of it. The **Ask** tab is the exception: prose advice wants the reasoning, so it
+JSON with thinking off, which both providers express as `reasoning_effort: "low"` — Groq rejects
+`"none"` outright, and Gemini's compatibility layer has nothing below `"low"` — because a schema is
+faster and more reliable without the model talking itself out of it. The **Ask** tab is the exception: prose advice wants the reasoning, so it
 asks for `"medium"` on either provider and its output cap is raised to leave room, since thinking is
 billed as completion tokens. A model that rejects the field gets one plain retry without it.
 
 Free-tier notes worth knowing: Gemini may use free-tier content to improve its products (paid tiers
 do not); Groq's limits are per model, so listing two vision models doubles both throughput and the
 daily cap. Because the cellar summary and taste file are sent with each question, long questions cost
-tokens — the app caps the cellar digest at 55 bottles.
+tokens — the app caps the cellar digest at 55 bottles on a thin budget. The conversation itself is
+capped by tokens rather than by message count: every question carries the most recent turns that
+fit in 8,000 tokens of history (2,000 on an 8,000-token-a-minute provider), oldest first out, and
+the question you just typed always goes whole.
 
 ## How `mytaste.md` works
 

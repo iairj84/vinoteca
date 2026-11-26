@@ -42,6 +42,15 @@ is gone from list cards (a shelf and a single bottle keep it); a ranked line kee
 line that breaks one of your limits still says why. When the advice answer did not come back, the
 older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
 
+**The chat carries a window measured in tokens, not in messages.** Every turn resends the recent
+conversation, and that window used to be "the last twelve messages" — a count, which says nothing
+about size. Twelve long answers, plus the cellar digest and a 2,500-token reply, do not fit Groq's
+8,000-token free minute, and Groq is still the fallback. The window now closes on a token budget,
+newest first: the oldest turn goes, the previous answer stays (the repetition rule reads it), and
+the question you just typed always goes whole. A wide budget (Gemini, 250,000 tokens a minute)
+keeps up to 8,000 tokens of history; a thin one keeps 2,000. The digest size now follows the
+provider that will actually answer the chat rather than whichever provider leads scans.
+
 **The chat no longer shares an order tuned for one-shot reasoning.** Groq's free tier is 8,000
 tokens a minute, and a chat turn resends the brief, the cellar and every earlier message at 2,500
 tokens of headroom — two or three turns exhaust the minute, and a chat is exactly where you keep
