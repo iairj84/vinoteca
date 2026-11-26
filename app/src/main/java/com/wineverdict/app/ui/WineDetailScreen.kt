@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.InsightParsing
 import com.wineverdict.app.data.GateVerdict
+import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
 import com.wineverdict.app.model.locationName
@@ -234,7 +235,9 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             // Read from the record, so a re-scan of the same wine shows it without a request: the
             // store stamps the answer onto the wine the first time it is asked for.
             val insight = remember(wine.insightJson) { InsightParsing.parse(wine.insightJson) }
-            if (insight != null) {
+            if (insight == null) {
+                InsightAsk(wine)
+            } else {
                 SectionCard("Why it tastes this way") {
                     if (insight.headline.isNotBlank()) {
                         Text(insight.headline, style = MaterialTheme.typography.bodyMedium)
@@ -451,3 +454,60 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
         )
     }
 }
+
+    /**
+     * The bottle page's way back in when there is no explanation.
+     *
+     * The ask used to happen only at the confirmation, so a 503 on that one request left a bottle with no
+     * section and no way to try again — "nothing here" and "the model was busy" looked identical. The
+     * button asks on demand, says what went wrong when it does, and a second tap is the retry.
+     */
+    @Composable
+    private fun InsightAsk(wine: Wine) {
+        var asking by remember(wine.id) { mutableStateOf(false) }
+        var failed by remember(wine.id) { mutableStateOf(false) }
+        var message by remember(wine.id) { mutableStateOf<String?>(null) }
+        val scope = rememberCoroutineScope()
+        SectionCard("Why it tastes this way") {
+            Text(
+                text = message ?: "Not asked yet. One request on the advice model says where the flavours " +
+                    "come from — the region, the grape, the year, the producer.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (message == null) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                }
+            )
+            OutlinedButton(
+                enabled = !asking,
+                onClick = {
+                    asking = true
+                    message = null
+                    scope.launch {
+                        val outcome = runCatching { AppGraph.insights.explain(wine) }
+                        asking = false
+                        when {
+                            outcome.isFailure -> {
+                                failed = true
+                                message = outcome.exceptionOrNull()?.message ?: "The request failed."
+                            }
+                            outcome.getOrNull() == null -> {
+                                failed = true
+                                message = "The answer came back empty. Try again."
+                            }
+                            // Otherwise the record now carries the insight and this card is replaced by it.
+                            else -> message = null
+                        }
+                    }
+                }
+            ) {
+                if (asking) {
+                    CircularProgressIndicator(modifier = Modifier.height(16.dp))
+                    Text("  Asking…")
+                } else {
+                    Text(if (failed) "Try again" else "Explain this bottle")
+                }
+            }
+        }
+    }

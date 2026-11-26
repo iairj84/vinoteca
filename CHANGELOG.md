@@ -10,8 +10,10 @@ the way it does: a headline, three to six cause-and-effect reasons — printed p
 is confident, hedged with "Typically" when it is reasoning from the region, and dropped when it is
 guessing — a tasting profile, a drinking window, food pairings and a line for you. The answer is
 kept on the bottle and cached by normalized producer/name/vintage, so the same wine scanned twice is
-answered once, and a bottle met again on a shelf takes the explanation it already has. Reference
-notes from a web lookup now say "From the web" with the pages they came from.
+answered once, and a bottle met again on a shelf takes the explanation it already has. If that one
+request fails — Gemini answers about one attempt in three with a 503 — the bottle page now says so
+and offers to ask again, instead of looking like a bottle nobody had asked about. Reference notes
+from a web lookup now say "From the web" with the pages they came from.
 
 **A shelf is answered, not scored.** A shop shelf now gets the same treatment as a wine list: one
 advice request over every bottle the photo printed, up to three bottles worth taking — each with the

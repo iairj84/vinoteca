@@ -526,9 +526,23 @@ null default doing its job.
 
 **What the first render exposed.** Only the headline appeared: the answer was stored as JSON with
 the data class's own field names (`why`, `taste`, `window`, `pairings`, `forYou`), and the parser
-looks for the schema's. The fix is in two halves — `@SerialName` so what is written is what the
-parser reads, and both spellings accepted on the way in, so an answer that echoes the short names
-still renders. `theShortFieldNamesAreReadToo` and `aStoredInsightReadsBackAsTheAnswerItWas` hold both.
+looks for the schema's. The fix is `@SerialName` on the five keys, so what is written is what the
+parser reads; `aStoredInsightReadsBackAsTheAnswerItWas` holds it. The parser keeps no second dialect:
+`theSchemaKeysAreTheOnlyDialect` asserts that a short-keyed reply yields no reasons, because the
+prompt asks for one shape and a fallback for a shape nothing produces is dead code pretending to be
+resilience.
+
+**The one request cannot be the only chance.** The ask used to happen only at the confirmation, so a
+503 on that single call left the bottle with no section and no way back — "nobody has asked" and
+"the model was busy" looked identical. The page now always has a way in: an `Explain this bottle`
+card when there is no answer (or when the stored one does not parse, `explain` re-asks rather than
+returning early), the failure's own message when one fails, and `Try again` after that. A bottle
+added from a CSV import gets the same button, which it previously had no route to at all.
+
+Checked live on the Tintilla (added before this step, no insight): the card rendered over the bottle
+(`.screens/insight-ask-light.png`), the tap produced the section in 10 s with two high claims plain
+and two hedged (`insight-asked-light.png`), and the answer was stamped on that older record — a
+bottle whose route in was previously nothing at all.
 
 **The cache, measured.** After the first save, `files/insights.json` held one entry under the key
 `raul perez|ultreia mencia|2018` — accents folded, lowercase, punctuation collapsed. Scanning and

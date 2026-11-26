@@ -21,7 +21,8 @@ Gemini or Groq — with your own key.
   the confidence behind each (plain when high, "Typically" when it is reasoning from the region,
   hidden when it is guessing), a tasting profile, a drinking window, pairings and a line for you.
   The answer is kept on the bottle and cached per wine, so the same bottle is never asked twice and
-  a shelf that holds a wine you already know takes the explanation it already has.
+  a shelf that holds a wine you already know takes the explanation it already has. When the one
+  request fails, the bottle page says why and offers to ask again.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
   from the photo, why it earns the spot and — when a price is printed — whether that price is good,

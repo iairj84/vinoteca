@@ -86,21 +86,17 @@ class WineInsightTest {
     }
 
     @Test
-    fun theShortFieldNamesAreReadToo() {
-        // A stored answer written before the schema names were pinned, or a model echoing the
-        // Kotlin names: the page must still find the reasons rather than show only a headline.
+    fun theSchemaKeysAreTheOnlyDialect() {
+        // The prompt asks for the schema's names and the stored answer is written with them, so a
+        // reply using the Kotlin field names is a malformed answer, not a second format to support:
+        // its reasons are not read. (The page offers to ask again rather than showing half of it.)
         val short = """
             {"headline":"x","why":[{"claim":"old vines give concentration","basis":"producer","confidence":"high"}],
-             "taste":{"body":"full","tannin":"high","acidity":"low","notes":["fig"]},
-             "window":{"from":2027,"to":2035,"confidence":"medium"},
-             "pairings":["beef"],"forYou":"you like this"}
+             "taste":{"body":"full","tannin":"high","acidity":"low","notes":["fig"]}}
         """.trimIndent()
         val insight = InsightParsing.parse(short)!!
-        assertEquals(1, insight.why.size)
-        assertEquals("full body · high tannin · low acidity", insight.taste?.summary)
-        assertEquals("2027–2035", insight.window?.label)
-        assertEquals(listOf("beef"), insight.pairings)
-        assertEquals("you like this", insight.forYou)
+        assertTrue(insight.why.isEmpty())
+        assertNull(insight.taste)
     }
 
     @Test

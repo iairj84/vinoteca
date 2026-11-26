@@ -71,7 +71,10 @@ class InsightStore(
      * Returns the updated record, or null when the model's answer was not usable.
      */
     suspend fun explain(wine: Wine, label: ScannedLabel? = null): Wine? {
-        wine.insightJson?.takeIf { it.isNotBlank() }?.let { return wine }
+        // Only an answer that reads back counts. A record whose JSON the parser cannot use (an
+        // answer written before the schema keys were pinned, a reply cut off mid-object) would
+        // otherwise suppress every future attempt and leave the page permanently blank.
+        if (InsightParsing.parse(wine.insightJson) != null) return wine
         cached(wine)?.let { return stamp(wine, it) }
 
         var answered = ""

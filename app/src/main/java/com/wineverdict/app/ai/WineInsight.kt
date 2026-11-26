@@ -35,11 +35,9 @@ data class WineInsight(
         if (text.isBlank()) return@mapNotNull null
         when (claim.confidence.lowercase()) {
             "high" -> text
-            "medium" -> if (text.contains("typically", ignoreCase = true)) {
-                text
-            } else {
-                "Typically, ${text.replaceFirstChar { it.lowercase() }}"
-            }
+            // The claim is left exactly as written: lowercasing its first letter turned the
+            // producer "Vara y Pulgar" into "vara y Pulgar" in one live answer.
+            "medium" -> if (text.contains("typically", ignoreCase = true)) text else "Typically, $text"
             else -> null
         }
     }
@@ -94,14 +92,12 @@ object InsightParsing {
     fun parse(raw: String?): WineInsight? {
         if (raw.isNullOrBlank()) return null
         val root = runCatching { AiJson.objectFrom(raw) }.getOrNull() ?: return null
-        // Both spellings: the prompt asks for the schema keys, and a model (or an older copy of a
-        // stored answer) sometimes echoes the short ones instead.
         val insight = WineInsight(
             headline = root.str("headline"),
-            why = claims(root["why_it_tastes_this_way"] ?: root["why"]),
-            taste = taste(root.objOrNull("tasting_profile") ?: root.objOrNull("taste")),
-            window = window(root.objOrNull("drinking_window") ?: root.objOrNull("window")),
-            pairings = root.stringList("food_pairings").ifEmpty { root.stringList("pairings") },
+            why = claims(root["why_it_tastes_this_way"]),
+            taste = taste(root.objOrNull("tasting_profile")),
+            window = window(root.objOrNull("drinking_window")),
+            pairings = root.stringList("food_pairings"),
             forYou = root.forYou()
         )
         // A reply with no headline and no reasons is not an insight, whatever else came back.
@@ -149,12 +145,7 @@ object InsightParsing {
 
     /** The model writes null, "null" or an empty string for "nothing to link". */
     private fun JsonObject.forYou(): String? {
-        val key = when {
-            this["for_you"] != null -> "for_you"
-            this["forYou"] != null -> "forYou"
-            else -> return null
-        }
-        if (this[key] is JsonNull) return null
-        return str(key).takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+        if (this["for_you"] is JsonNull) return null
+        return str("for_you").takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
     }
 }
