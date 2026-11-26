@@ -3,7 +3,7 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased
+### 1.0.12: a list is answered, not scored
 
 **A tap is not a measurement.** "Avoid strong" no longer becomes a 13.5% ceiling — it contradicted
 the 5★ Zinfandel in the same cellar, and the assistant then defended a number nobody typed. The
