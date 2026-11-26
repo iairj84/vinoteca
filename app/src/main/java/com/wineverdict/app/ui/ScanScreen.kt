@@ -390,7 +390,10 @@ fun ScanScreen(onReview: () -> Unit) {
                             temperature = 0.1,
                             maxTokens = 3600,
                             onBudgetWait = hold,
-                            onAnswer = { p, m -> readWho = p.shortLabel; readModel = m }
+                            onAnswer = { p, m -> readWho = p.shortLabel; readModel = m },
+                            // A failed read has no answering provider, so the row takes the one
+                            // that was asked from the client instead of saying "no provider".
+                            onTry = { p, m -> readWho = p.shortLabel; readModel = m }
                         )
                         }
                         waitedFor = 0L
@@ -399,7 +402,14 @@ fun ScanScreen(onReview: () -> Unit) {
                             System.currentTimeMillis() - readStart, true
                         )
                         ScanParsing.parseScene(raw, currency)
-                    }.onFailure { lastProblem = it.message }.getOrNull()
+                    }.onFailure {
+                        lastProblem = it.message
+                        // A failed structured read used to leave no row at all.
+                        trace.request(
+                            "structured read", readWho, readModel, 0,
+                            System.currentTimeMillis() - readStart, false, it.message.orEmpty()
+                        )
+                    }.getOrNull()
                 }
 
                 // The small print on the label's centre crop: ABV, vintage, volume, appellation.
@@ -425,7 +435,8 @@ fun ScanScreen(onReview: () -> Unit) {
                                 thinking = Thinking.OFF,
                                 temperature = 0.1,
                                 maxTokens = 400,
-                                onAnswer = { p, m -> fineWho = p.shortLabel; fineModel = m }
+                                onAnswer = { p, m -> fineWho = p.shortLabel; fineModel = m },
+                                onTry = { p, m -> fineWho = p.shortLabel; fineModel = m }
                             )
                         }
                     }.getOrNull()
@@ -581,7 +592,8 @@ fun ScanScreen(onReview: () -> Unit) {
                                 // payload adds so reasoning cannot eat it.
                                 maxTokens = 4_000,
                                 onBudgetWait = hold,
-                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
+                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m },
+                                onTry = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
                             )
                         } ?: throw AiException("The ranking did not arrive in time.")
                         waitedFor = 0L
@@ -632,6 +644,11 @@ fun ScanScreen(onReview: () -> Unit) {
                 // costs its full timeout before the other is tried.
                 suspend fun readPage(): String {
                     val pageStart = System.currentTimeMillis()
+                    // Who was asked and with which model, taken from the client as each request goes
+                    // out: a read that failed has no answering provider to report, and the panel
+                    // should still name the one it tried rather than "no provider".
+                    var pageWho = ""
+                    var pageModel = ""
                     val ocrHint = instantLines
                         ?.takeIf { it.isNotEmpty() }
                         ?.joinToString("\n") { "- $it" }
@@ -662,7 +679,8 @@ fun ScanScreen(onReview: () -> Unit) {
                                         temperature = 0.1,
                                         maxTokens = 2_600,
                                         provider = primary,
-                                        onBudgetWait = hold
+                                        onBudgetWait = hold,
+                                        onTry = { p, m -> pageWho = p.shortLabel; pageModel = m }
                                     )
                                 }.getOrNull()
                             }
@@ -691,7 +709,8 @@ fun ScanScreen(onReview: () -> Unit) {
                                         temperature = 0.1,
                                         maxTokens = 2_600,
                                         provider = second,
-                                        onBudgetWait = hold
+                                        onBudgetWait = hold,
+                                        onTry = { p, m -> pageWho = p.shortLabel; pageModel = m }
                                     )
                                 }.getOrNull()
                             }
@@ -715,8 +734,10 @@ fun ScanScreen(onReview: () -> Unit) {
                         trace.request(
                             "read the page",
                             if (second != null) "${primary?.shortLabel}/${second.shortLabel} (hedged)"
-                            else primary?.shortLabel.orEmpty(),
-                            "",
+                            else pageWho,
+                            // Only with one provider is the model unambiguous: a hedge row names
+                            // both providers and whoever answered is not reported back.
+                            if (second == null) pageModel else "",
                             hedged.length,
                             System.currentTimeMillis() - pageStart,
                             true
@@ -726,10 +747,18 @@ fun ScanScreen(onReview: () -> Unit) {
                     waitedFor = 0L
                     // Neither answered in time: one smaller retry on whatever budget is left.
                     val left = remainingMs()
-                    if (left < 8_000L) throw AiException(
-                        "$who did not answer in time ($photoKb KB up). Nothing was saved — " +
-                            "try again on Wi-Fi, or add the other provider's key in Settings."
-                    )
+                    if (left < 8_000L) {
+                        // Nothing is retried, so this failure used to leave no row either.
+                        trace.request(
+                            "read the page", pageWho, pageModel, 0,
+                            System.currentTimeMillis() - pageStart, false,
+                            "No time left in the scan for a retry."
+                        )
+                        throw AiException(
+                            "$who did not answer in time ($photoKb KB up). Nothing was saved — " +
+                                "try again on Wi-Fi, or add the other provider's key in Settings."
+                        )
+                    }
                     stage = "Retrying with a smaller photo" +
                         (second?.let { " on ${it.shortLabel}" } ?: " on $who")
                     val small = withContext(Dispatchers.IO) {
@@ -747,15 +776,16 @@ fun ScanScreen(onReview: () -> Unit) {
                             jsonMode = false,
                             thinking = Thinking.OFF,
                             temperature = 0.1,
-                            maxTokens = 1_600,
-                            provider = second,
-                            onBudgetWait = hold
-                        )
+                                                            maxTokens = 1_600,
+                                provider = second,
+                                onBudgetWait = hold,
+                                onTry = { p, m -> pageWho = p.shortLabel; pageModel = m }
+                            )
                     }
                     trace.request(
                         "read the page (smaller photo)",
-                        second?.shortLabel ?: who,
-                        "",
+                        pageWho,
+                        pageModel,
                         retried?.length ?: 0,
                         System.currentTimeMillis() - pageStart,
                         retried != null

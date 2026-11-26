@@ -13,10 +13,13 @@ retry for a 503, the same 60-second cap and the same deadline extension. Only th
 spent there: a list the model read already carries its own order, so the per-wine judgement fallback
 stays with the phone path, which has nothing else to fall back to.
 
-**A failed advice row names who was asked.** The panel said `no provider` under a 429 although the
+**A failed scan row names who was asked.** The panel said `no provider` under a 429 although the
 request had gone to Gemini: the client reported a provider only when one answered. It now reports each
 request as it goes out, so a failure reads `advice · Gemini · gemini-2.5-flash · 0 chars · failed` —
-what tells a quota apart from a bad key.
+what tells a quota apart from a bad key. Every scan row that can fail says the same: the page read and
+its smaller-photo retry, the structured read, the small print and the per-wine ranking. A failed
+structured read used to leave no row at all, and a page read that ran out of time left none either;
+both now show as failed with the provider and model they asked.
 
 **A skip row that names several lines is all of them.** A model answers `SKIP | 11, 25, 26 | …` on one
 line; the parser glued those digits into 112526, found no such line on the page, and dropped the whole
