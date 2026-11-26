@@ -3,6 +3,7 @@ package com.wineverdict.app.data
 import android.content.Context
 import com.wineverdict.app.ai.SourcedNotes
 import com.wineverdict.app.model.CellarData
+import com.wineverdict.app.model.Placeholders
 import com.wineverdict.app.model.StorageLocation
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
@@ -38,7 +39,14 @@ class CellarRepository(context: Context) {
     fun load() {
         if (file.exists()) {
             runCatching { json.decodeFromString<CellarData>(file.readText()) }
-                .onSuccess { _data.value = it }
+                .onSuccess { loaded ->
+                    // A cellar imported before the placeholder fix carries "Unknown" on the end
+                    // of most names. The repair runs on the way in, and the file is rewritten only
+                    // when it actually changed something.
+                    val cleaned = loaded.withPlaceholdersCleared()
+                    _data.value = cleaned
+                    if (cleaned != loaded) persist(cleaned)
+                }
         }
         if (_data.value.locations.isEmpty()) {
             persist(_data.value.copy(locations = defaultLocations()))
@@ -221,7 +229,9 @@ class CellarRepository(context: Context) {
 
     /** Restores a backup over the current cellar. */
     suspend fun replaceAll(next: CellarData) = mutate { current ->
-        next.copy(
+        // A backup written before the placeholder fix still carries the word; a restore must not
+        // put it back on the cards.
+        next.withPlaceholdersCleared().copy(
             locations = next.locations.ifEmpty {
                 current.locations.ifEmpty { defaultLocations() }
             }
@@ -278,8 +288,9 @@ class CellarRepository(context: Context) {
     suspend fun mergeCellar(incoming: CellarData): MergeOutcome {
         val names = incoming.locations.associate { it.id to it.name }
         val rows = incoming.wines.map { wine ->
+            val cleaned = wine.cleanPlaceholders()
             ImportRow(
-                wine = wine.copy(locationId = null),
+                wine = cleaned.copy(locationId = null),
                 locationName = wine.locationId?.let { names[it] }.orEmpty()
             )
         }
@@ -336,6 +347,40 @@ data class MergeOutcome(
     val locationsAdded: Int,
     val skipped: Int
 )
+
+/**
+ * A cellar whose bottles carry no import placeholder.
+ */
+internal fun CellarData.withPlaceholdersCleared(): CellarData {
+    val cleaned = wines.map { it.cleanPlaceholders() }
+    return if (cleaned == wines) this else copy(wines = cleaned)
+}
+
+/**
+ * A bottle without the filler words an export writes when it has no value: the placeholder is
+ * trimmed off the end of the name, and a place or grape field that held one is blank — written as
+ * blank, not deleted silently, so the next lookup can fill it. Nothing else is touched: a real
+ * vineyard, a real region and a real grape are left exactly as they are.
+ */
+internal fun Wine.cleanPlaceholders(): Wine {
+    val cleanName = Placeholders.stripTrailing(name)
+    val cleanCountry = country.takeUnless { Placeholders.isFiller(it) }.orEmpty()
+    val cleanRegion = region.takeUnless { Placeholders.isFiller(it) }.orEmpty()
+    val cleanAppellation = appellation.takeUnless { Placeholders.isFiller(it) }.orEmpty()
+    val cleanGrapes = grapes.map { it.trim() }.filterNot { Placeholders.isFiller(it) }
+    if (cleanName == name && cleanCountry == country && cleanRegion == region &&
+        cleanAppellation == appellation && cleanGrapes == grapes
+    ) {
+        return this
+    }
+    return copy(
+        name = cleanName,
+        country = cleanCountry,
+        region = cleanRegion,
+        appellation = cleanAppellation,
+        grapes = cleanGrapes
+    )
+}
 
 /**
  * Writes everything one lookup answered onto a bottle.

@@ -3,6 +3,24 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.8: an imported bottle stops being called "Unknown"
+
+**The word came from the spreadsheet, not the wine.** A CSV's Designation column is never empty —
+where the export's app had no vineyard it wrote `Unknown` — and the importer appended every
+non-blank designation to the wine name. So a cellar imported that way read "Prospice Cabernet
+Sauvignon Seven Hills Vineyard Unknown" and "Ridge Geyserville Unknown", and the title, being the
+stored name, showed the placeholder as if it named the bottle. In this cellar it was 31 of 50
+bottles, every one of them imported, and none of the scanned ones.
+
+**Placeholder is not a value.** `Unknown`, `N/A`, `None`, `null`, `-`, `?` and their punctuation
+variants now read as blank in the importer: a filler designation is not appended, a filler country,
+region or appellation is stored as blank so the next lookup can fill it, and filler is dropped from
+the grape list. A name already stored with the word on its end is trimmed when the cellar loads
+(and when a backup is restored), so the existing cards lose it without being imported again. A
+real designation ("Papera Vineyard") still joins the name, and the word inside a real name
+("Unknown Wine Co.") is left alone. The same filler list now feeds the details parser, so a page
+that answers "Unknown" is a miss in one place instead of two.
+
 ### 1.2.7: the details pass fills every fact a verdict reads
 
 **One pass, every fact.** "Fill in the details" was written when notes and the ABV were the only

@@ -147,7 +147,10 @@ all land in the right place; unknown columns are ignored. Handled on the way in:
 windows-1252 files, comma/semicolon/tab delimiters, quoted fields with embedded commas and newlines,
 CellarTracker's non-vintage `1001`, one-bottle-per-row exports, 100-point scores (kept as a line in
 the reference notes), 1–5 star ratings, purchase price with currency, drinking-window years and
-per-bottle locations.
+per-bottle locations. A cell that says `Unknown`, `N/A`, `None`, `null`, `-` or `?` is a missing
+value, not a name: a designation holding one is not appended to the wine, and a placeholder country,
+region, appellation or grape is stored as blank so the details pass can fill it. A name already
+stored with the word on its end is cleaned the next time the cellar loads.
 
 Duplicates are matched on producer + cuvée + vintage: an existing wine keeps its id and notes, takes
 the higher bottle count and fills any blanks from the import. Importing the same file twice is

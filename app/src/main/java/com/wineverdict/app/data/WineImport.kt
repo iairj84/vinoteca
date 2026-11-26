@@ -1,5 +1,6 @@
 package com.wineverdict.app.data
 
+import com.wineverdict.app.model.Placeholders
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
 import com.wineverdict.app.util.Csv
@@ -115,12 +116,25 @@ object WineImport {
             return row.getOrNull(index)?.trim().orEmpty()
         }
 
+        /** A place cell, with the placeholder read as blank so a lookup can fill it later. */
+        fun value(row: List<String>, field: String): String =
+            cell(row, field).takeUnless { Placeholders.isFiller(it) }.orEmpty()
+
         rows.drop(headerIndex + 1).forEach { row ->
-            var name = cell(row, "name")
+            // A designation column is never empty in an export: "Unknown" is a placeholder, not a
+            // vineyard, and appending it made a name no wine has ("Ridge Geyserville Unknown").
+            val rawName = cell(row, "name")
             val designation = cell(row, "designation")
-            if (designation.isNotBlank() && !name.contains(designation, ignoreCase = true)) {
-                name = listOf(name, designation).filter { it.isNotBlank() }.joinToString(" ")
+                .takeUnless { Placeholders.isFiller(it) }
+                .orEmpty()
+            val joined = if (designation.isNotBlank() &&
+                !rawName.contains(designation, ignoreCase = true)
+            ) {
+                listOf(rawName, designation).filter { it.isNotBlank() }.joinToString(" ")
+            } else {
+                rawName
             }
+            val name = Placeholders.stripTrailing(joined)
             val producer = cell(row, "producer")
             if (name.isBlank() && producer.isBlank()) {
                 skippedBlank++
@@ -168,9 +182,9 @@ object WineImport {
                     name = name,
                     vintage = yearOrNull(cell(row, "vintage")),
                     type = WineType.from(rawType),
-                    country = cell(row, "country"),
-                    region = cell(row, "region"),
-                    appellation = cell(row, "appellation"),
+                    country = value(row, "country"),
+                    region = value(row, "region"),
+                    appellation = value(row, "appellation"),
                     grapes = splitList(cell(row, "grapes")),
                     barcode = cell(row, "barcode"),
                     quantity = quantity,
@@ -221,7 +235,7 @@ object WineImport {
     private fun splitList(raw: String): List<String> =
         raw.split(',', ';', '/', '|')
             .map { it.trim() }
-            .filter { it.isNotBlank() && !it.equals("none", true) }
+            .filter { it.isNotBlank() && !Placeholders.isFiller(it) }
             .distinct()
 
     private fun intOrNull(raw: String): Int? {

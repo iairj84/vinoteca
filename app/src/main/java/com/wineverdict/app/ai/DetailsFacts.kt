@@ -1,5 +1,7 @@
 package com.wineverdict.app.ai
 
+import com.wineverdict.app.model.Placeholders
+
 /**
  * The facts one lookup can read beside the tasting note, parsed from what the model printed.
  *
@@ -50,9 +52,7 @@ internal object DetailsFacts {
     fun place(raw: String, limit: Int): String {
         val clean = raw.trim().trim('.', ',', ';', ':', '"', '\'').replace(Regex("\\s+"), " ")
         if (clean.isBlank() || clean.length > limit) return ""
-        val filler = clean == "-" || clean.equals("unknown", true) || clean.equals("none", true) ||
-            clean.equals("n/a", true)
-        return if (filler) "" else clean
+        return if (Placeholders.isFiller(clean)) "" else clean
     }
 
     /** The grapes an answer listed, in its order, without the filler. */
@@ -60,7 +60,7 @@ internal object DetailsFacts {
         .split(',', ';', '/', '·', '|')
         .map { it.trim().trim('.', '"', '\'', '(', ')') }
         .filter { it.isNotBlank() && it.length <= 30 }
-        .filterNot { it == "-" || it.equals("unknown", true) || it.equals("none", true) }
+        .filterNot { Placeholders.isFiller(it) }
         .distinct()
         .take(6)
 }
