@@ -332,10 +332,23 @@ object ScanParsing {
         }
 
         val skips = drafts.filter { it.kind == "SKIP" }
-            .mapNotNull { draft ->
-                val index = resolve(draft) ?: return@mapNotNull null
-                if (!colourAgrees(draft, index)) return@mapNotNull null
-                pickOf(draft, index, read)
+            .flatMap { draft ->
+                // "SKIP | 11, 25, 26 | …" is three skips, not line 112526: every number on the tag
+                // is a skip of its own. Read as one number it failed the range check and the whole
+                // row was dropped as "no such line on the page", though all three lines were there.
+                if (draft.numbers.isEmpty()) {
+                    dropped += "SKIP ${draft.number ?: "?"} — no such line on the page"
+                    return@flatMap emptyList()
+                }
+                draft.numbers.mapNotNull { line ->
+                    val index = line - 1
+                    if (index !in 0 until count) {
+                        dropped += "SKIP $line — no such line on the page"
+                        return@mapNotNull null
+                    }
+                    if (!colourAgrees(draft, index)) return@mapNotNull null
+                    pickOf(draft, index, read)
+                }
             }
             .distinctBy { it.index }
             .take(4)
@@ -348,9 +361,12 @@ object ScanParsing {
     private class AdviceDraft(
         val kind: String,
         val number: String?,
-        val index: Int?,
+        /** Every line number written on the tag: a SKIP row may name several. */
+        val numbers: List<Int>,
         val headline: String
     ) {
+        /** The first line number as a list index, which is what PICK and GLASS are asked for. */
+        val index: Int? get() = numbers.firstOrNull()?.minus(1)
         val why = StringBuilder()
         var open = false
         /** The shelf's VALUE line, kept apart from the WHY so the two are not run together. */
@@ -373,10 +389,13 @@ object ScanParsing {
                     }
                     val parts = line.split('|', limit = 3).map { it.trim() }
                     val number = parts.getOrNull(1).orEmpty()
+                    // Every number on the tag, not every digit concatenated into one number: the
+                    // live answer's "SKIP | 11, 25, 26 | …" used to become line 112526.
+                    val numbers = Regex("[0-9]+").findAll(number).map { it.value.toInt() }.toList()
                     val draft = AdviceDraft(
                         kind = kind,
                         number = number.ifBlank { null },
-                        index = number.replace(Regex("[^0-9]"), "").toIntOrNull()?.minus(1),
+                        numbers = numbers,
                         headline = parts.getOrNull(2).orEmpty().trim()
                     )
                     out += draft
@@ -399,7 +418,7 @@ object ScanParsing {
                     }
                 }
                 upper.startsWith("NOTE") && line.contains(':') -> {
-                    val draft = AdviceDraft("NOTE", null, null, "")
+                    val draft = AdviceDraft("NOTE", null, emptyList(), "")
                     draft.why.append(line.substringAfter(':').trim())
                     draft.open = true
                     out += draft

@@ -33,8 +33,9 @@ Gemini or Groq — with your own key.
   the scan queue and one tap — **What to buy from this shelf** — asks for the same answer across
   every frame, because three picks per photo is not a recommendation. A restaurant mode reads a wine
   list and answers the diner's question instead: two or three bottles with a reason each, a glass if
-  the list pours one, and a few tempting lines to skip — every line checked against the page before
-  it is shown. List prices carry a markup, so there is no price-band verdict there.
+  the list pours one, and a few tempting lines to skip — a skip row that names several lines counts as
+  each of them, and every line is checked against the page before it is shown. List prices carry a
+  markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and a 1–5 star

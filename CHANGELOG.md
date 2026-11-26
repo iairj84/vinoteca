@@ -13,6 +13,12 @@ retry for a 503, the same 60-second cap and the same deadline extension. Only th
 spent there: a list the model read already carries its own order, so the per-wine judgement fallback
 stays with the phone path, which has nothing else to fall back to.
 
+**A skip row that names several lines is all of them.** A model answers `SKIP | 11, 25, 26 | …` on one
+line; the parser glued those digits into 112526, found no such line on the page, and dropped the whole
+row — three skipped wines vanished from the answer because of how their numbers were written. Each
+number on a skip tag is now a skip of its own, and a number that really is off the page costs only
+itself.
+
 ### 1.1.0: the list explains itself
 
 This is the insight redesign. A restaurant wine list and a shop shelf are answered with two or three

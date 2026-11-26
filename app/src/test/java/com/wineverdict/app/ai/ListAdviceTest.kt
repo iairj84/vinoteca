@@ -136,4 +136,35 @@ class ListAdviceTest {
         val raw = "SKIP | 1 | too sweet"
         assertNull(ScanParsing.applyAdvice(SceneScan(Scene.LIST, page, ""), raw))
     }
+
+    /**
+     * The live answer to the 26-line list carried one SKIP row naming three lines. The parser read
+     * that field as the number 112526, found no such line, and dropped three skips that were all on
+     * the page — the panel said so: "SKIP 11, 25, 26 — no such line on the page".
+     */
+    @Test
+    fun aSkipRowThatNamesSeveralLinesSkipsEachOfThem() {
+        val longPage = (1..26).map {
+            label("Producer $it", "Wine $it", WineType.RED, "Rioja", bottle = 50.0)
+        }
+        val raw = """
+            PICK 1 | 2 | the second
+            WHY: it is the one.
+            SKIP | 11, 25, 26 | Tempting, but not what the list is for.
+        """.trimIndent()
+        val advice = ScanParsing.parseAdvice(raw, SceneScan(Scene.LIST, longPage, ""))!!
+        assertEquals(listOf(10, 24, 25), advice.skips.map { it.index })
+        assertTrue(advice.dropped.isEmpty())
+    }
+
+    @Test
+    fun aNumberThatReallyIsOffThePageCostsOnlyItself() {
+        val shortPage = (1..4).map {
+            label("Producer $it", "Wine $it", WineType.RED, "Rioja", bottle = 50.0)
+        }
+        val raw = "PICK 1 | 2 | the second\nWHY: it is the one.\nSKIP | 3, 27 | Tempting, but not for me."
+        val advice = ScanParsing.parseAdvice(raw, SceneScan(Scene.LIST, shortPage, ""))!!
+        assertEquals(listOf(2), advice.skips.map { it.index })
+        assertTrue(advice.dropped.any { it.contains("SKIP 27") })
+    }
 }
