@@ -56,6 +56,26 @@ object TasteText {
         return out.toString().trim().ifEmpty { snapshot(text, maxChars) }
     }
 
+    /**
+     * The sections the user wrote themselves, for the brief's `## Notes` tail.
+     *
+     * The generated half of `mytaste.md` is already rendered from the profile, so sending it again
+     * would say everything twice. What has no other route into a request is the text a person typed:
+     * a `## Notes` section, the assistant notes, and whatever a hand-edited or imported file kept
+     * under "Notes from my previous file". That is the part the brief used to drop entirely.
+     */
+    fun userNotes(text: String, maxChars: Int = 900): String =
+        sectionsOf(text)
+            // Only the "Notes…" sections: the preamble and the taste sections are generated from
+            // the profile, so they would arrive a second time. The notes are the part no question
+            // collects.
+            .filter { section -> section.heading.lowercase().startsWith("note") }
+            .map { it.body.trim() }
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+            .take(maxChars)
+            .trim()
+
     private fun sectionsOf(text: String): List<TasteSection> {
         val sections = mutableListOf<TasteSection>()
         var heading = ""

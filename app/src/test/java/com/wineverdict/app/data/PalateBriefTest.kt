@@ -104,6 +104,64 @@ class PalateBriefTest {
     }
 
     @Test
+    fun theInterviewReachesTheBriefOnlyWhereItWasAnswered() {
+        val brief = PalateFile.brief(
+            profile()
+                .withAnswer(QuickStart.X_GRAPES, listOf("pinot", "nebbiolo"))
+                .withAnswer(QuickStart.X_TANNIN, listOf("grip"))
+        )
+        assertTrue(brief, brief.contains("Grapes I love: Pinot Noir, Nebbiolo."))
+        assertTrue(brief, brief.contains("Tannin: real grip"))
+        assertFalse(brief, brief.contains("Places I have liked"))
+    }
+
+    @Test
+    fun anAppOnlyChipStaysOutOfTheBrief() {
+        // "The names are still new to me" describes the user, not the wine: it must not reach a model.
+        val brief = PalateFile.brief(profile().withAnswer(QuickStart.X_GRAPES, listOf("unsure")))
+        assertFalse(brief, brief.contains("Grapes I love"))
+    }
+
+    @Test
+    fun aFullyAnsweredInterviewStillFitsTheCap() {
+        var p = profile()
+        QuickStart.extras.forEach { question ->
+            p = p.withAnswer(question.id, question.options.take(2).map { it.id })
+        }
+        val brief = PalateFile.brief(
+            profile = p,
+            loved = (1..4).map { wine(it, 5) },
+            disliked = (7..9).map { wine(it, 1) },
+            links = "Smooth reds with acid, never jammy.",
+            notes = "z".repeat(600)
+        )
+        println("FULL BRIEF (${brief.length} chars):\n$brief")
+        assertTrue("brief was ${brief.length} chars", brief.length <= PalateFile.BRIEF_MAX_CHARS)
+        // The budget is the last essential line, so it is the canary for a cut that ate too much.
+        assertTrue(brief, brief.contains("Budget:"))
+    }
+
+    @Test
+    fun notesTheUserTypedIntoTheFileReachTheBrief() {
+        val file = """
+            # My taste
+
+            ## What I enjoy
+            - **Body:** medium to full
+
+            ## Notes for the assistant
+            - Prefer bottles I already own for dinner.
+
+            ## Notes from my previous file (kept)
+            - I like Bierzo.
+        """.trimIndent()
+        val notes = TasteText.userNotes(file)
+        assertTrue(notes, notes.contains("Prefer bottles I already own"))
+        assertTrue(notes, notes.contains("I like Bierzo"))
+        assertFalse("the generated half is already rendered from the profile", notes.contains("Body:"))
+    }
+
+    @Test
     fun aTighterCapIsStillHonoured() {
         val brief = PalateFile.brief(
             profile(),

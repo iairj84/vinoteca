@@ -13,6 +13,7 @@ import com.wineverdict.app.data.PalateStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.TasteStore
+import com.wineverdict.app.data.TasteText
 import com.wineverdict.app.data.Updater
 import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.CoroutineScope
@@ -69,7 +70,11 @@ object AppGraph {
                 profile = profile,
                 rules = palate.rules,
                 loved = taste.lovedBottles(wines),
-                disliked = wines.filter { (it.rating ?: 0) in 1..2 }
+                disliked = wines.filter { (it.rating ?: 0) in 1..2 },
+                // Whatever the user typed themselves. The generated half of the file is already
+                // rendered above from the same profile, so this is the only text that would
+                // otherwise be lost between the file and the brief.
+                notes = TasteText.userNotes(taste.text.value)
             )
         }
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)

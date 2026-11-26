@@ -15,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
@@ -53,20 +55,29 @@ import com.wineverdict.app.data.Shortlist
 import kotlinx.coroutines.launch
 
 /**
- * The tap-only quick start: seven taps, three picks to look for, three more taps, then the file.
+ * The taste interview: seven taps, three picks to look for, three more taps, three written lines,
+ * the two fields that used to live on the Taste screen, then twelve optional questions, then the
+ * file.
  *
- * Nothing here types, and nothing here can block: every question has a Skip that records "unknown"
- * rather than producing a rule. The last screen shows the actual Markdown that will be saved, because
- * the file is the thing the model obeys and the user should see it before it becomes one.
+ * Nothing here can block: every question has a Skip that records "unknown" rather than producing a
+ * rule, and the optional half is behind a gate that says plainly that the ten taps are the 90%. The
+ * last screen shows the actual Markdown that will be saved, because the file is the thing the user
+ * audits, and it should be read before it becomes one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun QuickStartScreen(onDone: () -> Unit) {
+fun QuickStartScreen(onDone: () -> Unit, startAtExtras: Boolean = false) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     var profile by remember { mutableStateOf(AppGraph.palate.profile.value) }
-    var index by remember { mutableIntStateOf(0) }
     val steps = remember { buildSteps() }
+    // Opened from "Add more detail", the ten taps are already answered: re-walking them would be ten
+    // taps of Continue to reach the questions the button is about.
+    var index by remember {
+        mutableIntStateOf(
+            if (startAtExtras) steps.indexOfFirst { it is Step.ExtrasGate }.coerceAtLeast(0) else 0
+        )
+    }
 
     fun finish() {
         // One place saves a profile and rewrites the file, so the Taste screen's edits and these
@@ -126,6 +137,21 @@ fun QuickStartScreen(onDone: () -> Unit) {
                     onChange = { profile = it },
                     onNext = { goNext() }
                 )
+                is Step.Links -> LinksStep(
+                    profile = profile,
+                    onChange = { profile = it },
+                    onNext = { goNext() }
+                )
+                is Step.Ceiling -> CeilingStep(
+                    profile = profile,
+                    onChange = { profile = it },
+                    onNext = { goNext() }
+                )
+                is Step.ExtrasGate -> ExtrasGateStep(
+                    answered = profile.extrasAnswered,
+                    onAnswer = { goNext() },
+                    onSkip = { index = steps.indexOfFirst { it is Step.Review } }
+                )
                 is Step.Review -> ReviewStep(profile = profile, onSave = { finish() })
             }
         }
@@ -136,18 +162,166 @@ private sealed interface Step {
     data class Ask(val question: QuickStartQuestion) : Step
     data object Picks : Step
     data object Notes : Step
+    data object Links : Step
+    data object Ceiling : Step
+    data object ExtrasGate : Step
     data object Review : Step
 }
 
 private fun buildSteps(): List<Step> {
     val steps = mutableListOf<Step>()
-    QuickStart.questions.filter { !it.afterPicks }.forEach { steps += Step.Ask(it) }
+    QuickStart.baseline.filter { !it.afterPicks }.forEach { steps += Step.Ask(it) }
     steps += Step.Picks
-    QuickStart.questions.filter { it.afterPicks }.forEach { steps += Step.Ask(it) }
+    QuickStart.baseline.filter { it.afterPicks }.forEach { steps += Step.Ask(it) }
     steps += Step.Notes
+    steps += Step.Links
+    steps += Step.Ceiling
+    steps += Step.ExtrasGate
+    QuickStart.extras.forEach { steps += Step.Ask(it) }
     steps += Step.Review
     return steps
 }
+
+/**
+ * The optional half, announced rather than imposed: the ten taps are answered, and these twelve are
+ * the detail a wine list is actually judged on. Skipping finishes the flow with what exists.
+ */
+@Composable
+private fun ExtrasGateStep(answered: Int, onAnswer: () -> Unit, onSkip: () -> Unit) {
+    val total = QuickStart.extras.size
+    Text("That is the 90%", style = MaterialTheme.typography.headlineSmall)
+    Text(
+        "The ten taps and your own words are enough for the app to work. There are $total more " +
+            "questions that sharpen it — the grapes and places that have worked, grip, acid, how far " +
+            "you will stray on price. They matter most on a restaurant list, where the app can only " +
+            "see what the page prints.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Text(
+        if (answered > 0) "$answered of $total answered so far." else
+            "Every one is skippable, and an unanswered one is simply left out of the brief.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(onClick = onAnswer, modifier = Modifier.weight(1f)) {
+            Text("Answer the $total")
+        }
+        TextButton(onClick = onSkip) { Text("Not now") }
+    }
+}
+
+/** "What links the wines you love?" — the one sentence a tap cannot produce. */
+@Composable
+private fun LinksStep(profile: PalateProfile, onChange: (PalateProfile) -> Unit, onNext: () -> Unit) {
+    var text by remember(profile.links) { mutableStateOf(profile.links) }
+
+    Text("What links the wines you love?", style = MaterialTheme.typography.headlineSmall)
+    Text(
+        "One sentence in your own words, optional. It goes into the brief the model reads, so a " +
+            "reason can be tied to the bottles you actually loved.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(
+        value = text,
+        onValueChange = { text = it.take(PalateProfile.NOTE_MAX_CHARS) },
+        label = { Text("In your words") },
+        placeholder = { Text("e.g. smooth reds with acid, never jammy") },
+        minLines = 2,
+        supportingText = { Text("${text.length} / ${PalateProfile.NOTE_MAX_CHARS}") },
+        modifier = Modifier.fillMaxWidth()
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = {
+                onChange(profile.withLinks(text))
+                onNext()
+            },
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("Continue")
+        }
+        TextButton(onClick = {
+            onChange(profile.withLinks(""))
+            onNext()
+        }) { Text("Skip") }
+    }
+}
+
+/** The alcohol ceiling: a number only the user gives, so it is typed, never inferred. */
+@Composable
+private fun CeilingStep(profile: PalateProfile, onChange: (PalateProfile) -> Unit, onNext: () -> Unit) {
+    var text by remember(profile.alcoholCeiling) {
+        mutableStateOf(profile.alcoholCeiling?.let { formatAlcohol(it) } ?: "")
+    }
+    val typed = text.trim().toDoubleOrNull()
+    val valid = text.isBlank() || (typed != null && typed in PalateProfile.ALCOHOL_RANGE)
+
+    Text("A limit you want the app to check", style = MaterialTheme.typography.headlineSmall)
+    Text(
+        "Optional. \"Avoid strong\" in the quick start is a preference; a ceiling is a number you " +
+            "type here, and the app will hold every bottle to it. Leave it blank and nothing is " +
+            "invented.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(
+        value = text,
+        onValueChange = { typedText ->
+            text = typedText
+                .filter { it.isDigit() || it == '.' || it == ',' }
+                .replace(',', '.')
+                .take(5)
+        },
+        label = { Text("Alcohol ceiling (% vol)") },
+        placeholder = { Text("e.g. 13.5") },
+        singleLine = true,
+        isError = !valid,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        modifier = Modifier.fillMaxWidth()
+    )
+    if (!valid) {
+        Text(
+            "A wine is between 5% and 25% — that looks like a typo.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.error
+        )
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = {
+                onChange(profile.withAlcoholCeiling(typed))
+                onNext()
+            },
+            enabled = valid,
+            modifier = Modifier.weight(1f)
+        ) {
+            Text("Continue")
+        }
+        TextButton(onClick = {
+            onChange(profile.withAlcoholCeiling(null))
+            onNext()
+        }) { Text("Skip") }
+    }
+}
+
+private fun formatAlcohol(value: Double): String =
+    if (value == value.toInt().toDouble()) value.toInt().toString()
+    else (value * 10).toInt().let { "${it / 10}.${it % 10}" }
 
 @Composable
 private fun ProgressDots(total: Int, current: Int) {
@@ -315,7 +489,9 @@ private fun ReviewStep(profile: PalateProfile, onSave: () -> Unit) {
     val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val ratings = cellar.wines.count { it.rating != null }
     val body = remember(profile, ratings) { PalateFile.build(profile, ratings = ratings) }
-    val missing = QuickStart.questions.count { !profile.answered(it.id) }
+    val missing = QuickStart.baseline.count { !profile.answered(it.id) }
+    val extras = QuickStart.extras.size
+    val answeredExtras = profile.extrasAnswered
 
     Text("This is your mytaste.md", style = MaterialTheme.typography.headlineSmall)
     Text(
@@ -323,6 +499,13 @@ private fun ReviewStep(profile: PalateProfile, onSave: () -> Unit) {
             if (missing > 0) " — $missing questions were skipped, so they read as unknown." else ".",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Text(
+        "Optional interview: $answeredExtras of $extras answered. Those answers ride in the brief " +
+            "the model reads; they appear in this file only as answers, and an unanswered one is " +
+            "left out rather than guessed.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.outline
     )
 
     Surface(

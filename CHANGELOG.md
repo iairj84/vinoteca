@@ -5,6 +5,24 @@ Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
 ### Unreleased
 
+**One taste flow, twelve optional questions, and a brief you can read.** The Taste tab collected taste
+in six cards — answers, a typed ceiling, a links box, gates, pairing classes, the whole file — while
+the quick start collected some of the same facts in a second place, and the short brief a model
+actually reads could only be seen by reading the source. Everything now lives in one flow: ten taps,
+the three things to look for, three written lines, your one sentence about what the loved bottles
+share, an optional ABV ceiling, a gate that says plainly the ten taps are the 90%, then twelve
+optional questions — grapes, places, what to skip, grip, acid, body, cellaring, funk, sparkling, how
+you order at a restaurant, oak, and how far you will go on price. Each is one tap, skippable, and an
+unanswered one is left out rather than guessed. The Taste tab is now progress, **What the model
+reads** (the brief verbatim, with its length), the gates, and your answers and the file behind
+toggles.
+
+Two things that were being dropped now reach the brief. The `## Notes` sections of a hand-written or
+imported `mytaste.md` — the one part of that file no question collects — are appended, capped, so a
+file that used to be ignored entirely is no longer lost; and the interview's answers render one line
+each. The cap moved from 1,500 to 2,000 characters because a fully answered profile was running past
+it and the cut fell on the closing lines rather than on anything redundant.
+
 **A legible list gets advice even when the phone cannot read it.** The advice was reached only
 through the on-device OCR pass, so a device without the ML Kit text module — an emulator, or any
 phone whose Play services OCR is missing — read a wine list perfectly with the model and then showed

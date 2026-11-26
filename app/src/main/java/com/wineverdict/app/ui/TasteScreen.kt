@@ -8,14 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,28 +25,29 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.GateVerdict
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.data.PalateFile
-import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.QuickStart
-import java.util.Locale
 
 /**
- * What the app knows about your palate, and how it knows it.
+ * The Taste tab: what the app knows, and the exact text a model reads.
  *
- * The raw Markdown lives one screen away: this tab is the summary — the answers, the thresholds the
- * app checks itself, and the part of the file the model actually reads.
+ * It used to be six cards of settings — answers, a typed ceiling, a links box, gates, pairing classes
+ * and the whole file — while the flow collected some of the same facts in another place. Every
+ * answer now lives in the interview; this screen shows the result. The brief is printed verbatim
+ * because it is the thing that actually reaches a model, and until now it could not be seen anywhere.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TasteScreen(
     onStartQuickStart: () -> Unit = {},
+    onAddDetail: () -> Unit = {},
     onOpenAdvanced: () -> Unit = {}
 ) {
     val profile by AppGraph.palate.profile.collectAsStateWithLifecycle()
@@ -68,13 +67,10 @@ fun TasteScreen(
         cellar.wines.count { wine -> rules.checks(wine).any { it.verdict == GateVerdict.PASS } }
     }
     val answers = remember(profile) { PalateFile.answers(profile) }
-    var ceilingText by remember(profile.alcoholCeiling) {
-        mutableStateOf(profile.alcoholCeiling?.let { oneDecimal(it) } ?: "")
-    }
-    var linksText by remember(profile.links) { mutableStateOf(profile.links) }
-    val ceilingTyped = ceilingText.trim().toDoubleOrNull()
-    val ceilingValid = ceilingText.isBlank() ||
-        (ceilingTyped != null && ceilingTyped in PalateProfile.ALCOHOL_RANGE)
+    // The live brief, from the same lambda a scan uses: what is printed here is what a model reads.
+    val brief = remember(profile, cellar.wines, text) { AppGraph.taste.brief() }
+    var showAnswers by remember { mutableStateOf(false) }
+    var showFile by remember { mutableStateOf(false) }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Taste profile") }) }) { padding ->
         Column(
@@ -86,7 +82,9 @@ fun TasteScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "mytaste.md is what the model judges wine against. Ask sends the whole file; a scan or a shelf frame sends the sections about what you like and avoid. The gates below are checked by the app itself, not by the model.",
+                "A scan, a shelf and a restaurant list send the short brief below — your answers in " +
+                    "first person, about a page. Ask sends the whole mytaste.md. The gates are " +
+                    "checked by the app itself, not by the model.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -94,7 +92,8 @@ fun TasteScreen(
             SectionCard(if (profile.isComplete) "What I know" else "Start here") {
                 if (profile.isComplete) {
                     Text(
-                        "${profile.knowledgePercent}% of the baseline palate — ten taps, and no ratings yet.",
+                        "${profile.knowledgePercent}% of the ten-tap baseline — " +
+                            "${profile.baselineAnswered} of ${QuickStart.baseline.size} answered.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     LinearProgressIndicator(
@@ -102,16 +101,33 @@ fun TasteScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        "Rating a bottle is what turns this into a palate. Three ratings make the answers worth revising.",
+                        "Optional interview: ${profile.extrasAnswered} of ${QuickStart.extras.size} " +
+                            "answered. Rating a bottle is what turns any of this into a palate.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
-                    OutlinedButton(onClick = onStartQuickStart) {
-                        Text("Retake the quick start")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                // The interview is the point of this button, so it opens at the
+                                // gate rather than at question one.
+                                if (profile.extrasAnswered < QuickStart.extras.size) onAddDetail()
+                                else onStartQuickStart()
+                            }
+                        ) {
+                            Text(
+                                if (profile.extrasAnswered < QuickStart.extras.size) "Add more detail"
+                                else "Review my answers"
+                            )
+                        }
+                        OutlinedButton(onClick = onStartQuickStart) { Text("Retake") }
                     }
                 } else {
                     Text(
-                        "Ten taps, about two minutes, no wine vocabulary. Every question can be skipped — skipping is \"unknown\", not a wrong answer. Three optional lines you can type at the end are the only typing there is.",
+                        "Ten taps, about two minutes, no wine vocabulary. Every question can be " +
+                            "skipped — skipping is \"unknown\", not a wrong answer. After them come " +
+                            "twelve optional questions that sharpen a wine-list answer, and three " +
+                            "lines of your own words.",
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Button(onClick = onStartQuickStart, modifier = Modifier.fillMaxWidth()) {
@@ -120,87 +136,30 @@ fun TasteScreen(
                 }
             }
 
-            if (answers.isNotEmpty()) {
-                SectionCard("Your answers") {
-                    answers.forEach { (question, answer) ->
-                        LabeledValue(question, answer)
-                    }
-                }
-            }
-
-            SectionCard("Your limits") {
+            SectionCard("What the model reads") {
                 Text(
-                    "A ceiling is a number you give, never one I guess. \"Avoid strong\" in the " +
-                        "quick start is a preference; a limit is something you type here.",
+                    "${brief.length} characters, built from the answers above and your cellar. " +
+                        "An unanswered question is left out rather than guessed.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                OutlinedTextField(
-                    value = ceilingText,
-                    onValueChange = { typed ->
-                        ceilingText = typed
-                            .filter { it.isDigit() || it == '.' || it == ',' }
-                            .replace(',', '.')
-                            .take(5)
-                    },
-                    label = { Text("Alcohol ceiling (% vol)") },
-                    placeholder = { Text("e.g. 13.5") },
-                    singleLine = true,
-                    isError = !ceilingValid,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (!ceilingValid) {
-                    Text(
-                        "A wine is between 5% and 25% — that looks like a typo.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { AppGraph.savePalateProfile(profile.withAlcoholCeiling(ceilingTyped)) },
-                        enabled = ceilingValid && ceilingTyped != profile.alcoholCeiling
-                    ) {
-                        Text("Save ceiling")
-                    }
-                    if (profile.alcoholCeiling != null) {
-                        TextButton(onClick = {
-                            ceilingText = ""
-                            AppGraph.savePalateProfile(profile.withAlcoholCeiling(null))
-                        }) {
-                            Text("Remove")
-                        }
-                    }
-                }
-            }
-
-            SectionCard("What links the wines you love?") {
-                Text(
-                    "One sentence in your words. It goes into the brief the model reads, so a reason " +
-                        "can be tied to the bottles you actually loved.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedTextField(
-                    value = linksText,
-                    onValueChange = { linksText = it.take(PalateProfile.NOTE_MAX_CHARS) },
-                    label = { Text("In your words") },
-                    minLines = 2,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Button(
-                    onClick = { AppGraph.savePalateProfile(profile.withLinks(linksText)) },
-                    enabled = linksText.trim() != profile.links
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(10.dp)
                 ) {
-                    Text("Save")
+                    Text(
+                        text = brief.ifBlank { "Nothing yet — the answers start from scratch." },
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                    )
                 }
             }
 
             SectionCard("Gates the app checks") {
                 if (rules.isEmpty) {
                     Text(
-                        "No checkable gate yet — the quick start did not ask for a number. Style and price stay guidance, not rules.",
+                        "No checkable gate yet — the quick start did not ask for a number. Style and " +
+                            "price stay guidance, not rules.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else {
@@ -220,12 +179,34 @@ fun TasteScreen(
                     if (cellar.wines.isNotEmpty()) {
                         Text(
                             "On the ${cellar.wines.size} wines in your cellar: $failures fail a gate, " +
-                                "${cellar.wines.size - failures - passing} cannot be checked from the record.",
+                                "${cellar.wines.size - failures - passing} cannot be checked from " +
+                                "the record.",
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
                     Text(
-                        "A missing fact reads as unknown, never as a pass — an unlisted ABV cannot satisfy an alcohol ceiling.",
+                        "A missing fact reads as unknown, never as a pass — an unlisted ABV cannot " +
+                            "satisfy an alcohol ceiling.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+            }
+
+            SectionCard("Your answers (${answers.size})") {
+                TextButton(onClick = { showAnswers = !showAnswers }) {
+                    Text(if (showAnswers) "Hide" else "Show")
+                }
+                if (showAnswers) {
+                    if (answers.isEmpty()) {
+                        Text("Nothing answered yet.", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        answers.forEach { (question, answer) -> LabeledValue(question, answer) }
+                    }
+                } else {
+                    Text(
+                        "The questions and the chips selected. Changing one means running the flow " +
+                            "again; it opens with your current answers already chosen.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -234,13 +215,11 @@ fun TasteScreen(
 
             SectionCard("Pairing") {
                 if (dishes.isNotEmpty()) {
-                    dishes.forEach { dish ->
-                        LabeledValue(dish.label, dish.wins)
-                    }
+                    dishes.forEach { dish -> LabeledValue(dish.label, dish.wins) }
                 }
                 Text(
-                    "Nothing here is written into mytaste.md: the file says pairing is worked out per " +
-                        "dish when you ask. These classes ship with the app as reference.",
+                    "Nothing here is written into mytaste.md: the file says pairing is worked out " +
+                        "per dish when you ask. These classes ship with the app as reference.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -248,18 +227,24 @@ fun TasteScreen(
 
             SectionCard("The file") {
                 Text(
-                    "${text.length} characters of plain Markdown — readable, editable and exportable.",
+                    "${text.length} characters of plain Markdown — yours to read, edit and export. " +
+                        "Ask sends it whole.",
                     style = MaterialTheme.typography.bodySmall
                 )
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text(
-                        text = text.ifBlank { "No file yet." },
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                TextButton(onClick = { showFile = !showFile }) {
+                    Text(if (showFile) "Hide the file" else "Show the file")
+                }
+                if (showFile) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = text.ifBlank { "No file yet." },
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
                 OutlinedButton(onClick = onOpenAdvanced, modifier = Modifier.fillMaxWidth()) {
                     Text("Edit mytaste.md (advanced)")
@@ -270,4 +255,5 @@ fun TasteScreen(
 }
 
 private fun oneDecimal(value: Double): String =
-    String.format(Locale.US, "%.1f", value)
+    if (value == value.toInt().toDouble()) value.toInt().toString()
+    else (value * 10).toInt().let { "${it / 10}.${it % 10}" }

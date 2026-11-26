@@ -107,15 +107,22 @@ private fun AppRoot() {
             }
             composable("taste") {
                 TasteScreen(
-                    onStartQuickStart = { navController.navigate("quickstart") },
+                    onStartQuickStart = { navController.navigate("quickstart?extras=0") },
+                    onAddDetail = { navController.navigate("quickstart?extras=1") },
                     onOpenAdvanced = { navController.navigate("advanced-taste") }
                 )
             }
             composable("settings") {
                 SettingsScreen(onOpenAdvancedTaste = { navController.navigate("advanced-taste") })
             }
-            composable("quickstart") {
-                QuickStartScreen(onDone = { navController.popBackStack() })
+            composable(
+                route = "quickstart?extras={extras}",
+                arguments = listOf(navArgument("extras") { defaultValue = "0" })
+            ) { entry ->
+                QuickStartScreen(
+                    onDone = { navController.popBackStack() },
+                    startAtExtras = entry.arguments?.getString("extras") == "1"
+                )
             }
             composable("advanced-taste") {
                 AdvancedTasteScreen(onBack = { navController.popBackStack() })

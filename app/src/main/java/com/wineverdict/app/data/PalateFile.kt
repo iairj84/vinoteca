@@ -36,7 +36,7 @@ object PalateFile {
             "inside a request to the model. -->\n" +
             "<!-- Rendered from the stored profile on $now. If this file and the stored profile " +
             "disagree, the stored profile wins for the gates and this file is regenerated. -->\n" +
-            "$MARKER ${profile.answeredCount} of ${QuickStart.questions.size} taps · " +
+            "$MARKER ${profile.baselineAnswered} of ${QuickStart.baseline.size} taps · " +
             "$signals weighted signals · $now -->"
         blocks += provisional(profile, ratings)
         blocks += RULE
@@ -119,7 +119,7 @@ object PalateFile {
     private data class Fact(val value: String, val source: String, val confidence: String)
 
     private fun provisional(profile: PalateProfile, ratings: Int): String {
-        val taps = "${profile.answeredCount} of ${QuickStart.questions.size} taps"
+        val taps = "${profile.baselineAnswered} of ${QuickStart.baseline.size} taps"
         return if (ratings == 0) {
             "> **Provisional.** $taps answered and no ratings. There is nothing rated in this app " +
                 "yet, so every value below is a starting guess rather than a finding."
@@ -372,7 +372,9 @@ object PalateFile {
 
     private fun unknowns(profile: PalateProfile, rules: PalateRules, ratings: Int): String {
         val gaps = mutableListOf<String>()
-        QuickStart.questions.filter { !profile.answered(it.id) }.forEach { question ->
+        // The ten-tap baseline only: the optional interview is detail, and listing twelve unanswered
+        // questions as unknowns would make the file read like a form that failed.
+        QuickStart.baseline.filter { !profile.answered(it.id) }.forEach { question ->
             gaps += "- ${FIELD_NAMES[question.id] ?: question.prompt}: not known — ask rather than assume."
         }
         if (profile.choice(QuickStart.Q_STYLE) == QuickStart.STYLE_UNSURE) {
@@ -486,8 +488,14 @@ object PalateFile {
 
     private fun fmt(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
 
-    /** About 250 words: the whole taste brief that rides along with a list or a label. */
-    const val BRIEF_MAX_CHARS = 1_500
+    /**
+     * About 330 words: the whole taste brief that rides along with a list or a label.
+     *
+     * It was 1,500 until the optional interview existed. Twelve answered questions at one short line
+     * each pushed a full profile — four loved bottles, three disliked, three written notes — past the
+     * cap, and the cut fell on the closing lines rather than on anything redundant.
+     */
+    const val BRIEF_MAX_CHARS = 2_000
 
     /**
      * The taste brief a model actually reads.
@@ -579,6 +587,22 @@ object PalateFile {
         linkLine.trim().takeIf { it.isNotBlank() }?.let {
             // Their own sentence, so do not staple a second full stop onto it.
             parts += "What links them: ${it.take(PalateProfile.NOTE_MAX_CHARS).trimEnd('.', '!', '?')}."
+        }
+
+        // The optional interview, one line per answered question and nothing for the rest. The
+        // phrases live beside the chips in QuickStart, so the brief and the question cannot drift;
+        // an option with no phrase ("the names are still new to me") is app context, not taste.
+        QuickStart.extras.forEach { question ->
+            if (question.briefLead.isBlank()) return@forEach
+            val phrases = profile.choices(question.id).mapNotNull { id ->
+                question.options.firstOrNull { it.id == id }?.brief?.takeIf { phrase -> phrase.isNotBlank() }
+            }
+            if (phrases.isEmpty()) return@forEach
+            parts += if (question.multi) {
+                "${question.briefLead}: ${phrases.joinToString(", ")}."
+            } else {
+                "${question.briefLead}: ${phrases.first()}."
+            }
         }
 
         budgetBand(profile.choice(QuickStart.Q_BUDGET))?.let { retail ->

@@ -710,3 +710,38 @@ These supersede the steps above where they conflict.
     colour matches the section, no duplicate bottle, null when nothing survives) and only the picks
     are ranked, so the rest of the page stays unranked. The WHY text is parsed and carried, but the
     cards still show a rank without a reason until Step 7 renders it.
+
+---
+
+## After Step 11 — the taste interview (2026-11-26)
+
+Step 2 built the brief and Step 4 added three written lines, but the tab that collects taste kept
+growing in the other direction: six cards of settings, two of which (the typed ceiling and the links
+box) duplicated facts the flow was already the right place for, while the flow itself asked ten taps
+and stopped. Two consequences followed, both real:
+
+1. **The brief could not be seen.** It is rendered per request and never written, so the only way to
+   know what a model reads was to read `PalateFile.brief`. The tab printed the *file* instead, and its
+   subtitle still said the file was what a scan sends — false since Step 2.
+2. **A hand-written file reached nothing.** `brief()` had a `notes` parameter and no caller, so a
+   file the user edited or imported contributed nothing to a request. The generated half is rendered
+   from the same profile, so only the `## Notes` sections were being lost — and they now ride along,
+   capped, via `TasteText.userNotes`.
+
+The shape now: ten baseline taps → three picks → three written lines → the links sentence → an
+optional typed ceiling → a gate stating the ten taps are the 90% → **twelve optional questions**
+(grapes, places, what to skip, tannin, acid, body, cellaring, funk, sparkling, restaurant order, oak,
+price) → the file. The optional questions are data in `QuickStart.extras`, each option carries the
+phrase it renders as in the brief (`QuickStartOption.brief`), and `PalateFile.brief` writes one line
+per answered question — an option with no phrase is app context and never reaches a model. None of
+them is a gate, none is `afterPicks`, and `knowledgePercent` counts the baseline only so adding the
+interview did not make every profile look emptier.
+
+The brief cap moved 1,500 → 2,000 characters: a fully answered profile measured 1,429 with two chips
+per question and grows with each extra chip, so the old cap would have cut the closing lines rather
+than anything redundant. `PalateBriefTest.aFullyAnsweredInterviewStillFitsTheCap` pins the maximal
+case and asserts the budget line survives.
+
+Not measured: the flow on hardware. The JVM suite covers the data properties (160+ tests), and the
+screens are compile-checked only — no emulator run of the new gate, the ceiling step or the Taste
+tab was done for this change.

@@ -12,7 +12,9 @@ package com.wineverdict.app.data
 data class QuickStartOption(
     val id: String,
     val label: String,
-    val note: String = ""
+    val note: String = "",
+    /** How it reads in the taste brief. Blank means app-only context, never sent to a model. */
+    val brief: String = ""
 )
 
 data class QuickStartQuestion(
@@ -22,7 +24,9 @@ data class QuickStartQuestion(
     val options: List<QuickStartOption>,
     val multi: Boolean = false,
     /** Asked after the three picks, once the user has already seen the value. */
-    val afterPicks: Boolean = false
+    val afterPicks: Boolean = false,
+    /** The line this question renders as in the taste brief, e.g. "Grapes I love". */
+    val briefLead: String = ""
 )
 
 object QuickStart {
@@ -96,7 +100,7 @@ object QuickStart {
     const val REPEATS_NEVER = "never"
     const val REPEATS_FINE = "fine"
 
-    val questions: List<QuickStartQuestion> = listOf(
+    val baseline: List<QuickStartQuestion> = listOf(
         QuickStartQuestion(
             id = Q_POURS,
             prompt = "What ends up in your glass?",
@@ -207,9 +211,203 @@ object QuickStart {
         )
     )
 
+    // ---- The optional interview --------------------------------------------------------------
+    //
+    // The ten taps collect axes and constraints; a restaurant list prints none of them. These ask
+    // the things a sommelier asks before recommending — which grapes and places have actually
+    // worked, how much grip and acid you want in the glass, whether you will wait for a bottle —
+    // and every one is optional. Nothing here becomes a gate: a list can be answered from what is
+    // printed on it, and these are the facts that let the answer be about the wine rather than
+    // about the price. An unanswered question simply does not appear in the brief.
+
+    const val X_GRAPES = "x_grapes"
+    const val X_PLACES = "x_places"
+    const val X_SKIP_GRAPES = "x_skip_grapes"
+    const val X_TANNIN = "x_tannin"
+    const val X_ACID = "x_acid"
+    const val X_BODY = "x_body"
+    const val X_AGING = "x_aging"
+    const val X_FUNK = "x_funk"
+    const val X_SPARKLING = "x_sparkling"
+    const val X_RESTAURANT = "x_restaurant"
+    const val X_OAK = "x_oak"
+    const val X_PRICE = "x_price"
+
+    /**
+     * Asked after the baseline, one at a time, each skippable. Chips only: a tap cannot say why,
+     * and a reason is what the three written lines are for.
+     */
+    val extras: List<QuickStartQuestion> = listOf(
+        QuickStartQuestion(
+            id = X_GRAPES,
+            prompt = "Which grapes have actually worked for you?",
+            help = "Pick what you recognise. A list names grapes more often than anything else, so this " +
+                "is the single most useful answer here.",
+            options = listOf(
+                QuickStartOption("pinot", "Pinot Noir", brief = "Pinot Noir"),
+                QuickStartOption("cabernet", "Cabernet and Merlot", brief = "Cabernet and Merlot"),
+                QuickStartOption("syrah", "Syrah / Shiraz", brief = "Syrah"),
+                QuickStartOption("grenache", "Grenache / Garnacha", brief = "Grenache"),
+                QuickStartOption("sangiovese", "Sangiovese", brief = "Sangiovese"),
+                QuickStartOption("nebbiolo", "Nebbiolo", brief = "Nebbiolo"),
+                QuickStartOption("tempranillo", "Tempranillo", brief = "Tempranillo"),
+                QuickStartOption("zinfandel", "Zinfandel / Primitivo", brief = "Zinfandel"),
+                QuickStartOption("chardonnay", "Chardonnay", brief = "Chardonnay"),
+                QuickStartOption("sauvignon", "Sauvignon Blanc", brief = "Sauvignon Blanc"),
+                QuickStartOption("riesling", "Riesling", brief = "Riesling"),
+                QuickStartOption("chenin", "Chenin Blanc", brief = "Chenin Blanc"),
+                QuickStartOption("albarino", "Albariño", brief = "Albariño"),
+                QuickStartOption("sparkling", "Champagne and sparkling", brief = "Champagne and sparkling"),
+                QuickStartOption("unsure", "The names are still new to me")
+            ),
+            multi = true,
+            briefLead = "Grapes I love"
+        ),
+        QuickStartQuestion(
+            id = X_PLACES,
+            prompt = "Any places that keep showing up in bottles you liked?",
+            help = "Rough is fine. \"Spain\" and \"Bierzo\" both work.",
+            options = listOf(
+                QuickStartOption("bordeaux", "Bordeaux", brief = "Bordeaux"),
+                QuickStartOption("burgundy", "Burgundy", brief = "Burgundy"),
+                QuickStartOption("loire", "the Loire", brief = "the Loire"),
+                QuickStartOption("rhone", "the Rhône", brief = "the Rhône"),
+                QuickStartOption("alsace", "Alsace", brief = "Alsace"),
+                QuickStartOption("italy", "Italy", brief = "Italy"),
+                QuickStartOption("spain", "Spain", brief = "Spain"),
+                QuickStartOption("germany", "Germany and Austria", brief = "Germany and Austria"),
+                QuickStartOption("portugal", "Portugal", brief = "Portugal"),
+                QuickStartOption("usa", "the US West Coast", brief = "the US West Coast"),
+                QuickStartOption("australia", "Australia and New Zealand", brief = "Australia and New Zealand"),
+                QuickStartOption("southafrica", "South Africa", brief = "South Africa"),
+                QuickStartOption("southamerica", "Argentina and Chile", brief = "Argentina and Chile"),
+                QuickStartOption("other", "Greece, Georgia, Armenia", brief = "Greece, Georgia, Armenia"),
+                QuickStartOption("nopattern", "I have not noticed a pattern")
+            ),
+            multi = true,
+            briefLead = "Places I have liked"
+        ),
+        QuickStartQuestion(
+            id = X_SKIP_GRAPES,
+            prompt = "Anything on a list that makes you skip it?",
+            options = listOf(
+                QuickStartOption("cabernet", "Cabernet", brief = "Cabernet"),
+                QuickStartOption("merlot", "Merlot", brief = "Merlot"),
+                QuickStartOption("chardonnay", "Chardonnay", brief = "Chardonnay"),
+                QuickStartOption("sauvignon", "Sauvignon Blanc", brief = "Sauvignon Blanc"),
+                QuickStartOption("pinotgrigio", "Pinot Grigio", brief = "Pinot Grigio"),
+                QuickStartOption("bigreds", "High-alcohol reds", brief = "high-alcohol reds"),
+                QuickStartOption("none", "Nothing — I will try anything")
+            ),
+            multi = true,
+            briefLead = "Grapes I skip"
+        ),
+        QuickStartQuestion(
+            id = X_TANNIN,
+            prompt = "In a red, how much grip do you want?",
+            options = listOf(
+                QuickStartOption("grip", "Real grip — drying tannin is the point", brief = "real grip, drying tannin is the point"),
+                QuickStartOption("some", "Some grip, not a wall", brief = "some grip, not a wall"),
+                QuickStartOption("soft", "Soft and round only", brief = "soft and round only")
+            ),
+            briefLead = "Tannin"
+        ),
+        QuickStartQuestion(
+            id = X_ACID,
+            prompt = "And acidity?",
+            options = listOf(
+                QuickStartOption("zippy", "Zippy — I want it fresh", brief = "zippy, fresh"),
+                QuickStartOption("middle", "Somewhere in the middle", brief = "somewhere in the middle"),
+                QuickStartOption("round", "Rounded and low-acid", brief = "rounded and low-acid")
+            ),
+            briefLead = "Acid"
+        ),
+        QuickStartQuestion(
+            id = X_BODY,
+            prompt = "Weight in the glass?",
+            options = listOf(
+                QuickStartOption("light", "Light — I want a second glass", brief = "light"),
+                QuickStartOption("medium", "Medium", brief = "medium"),
+                QuickStartOption("full", "Full and mouth-filling", brief = "full and mouth-filling")
+            ),
+            briefLead = "Body"
+        ),
+        QuickStartQuestion(
+            id = X_AGING,
+            prompt = "Would you rather drink a bottle now or wait for it?",
+            help = "This decides whether a shop pick is a bottle for Tuesday or one for 2031.",
+            options = listOf(
+                QuickStartOption("now", "Now — I do not want to wait", brief = "now, I do not want to wait"),
+                QuickStartOption("few", "A few years is fine", brief = "a few years is fine"),
+                QuickStartOption("wait", "I like old bottles and will wait", brief = "I like old bottles and will wait")
+            ),
+            briefLead = "Cellaring"
+        ),
+        QuickStartQuestion(
+            id = X_FUNK,
+            prompt = "How do you feel about a little funk?",
+            help = "The barnyard, cider-apple, nail-polish edge natural wine sometimes has.",
+            options = listOf(
+                QuickStartOption("clean", "Clean and precise — no funk", brief = "clean and precise, no funk"),
+                QuickStartOption("bit", "A little is interesting", brief = "a little funk is interesting"),
+                QuickStartOption("love", "I like natural wine, funk and all", brief = "I like natural wine, funk and all")
+            ),
+            briefLead = "Natural wine"
+        ),
+        QuickStartQuestion(
+            id = X_SPARKLING,
+            prompt = "How often is there bubbles in the glass?",
+            options = listOf(
+                QuickStartOption("often", "Often", brief = "often"),
+                QuickStartOption("sometimes", "Sometimes", brief = "sometimes"),
+                QuickStartOption("rarely", "Rarely", brief = "rarely")
+            ),
+            briefLead = "Sparkling"
+        ),
+        QuickStartQuestion(
+            id = X_RESTAURANT,
+            prompt = "At a restaurant, you would rather…",
+            help = "This decides how a list is answered: one bottle for the table, or a glass each.",
+            options = listOf(
+                QuickStartOption("glass", "Order a glass and keep it simple", brief = "order by the glass"),
+                QuickStartOption("bottle", "One bottle, the best value for the table", brief = "one bottle, the best value for the table"),
+                QuickStartOption("sommelier", "Let the sommelier choose", brief = "let the sommelier choose"),
+                QuickStartOption("avoid", "Wine lists intimidate me — keep it short", brief = "keep a list answer short, they are not at home on a wine list")
+            ),
+            briefLead = "At a restaurant"
+        ),
+        QuickStartQuestion(
+            id = X_OAK,
+            prompt = "Where do you stand on oak?",
+            options = listOf(
+                QuickStartOption("none", "None — I want the fruit", brief = "none, I want the fruit"),
+                QuickStartOption("touch", "A touch, if it is in the background", brief = "a touch, in the background"),
+                QuickStartOption("like", "I like it — vanilla and toast are fine", brief = "I like it, vanilla and toast are fine")
+            ),
+            briefLead = "Oak"
+        ),
+        QuickStartQuestion(
+            id = X_PRICE,
+            prompt = "For a bottle that is worth it, you would pay…",
+            help = "On top of your normal bottle. It is a range for fair value, not a ceiling.",
+            options = listOf(
+                QuickStartOption("same", "Not much more — my normal price is the point", brief = "not much more than my normal price"),
+                QuickStartOption("twice", "Up to twice my usual", brief = "up to twice my usual"),
+                QuickStartOption("thrice", "Up to three times my usual", brief = "up to three times my usual"),
+                QuickStartOption("reason", "Price is not the constraint, the reason is", brief = "price is not the constraint, the reason is")
+            ),
+            briefLead = "For a bottle that is worth it"
+        )
+    )
+
+    /** Baseline and interview in one list: the answers summary, the file and the review read this. */
+    val questions: List<QuickStartQuestion> get() = baseline + extras
+
     fun question(id: String): QuickStartQuestion? = questions.firstOrNull { it.id == id }
 
-    /** The steps in the order the screens appear: seven taps, the shortlist, three more taps, the file. */
-    fun steps(): List<QuickStartQuestion> =
-        questions.filter { !it.afterPicks } + questions.filter { it.afterPicks }
+    fun isExtra(id: String): Boolean = extras.any { it.id == id }
+
+    /** The ten, in the order the screens appear: seven taps, the shortlist, three more. */
+    fun baselineSteps(): List<QuickStartQuestion> =
+        baseline.filter { !it.afterPicks } + baseline.filter { it.afterPicks }
 }

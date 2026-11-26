@@ -219,13 +219,13 @@ The file is seeded on first run and lives in the app's private files directory
   you favourited or rated 4★ or more.
 - **Ask** sends the whole file — up to 12,000 characters, about 3,000 tokens. Longer files are
   cut at that point and the model is told the rest is missing.
-- **Scans and the queued shelf reads** share their tokens with a 2,048-token image, so they get
-  whole sections of the file instead: what I enjoy, what I avoid, grapes and styles, house
-  rules, then the gates and history, until 3,000 characters are spent. Sections are never cut
-  in half, and a file with no `##` headings falls back to a stated cut of the top.
-- **The advice calls** — a wine list, a shelf, one bottle's insight — read the short brief instead
-  of the file: the quick-start answers plus the loved bottles, so three wines are weighed against
-  your taste rather than against a page of settings.
+- **Every request except Ask reads the short brief**, not the file: the ten taps, the twelve
+  optional answers, the loved bottles, your three written lines, your "what links them" sentence and
+  the `## Notes` sections of this file. Scans, shelves, list advice and a bottle's insight all use
+  it, so a model is given taste rather than a page of settings.
+- **The brief is not a file.** It is rendered from the stored profile each time a request is made,
+  capped at 2,000 characters, and printed verbatim on the Taste tab under *What the model reads*.
+  There is nothing on disk to keep in sync and no way for it to drift from the answers.
 - A blind head cut was the 1.3 behaviour and it was wrong: a real file opens with scoring
   tables, so the first 2,600 characters were all machinery and none of the preferences. The
   assistant then invented verdicts its own rules forbade — the same bottle for a Caesar, a
@@ -237,13 +237,22 @@ The file is seeded on first run and lives in the app's private files directory
 A new install has no palate, so **Taste → Start the quick start** asks ten taps: what you pour, which
 axis is doing the work, sweetness, budget, what you tell people about a bottle you loved, who it is
 for, what to avoid, dish context, how far to stray, and repeats. Every question can be skipped —
-skipping is recorded as *unknown*, never filled with a default.
+skipping is recorded as *unknown*, never filled with a default. That is the 90%; everything after it
+is detail on top.
 
-Then three optional lines, the only typing in the flow: wines you loved and what you liked about
+Then three optional lines, the first typing in the flow: wines you loved and what you liked about
 them, a wine you didn't enjoy and why, and anything you are curious to try. They ride in the taste
-brief verbatim, capped at 200 characters each, and none of them becomes a rule. A numeric alcohol
-ceiling is separate again: it exists only when you type one on the Taste screen, and "avoid strong"
-stays a preference — a chip is not a measurement.
+brief verbatim, capped at 200 characters each, and none of them becomes a rule. Two more optional
+fields follow: *what links the wines you love*, in your own words, and a numeric alcohol ceiling you
+type — the only way an ABV limit exists, because "avoid strong" stays a preference and a chip is not
+a measurement.
+
+After them comes a gate that says **that is the 90%**. Behind it are twelve optional questions, one
+per screen, each skippable: the grapes and the places that have actually worked, what to skip, grip,
+acid, body, cellaring, funk, sparkling, how you order at a restaurant, oak, and how far you will go
+on price. They earn their place because a restaurant list prints almost none of the ten baseline
+answers, and each one changes what a good recommendation looks like. An unanswered question is left
+out of the brief rather than guessed, and answering them does not change the baseline percentage.
 
 Between the seventh tap and the last three, the flow shows **three things to look for**: styles, not
 bottles, because the app has no catalogue and naming a wine it cannot vouch for would be the same
@@ -288,9 +297,11 @@ Markdown with import, export and *Rebuild from loved bottles*. Saving there mark
 This sits behind Settings and is named as a file rather than as taste settings on purpose: the quick
 start is the normal route, and this is the escape hatch for people who would rather type Markdown.
 
-The Taste tab is now the summary: how much of the baseline is known, the answers, the gates the app
-checks (with how many cellar bottles currently fail one or cannot be checked), the shipped pairing
-classes with a note that none of them are written into the file, and the full text the model reads.
+The Taste tab is the summary: how much of the baseline and of the interview is answered (with **Add
+more detail** and **Retake**), **What the model reads** — the brief, verbatim, with its length — the
+gates the app checks (with how many cellar bottles currently fail one or cannot be checked), your
+answers and the file itself behind toggles, and the shipped pairing classes with a note that none of
+them are written into the file.
 
 ## Where things live
 

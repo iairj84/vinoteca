@@ -41,9 +41,15 @@ data class PalateProfile(
 
     val answeredCount: Int get() = answers.count { it.value.isNotEmpty() }
 
+    /** The ten-tap baseline only: the optional interview must not lower "how much I know". */
+    val baselineAnswered: Int get() = QuickStart.baseline.count { answered(it.id) }
+
+    /** How many of the optional interview questions have an answer. */
+    val extrasAnswered: Int get() = QuickStart.extras.count { answered(it.id) }
+
     /** How much of the ten-tap baseline is filled in, for the "knows" line on the Taste screen. */
     val knowledgePercent: Int
-        get() = answeredCount * 100 / QuickStart.questions.size.coerceAtLeast(1)
+        get() = baselineAnswered * 100 / QuickStart.baseline.size.coerceAtLeast(1)
 
     /** True when the user gave one of the optional answers, so a screen can say so. */
     val hasNotes: Boolean
