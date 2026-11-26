@@ -200,6 +200,71 @@ class LiveChatBudgetTest {
         measure("wide", digestLimit = 140, historyBudget = 8_000, key = key)
     }
 
+    /**
+     * The rescue path, measured end to end: an oversized body, the provider's real 413, then
+     * [leanPayload] — the question alone — and what that actually costs and returns.
+     */
+    @Test
+    fun rescueAfterA413() {
+        val file = keyFile()
+        assumeTrue("no Groq key file found; live prompts are skipped", file != null)
+        val key = checkNotNull(file).readText().trim()
+        val bottles = fixtureWines()
+        assumeTrue("fixture did not parse", bottles.size >= 20)
+        val system = Prompts.chat(
+            PalateFile.brief(profile()),
+            CellarData(wines = bottles),
+            "USD",
+            rules = null,
+            digestLimit = 140
+        )
+        // Deliberately far past the minute: the point is to be refused, not to be realistic.
+        val turns = transcript(turns = 200) +
+            ChatMessage(id = "ask", role = "user", text = QUESTION)
+        val target = Target(
+            provider = AiProvider.GROQ,
+            baseUrl = AiProvider.GROQ.defaultBaseUrl,
+            key = key,
+            model = model
+        )
+        val oversized = chatPayload(
+            target = target,
+            system = system,
+            turns = turns,
+            images = emptyList(),
+            jsonMode = false,
+            thinking = Thinking.MEDIUM,
+            temperature = 0.5,
+            maxTokens = 1_600
+        )
+        println(
+            "LIVE rescue: oversized ${oversized.length} chars, ${turns.size} turns, estimated " +
+                RateLimiter.estimateTokens(
+                    promptChars = system.length + turns.sumOf { it.text.length },
+                    images = 0,
+                    maxTokens = 1_600
+                ) + " tok"
+        )
+        val refused = post(oversized, key)
+        println("LIVE rescue: oversized http=${refused.code} (413 expected)")
+
+        val lean = leanPayload(target, system, turns, emptyList(), 0.5, 1_600)
+        val rescued = post(lean, key)
+        println("LIVE rescue: lean body ${lean.length} chars, newest turn only")
+        println(
+            "LIVE rescue: lean http=${rescued.code} finish=${rescued.finish} " +
+                "prompt=${rescued.prompt} completion=${rescued.completion} " +
+                "reasoning=${rescued.reasoning} total=${rescued.prompt + rescued.completion}"
+        )
+        println(
+            "LIVE rescue: remaining tokens=${rescued.remainingTokens} " +
+                "answer ${rescued.answer.length} chars"
+        )
+        if (rescued.answer.isNotEmpty()) {
+            println("LIVE rescue first: ${rescued.answer.take(200).replace("\n", " ⏎ ")}")
+        }
+    }
+
     private fun typeOf(section: String): WineType = when (section.uppercase()) {
         "SPARKLING" -> WineType.SPARKLING
         "WHITE" -> WineType.WHITE

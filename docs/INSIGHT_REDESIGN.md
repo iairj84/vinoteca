@@ -279,6 +279,12 @@ same minute cannot fit — and trimming the history further does not buy one, be
 digest is ~1,800 of the 2,096-token system prompt. The wide window is for Gemini's 250,000-token
 minute only; on Groq it is refused outright.
 
+**Rescue measured** (`rescueAfterA413`, same harness): a 72,932-character body — 201 turns, ~17,552
+estimated tokens — came back **413**. The same conversation through `leanPayload` (8,204 chars, the
+newest turn only) answered **200**: prompt 2,311, completion 1,196 of which 1,088 was reasoning,
+5,350 tokens left in the minute. Dropping the history turns a refusal into an answer for ~44% of
+the minute, so the rescue is worth its retry.
+
 The window is now sized from the **thinnest configured provider**, not from the one that leads.
 Sized from the lead, a dual-key install sent 8,000 tokens of history to Gemini and, when Gemini was
 rate limited and Groq answered, got a 413 instead of an answer. The cost is context on the lead — a
