@@ -4,9 +4,12 @@ import android.content.Context
 import android.util.Base64
 import com.wineverdict.app.ai.AiClient
 import com.wineverdict.app.ai.AiException
+import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.AiProvider
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.ScanParsing
+import com.wineverdict.app.ai.Scene
+import com.wineverdict.app.ai.SceneScan
 import com.wineverdict.app.ai.ScannedLabel
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.model.ChatMessage
@@ -89,6 +92,48 @@ class ScanQueue(
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
 
+    /** The shop answer for the whole batch, once someone asks for it. */
+    private val _shelfAdvice = MutableStateFlow<SceneScan?>(null)
+    val shelfAdvice: StateFlow<SceneScan?> = _shelfAdvice.asStateFlow()
+
+    /**
+     * What to buy from everything the queue has read.
+     *
+     * A shelf is photographed as several frames, so the three picks are spread across all of them
+     * rather than three per photo — the reason this is one call over [readBottles] instead of one
+     * per frame. It is a tap rather than automatic: the queue is a background reader, and spending
+     * another 4,000-token reasoning call after it drains is a cost nobody asked for on a screen
+     * they may have left. A new frame or a cleared batch forgets the answer, because the shelf it
+     * described is gone.
+     */
+    suspend fun adviseShelf(): SceneScan? {
+        val bottles = readBottles().map { it.label }
+        if (bottles.size < 2) return null
+        val read = SceneScan(Scene.SHELF, bottles, "")
+        val known = cellar.data.value.wines.map { it.title }.distinct().take(KNOWN_BOTTLES)
+        val raw = ai.complete(
+            system = Prompts.shelfAdvice(
+                brief = taste.brief(),
+                cellarSummary = known.joinToString("; "),
+                currency = settings.currency,
+                bottles = bottles
+            ),
+            turns = listOf(ChatMessage(role = "user", text = "What should I buy from this shelf?")),
+            vision = false,
+            job = AiJob.ADVICE,
+            jsonMode = false,
+            thinking = Thinking.MEDIUM,
+            temperature = 0.4,
+            maxTokens = 4_000,
+            onBudgetWait = { waitMs ->
+                _waitingUntil.value = if (waitMs > 0) System.currentTimeMillis() + waitMs else 0L
+            }
+        )
+        _waitingUntil.value = 0L
+        val parsed = ScanParsing.parseAdvice(raw, read) ?: return null
+        return ScanParsing.applyAdvice(read, parsed).also { _shelfAdvice.value = it }
+    }
+
     private var job: Job? = null
     private var modelCursor = 0
 
@@ -122,6 +167,8 @@ class ScanQueue(
                 _items.value = _items.value + item
                 persistLocked()
             }
+            // A new photo is a different shelf: the old answer no longer describes it.
+            _shelfAdvice.value = null
             start()
             item
         }
@@ -165,6 +212,7 @@ class ScanQueue(
                 gone
             }
             removed.forEach { item -> runCatching { File(item.file).delete() } }
+            if (_items.value.isEmpty()) _shelfAdvice.value = null
         }
     }
 

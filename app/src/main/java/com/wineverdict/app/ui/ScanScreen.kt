@@ -64,6 +64,7 @@ import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.digest
 import com.wineverdict.app.ai.withFinePrint
 import com.wineverdict.app.data.BuyAdvice
+import com.wineverdict.app.data.DebugScan
 import com.wineverdict.app.data.ImportRow
 import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
@@ -139,12 +140,11 @@ private const val JUDGE_TIMEOUT_MS = 75_000L
 private const val SCAN_DEADLINE_MS = 95_000L
 
 /**
- * A list gets longer than a label or a shelf. The phone reads the page itself, and the one call
- * after it — the judgement — is asked for 4,000 tokens and has to think first; clipping it at the
- * 95-second scan budget is what threw the ranking away. Measured with `openai/gpt-oss-120b`: 3,979
- * completion tokens, 2,777 of them reasoning.
+ * A list or a shelf gets longer than a label. The one call after the read — the advice — is asked
+ * for 4,000 tokens and has to think first; clipping it at the 95-second scan budget is what threw
+ * the answer away. Measured with `openai/gpt-oss-120b`: 3,979 completion tokens, 2,777 reasoning.
  */
-private const val LIST_DEADLINE_MS = 130_000L
+private const val ADVICE_DEADLINE_MS = 130_000L
 
 /** Wait this long for the primary provider, then ask the second one too and take whichever wins. */
 // A healthy list read is done well before this; past it, asking the second key too is
@@ -186,6 +186,15 @@ fun ScanScreen(onReview: () -> Unit) {
     // True while the cards on screen are the phone's own reading and no model has confirmed them.
     var localOnly by remember { mutableStateOf(false) }
     var work by remember { mutableStateOf<Job?>(null) }
+    // Debug builds only: a finished list scan read from app storage, so the advice block and the
+    // read cards can be looked at on a machine with no provider key. Release builds compile the
+    // branch out, and the two files do not exist on a phone.
+    if (BuildConfig.DEBUG) {
+        LaunchedEffect(Unit) {
+            val fixture = withContext(Dispatchers.IO) { DebugScan.load(context, currency) }
+            if (fixture != null && scan == null) scan = fixture
+        }
+    }
     LaunchedEffect(loading) {
         if (!loading) return@LaunchedEffect
         elapsed = 0
@@ -197,6 +206,8 @@ fun ScanScreen(onReview: () -> Unit) {
     val queueItems by AppGraph.scanQueue.items.collectAsStateWithLifecycle()
     val queueWaitingUntil by AppGraph.scanQueue.waitingUntil.collectAsStateWithLifecycle()
     val queueRunning by AppGraph.scanQueue.running.collectAsStateWithLifecycle()
+    val queueAdvice by AppGraph.scanQueue.shelfAdvice.collectAsStateWithLifecycle()
+    var advisingShelf by remember { mutableStateOf(false) }
 
     // Declared before the launcher so the batch callback can reopen the camera for the next bottle.
     var takePhoto: () -> Unit = {}
@@ -335,7 +346,7 @@ fun ScanScreen(onReview: () -> Unit) {
                 // works: names, prices and the order down the page are all on the photo already,
                 // and a provider that times out must not take them down with it.
                 val onPhone = instantLines?.let { LocalListRead.wines(it, currency) }
-                if (onPhone != null) deadlineMs = LIST_DEADLINE_MS
+                if (onPhone != null) deadlineMs = ADVICE_DEADLINE_MS
                 if (onPhone != null && scan == null) {
                     scan = onPhone
                     localOnly = true
@@ -430,30 +441,28 @@ fun ScanScreen(onReview: () -> Unit) {
                 // keeping the page's own order — the first three sparkling lines came back as
                 // "best first". The per-wine judgement is kept below for one release, and is only
                 // reached when the advice answer carries no usable pick.
-                suspend fun judgeList(read: SceneScan): SceneScan? {
-                    val judgeStart = System.currentTimeMillis()
-                    var judgeWho = ""
-                    var judgeModel = ""
-                    val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
+                //
+                // A shelf asks the same question with the money taken literally (a shop price is
+                // retail, not a markup), so both go through the two helpers below. Everything that
+                // differs is in the prompt; everything that is expensive is written once.
 
-                    // Thinking.MEDIUM here and not OFF: this is the one call where the model's own
-                    // knowledge is the product, so it is allowed to reason about it.
-                    var adviceTimedOut = false
-                    val advice = runCatching {
+                // Set when an attempt ran out of time, so the caller knows a second try cannot fit.
+                var adviceTimedOut = false
+
+                // Thinking.MEDIUM here and not OFF: this is the one call where the model's own
+                // knowledge is the product, so it is allowed to reason about it.
+
+                // One attempt, with its own row in the panel: a retried call has to show as two
+                // requests, or the panel reports a length that came from neither of them.
+                suspend fun adviceAttempt(label: String, system: String, turn: String): String {
+                    val start = System.currentTimeMillis()
+                    var who = ""
+                    var model = ""
+                    val answer = runCatching {
                         withTimeoutOrNull(budgetMs(ADVICE_TIMEOUT_MS)) {
                             AppGraph.ai.complete(
-                                system = Prompts.listAdvice(
-                                    brief = taste,
-                                    cellarSummary = owned,
-                                    currency = currency,
-                                    bottles = read.bottles
-                                ),
-                                turns = listOf(
-                                    ChatMessage(
-                                        role = "user",
-                                        text = "What should I order from this list?"
-                                    )
-                                ),
+                                system = system,
+                                turns = listOf(ChatMessage(role = "user", text = turn)),
                                 vision = false,
                                 // Advice, so it goes to the advice model and Groq leads.
                                 job = AiJob.ADVICE,
@@ -462,21 +471,58 @@ fun ScanScreen(onReview: () -> Unit) {
                                 temperature = 0.4,
                                 maxTokens = 4_000,
                                 onBudgetWait = hold,
-                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
+                                onAnswer = { p, m -> who = p.shortLabel; model = m }
                             )
                         } ?: run {
                             adviceTimedOut = true
                             throw AiException("The advice did not arrive in time.")
                         }
                     }
-                    advice.getOrNull()?.let { raw ->
+                    answer.getOrNull()?.let { raw ->
                         waitedFor = 0L
                         trace.answer = raw
-                        trace.answerStep = "advice"
+                        trace.answerStep = label
                         trace.request(
-                            "advice", judgeWho, judgeModel, raw.length,
-                            System.currentTimeMillis() - judgeStart, true
+                            label, who, model, raw.length,
+                            System.currentTimeMillis() - start, true
                         )
+                        return raw
+                    }
+                    val failure = answer.exceptionOrNull()
+                        ?: AiException("The advice did not arrive.")
+                    lastProblem = failure.message
+                    trace.request(
+                        label, who, model, 0,
+                        System.currentTimeMillis() - start, false, failure.message.orEmpty()
+                    )
+                    throw failure
+                }
+
+                suspend fun adviceAnswer(label: String, system: String, turn: String): Result<String> =
+                    runCatching { adviceAttempt(label, system, turn) }.recoverCatching { failure ->
+                        // Gemini answers this request with a 503 often enough (one attempt in three,
+                        // measured) that a second try is worth more than the fallback, which is a
+                        // different answer rather than a worse one. Only a failure that waiting can
+                        // fix is retried, and only while the scan still has budget to spend.
+                        val retryable = (failure as? AiException)?.let {
+                            it.retryable || it.retryAfterMs != null
+                        } == true
+                        if (!retryable || adviceTimedOut || remainingMs() < 5_000L) throw failure
+                        stage = "Asking for the advice again…"
+                        adviceAttempt("$label (retry)", system, turn)
+                    }
+
+                suspend fun judgeList(read: SceneScan): SceneScan? {
+                    var judgeWho = ""
+                    var judgeModel = ""
+                    val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
+                    adviceTimedOut = false
+                    val advice = adviceAnswer(
+                        label = "advice",
+                        system = Prompts.listAdvice(taste, owned, currency, read.bottles),
+                        turn = "What should I order from this list?"
+                    )
+                    advice.getOrNull()?.let { raw ->
                         // The panel shows what was thrown away and why: a pick the page
                         // contradicts is a fact about the answer, not something to hide.
                         val parsed = ScanParsing.parseAdvice(raw, read)
@@ -484,11 +530,6 @@ fun ScanScreen(onReview: () -> Unit) {
                         parsed?.let { return ScanParsing.applyAdvice(read, it) }
                     }
                     advice.exceptionOrNull()?.let { failure ->
-                        lastProblem = failure.message
-                        trace.request(
-                            "advice", judgeWho, judgeModel, 0,
-                            System.currentTimeMillis() - judgeStart, false, failure.message.orEmpty()
-                        )
                         // A second 4,000-token call in the same minute cannot fit: the advice call
                         // alone is most of the free tier's 8,000 TPM. A timeout or a rate limit is
                         // the one failure a fallback would repeat rather than fix, so the scan goes
@@ -542,6 +583,28 @@ fun ScanScreen(onReview: () -> Unit) {
                         )
                         lastProblem = it.message
                     }.getOrNull()
+                }
+
+                /**
+                 * The shelf answer: which bottles to buy, and whether the price is any good.
+                 *
+                 * A shop is photographed as several frames, so the numbers run across every bottle
+                 * the read produced — three picks per shelf, not three per photo. No fallback: the
+                 * cards are already on screen with their chips, so a failed call costs the
+                 * explanation and nothing else.
+                 */
+                suspend fun judgeShelf(read: SceneScan): SceneScan? {
+                    val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
+                    adviceTimedOut = false
+                    val answer = adviceAnswer(
+                        label = "shelf advice",
+                        system = Prompts.shelfAdvice(taste, owned, currency, read.bottles),
+                        turn = "What should I buy from this shelf?"
+                    )
+                    val raw = answer.getOrNull() ?: return null
+                    val parsed = ScanParsing.parseAdvice(raw, read) ?: return null
+                    trace.dropped = parsed.dropped
+                    return ScanParsing.applyAdvice(read, parsed)
                 }
 
                 // Plain lines, and the first request: no braces, no schema, nothing that can arrive
@@ -754,6 +817,18 @@ fun ScanScreen(onReview: () -> Unit) {
                     parsed = readJson()?.takeIf { it.bottles.isNotEmpty() }
                 }
 
+                // A shelf is worth one question more than a read: which of these to buy, and
+                // whether the printed price is any good. Asked after every path so a shelf the
+                // model read gets the same answer a list does; skipped with no time to hear it.
+                val shelf = parsed
+                if (shelf != null && shelf.scene == Scene.SHELF && shelf.bottles.size > 1 &&
+                    remainingMs() > 15_000L
+                ) {
+                    stage = "Picking from the shelf…"
+                    deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
+                    judgeShelf(shelf)?.let { parsed = it }
+                }
+
                 if (parsed == null) {
                     // The phone read the page and the model did not. The wines and prices are
                     // already on screen, so the failure is a note, not a blank result.
@@ -877,6 +952,23 @@ fun ScanScreen(onReview: () -> Unit) {
                     waitingUntil = queueWaitingUntil,
                     providers = AppGraph.settings.configuredProviders.size,
                     framesPerMinute = AppGraph.settings.poolFramesPerMinute,
+                    advice = queueAdvice,
+                    advising = advisingShelf,
+                    onAdvise = {
+                        if (!advisingShelf) {
+                            advisingShelf = true
+                            scope.launch {
+                                runCatching { AppGraph.scanQueue.adviseShelf() }
+                                    .onFailure { failure ->
+                                        snackbarHostState.showSnackbar(
+                                            failure.message
+                                                ?: "The shelf advice did not come back."
+                                        )
+                                    }
+                                advisingShelf = false
+                            }
+                        }
+                    },
                     onStart = { AppGraph.scanQueue.start() },
                     onPause = { AppGraph.scanQueue.pause() },
                     onAddAll = {
@@ -1104,8 +1196,10 @@ fun ScanScreen(onReview: () -> Unit) {
                 } else {
                     null
                 }
-                if (restaurant && advice != null) {
-                    AdviceBlock(advice = advice, bottles = result.bottles)
+                if (advice != null && result.bottles.size > 1 &&
+                    (restaurant || result.scene == Scene.SHELF)
+                ) {
+                    AdviceBlock(advice = advice, bottles = result.bottles, shop = !restaurant)
                 }
                 if (ranking != null) {
                     // The older per-wine judgement looks the same on screen, so say which one this
@@ -1342,6 +1436,7 @@ val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine
                             currency = currency,
                             hideAbvUnknown = hideAbvUnknown,
                             pick = ranking?.picks?.getOrNull(index),
+                            adviceShown = result.advice != null,
                             onAdd = {
                                 scope.launch {
                                     AppGraph.cellar.upsert(record)
@@ -1510,7 +1605,7 @@ private fun adviceUnitLine(service: Service?): String = when (service) {
 }
 
 @Composable
-private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
+private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>, shop: Boolean = false) {
     if (advice.picks.isEmpty()) return
     // Which pour the answer is read in. The ranked section carried this before advice replaced it,
     // and it is the first question at a table: a list that pours by the glass and one that only
@@ -1522,21 +1617,29 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
     } else {
         advice.picks
     }
-    SectionCard("What to order") {
+    SectionCard(if (shop) "What to buy" else "What to order") {
         Text(
-            adviceUnitLine(service),
+            if (shop) {
+                "Picked from what the shelf prints: the price and what the bottle adds."
+            } else {
+                adviceUnitLine(service)
+            },
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { service = Service.GLASS }) {
-                Text(if (service == Service.GLASS) "Glass ✓" else "Glass")
-            }
-            OutlinedButton(onClick = { service = Service.BOTTLE }) {
-                Text(if (service == Service.BOTTLE) "Bottle ✓" else "Bottle")
-            }
-            OutlinedButton(onClick = { service = Service.UNSURE }) {
-                Text(if (service == Service.UNSURE) "Not sure ✓" else "Not sure")
+        // A shelf sells bottles, and a shop price is the whole question, so there is no glass
+        // toggle and no pour answer to choose between.
+        if (!shop) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { service = Service.GLASS }) {
+                    Text(if (service == Service.GLASS) "Glass ✓" else "Glass")
+                }
+                OutlinedButton(onClick = { service = Service.BOTTLE }) {
+                    Text(if (service == Service.BOTTLE) "Bottle ✓" else "Bottle")
+                }
+                OutlinedButton(onClick = { service = Service.UNSURE }) {
+                    Text(if (service == Service.UNSURE) "Not sure ✓" else "Not sure")
+                }
             }
         }
         if (service == Service.GLASS && !glassOnPage) {
@@ -1558,7 +1661,7 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Pill(
                         when (position) {
-                            0 -> "Order this"
+                            0 -> if (shop) "Buy this" else "Order this"
                             1 -> "Second"
                             else -> "Third"
                         },
@@ -1579,11 +1682,28 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>) {
                     if (pick.why.isNotBlank()) {
                         Text(pick.why, style = MaterialTheme.typography.bodySmall)
                     }
+                    if (pick.value != null) {
+                        Pill(
+                            "${pick.value} value",
+                            color = if (pick.value == "good") {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.secondaryContainer
+                            }
+                        )
+                        if (pick.valueNote.isNotBlank()) {
+                            Text(
+                                pick.valueNote,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
 
-        if (service != Service.BOTTLE) advice.glass?.let { glass ->
+        if (!shop && service != Service.BOTTLE) advice.glass?.let { glass ->
             val bottle = bottles.getOrNull(glass.index)
             if (bottle != null) {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -1654,11 +1774,33 @@ private fun VerdictBlock(
     restaurant: Boolean,
     hideAbvUnknown: Boolean = false,
     pick: ListPicks.Pick? = null,
-    why: String = ""
+    why: String = "",
+    adviceShown: Boolean = false
 ) {
     val rules = AppGraph.palate.rules
     val profile = AppGraph.palate.profile.value
     val cellar = AppGraph.cellar.data.value.wines
+    if (adviceShown) {
+        // The advice already answered which bottles to buy. A second headline under every card is
+        // the noise it replaced, so all that is left is what the app knows and the answer does not:
+        // a limit broken, a window passed, a bottle already at home. Never an unknown.
+        if (why.isNotBlank()) {
+            Text(why, style = MaterialTheme.typography.bodyMedium)
+        }
+        val chips = remember(wine, rules, cellar) { BuyAdvice.chips(wine, rules, cellar) }
+        chips.forEach { chip ->
+            Text(
+                text = (if (chip.warning) "\u2715  " else "\u00b7  ") + chip.text,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (chip.warning) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+        return
+    }
     val advice = remember(wine, rules, profile, cellar, restaurant) {
         BuyAdvice.forBottle(
             wine = wine,
@@ -1740,6 +1882,7 @@ private fun BottleVerdictCard(
     currency: String,
     hideAbvUnknown: Boolean = false,
     pick: ListPicks.Pick? = null,
+    adviceShown: Boolean = false,
     onAdd: () -> Unit,
     onReview: () -> Unit
 ) {
@@ -1782,7 +1925,10 @@ private fun BottleVerdictCard(
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
-            VerdictBlock(result.wine, restaurant, hideAbvUnknown, pick, result.fitReason)
+            VerdictBlock(
+                result.wine, restaurant, hideAbvUnknown, pick, result.fitReason,
+                adviceShown = adviceShown
+            )
             val shelfDoubt = buildList {
                 if (result.uncertainFields.isNotEmpty()) add("Unsure: " + result.uncertainFields.joinToString(", "))
                 if (result.nextTip.isNotBlank()) add(result.nextTip)
@@ -1836,6 +1982,9 @@ private fun BatchQueueCard(
     waitingUntil: Long,
     providers: Int,
     framesPerMinute: Double,
+    advice: SceneScan?,
+    advising: Boolean,
+    onAdvise: () -> Unit,
     onStart: () -> Unit,
     onPause: () -> Unit,
     onAddAll: () -> Unit,
@@ -1888,6 +2037,18 @@ private fun BatchQueueCard(
             }
             if (framesRead > 0 || failed > 0) {
                 TextButton(onClick = onClear) { Text("Clear finished") }
+            }
+        }
+        // The shelf's answer covers every frame the queue has read, so it is asked for once here
+        // rather than per photo: three picks across the shelf, not three per frame.
+        val shelfPicks = advice?.advice
+        if (bottles.size > 1) {
+            if (shelfPicks != null) {
+                AdviceBlock(advice = shelfPicks, bottles = advice?.bottles.orEmpty(), shop = true)
+            } else {
+                OutlinedButton(onClick = onAdvise, enabled = !advising) {
+                    Text(if (advising) "Asking what to buy…" else "What to buy from this shelf")
+                }
             }
         }
         bottles.take(10).forEachIndexed { index, bottle ->

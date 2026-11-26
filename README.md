@@ -18,11 +18,17 @@ Gemini or Groq — with your own key.
   style, ABV, drinking window, sommelier-style reference notes and, when the model offers one, a
   1–5 match against your taste profile. Everything is shown for review before it is saved.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
-  price, and each one gets a buy-or-leave verdict built from your own limits (alcohol ceiling,
-  sweetness), your price band and what the cellar is missing. A restaurant mode reads a wine list
-  and answers the diner's question instead: two or three bottles with a reason each, a glass if the
-  list pours one, and a few tempting lines to skip — every line checked against the page before it
-  is shown. List prices carry a markup, so there is no price-band verdict there.
+  price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
+  from the photo, why it earns the spot and — when a price is printed — whether that price is good,
+  fair or poor, plus a couple of bottles worth skipping and the reason. Below them the per-bottle
+  verdict shrinks to what the app knows and the answer does not: a limit you set that the bottle
+  breaks, a drinking window that has passed, a bottle already in your cellar. A bottle whose record
+  says nothing gets no verdict at all rather than a hedge. Photograph a shelf as several frames in
+  the scan queue and one tap — **What to buy from this shelf** — asks for the same answer across
+  every frame, because three picks per photo is not a recommendation. A restaurant mode reads a wine
+  list and answers the diner's question instead: two or three bottles with a reason each, a glass if
+  the list pours one, and a few tempting lines to skip — every line checked against the page before
+  it is shown. List prices carry a markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and a 1–5 star
@@ -49,6 +55,28 @@ Then:
 ./gradlew :app:assembleSideload     # minified build for sharing (~1.5 MB)
 ./gradlew :app:installDebug         # install on a connected device
 ```
+
+### Emulator
+
+An Android 14 emulator is set up on the development machine: the SDK is in `C:\dev` and the AVD is
+`vinoteca-test` (Pixel 6). `emulator` and `avdmanager` are not on `PATH`, so they are called by full
+path:
+
+```
+export PATH="/c/dev/platform-tools:$PATH"
+/c/dev/emulator/emulator.exe -avd vinoteca-test -no-window -no-audio -no-boot-anim \
+  -gpu swiftshader_indirect &          # boots in ~40 s
+adb wait-for-device
+adb shell getprop sys.boot_completed   # 1 when it is ready
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.wineverdict.app/.MainActivity
+adb exec-out screencap -p > screen.png
+adb shell cmd uimode night yes         # dark theme; `no` goes back
+```
+
+Git Bash rewrites adb arguments that start with `/`, so a device path needs a doubled slash
+(`//sdcard/Download/...`).
 
 The `sideload` build type runs R8 with `-dontobfuscate` and the serialization keep rules, and is
 signed with the debug key so it installs straight from a download — fine for sideloading, not for
@@ -125,7 +153,9 @@ that answers a wine list and the chat. The advice call and the chat go to the ad
 not share a provider order. The advice call leads with Groq whenever it has a key — one large
 reasoning request, then you read the answer. The chat leads with Gemini, because every turn resends
 the conversation and Groq's free tier is 8,000 tokens a minute, which is two or three turns. Either
-way the other provider answers when the first has no key, is rate limited or fails.
+way the other provider answers when the first has no key, is rate limited or fails. When neither can
+answer, the advice is retried once before the ranking fallback: Gemini's free tier returns a 503 for
+that request about one attempt in three, and one bad minute should not turn a list into a score.
 
 Keys are typed into the app at runtime and stored only in its private `SharedPreferences`
 (`vinoteca_settings`). Nothing is read from the build and nothing is written to this repository: there
@@ -311,5 +341,11 @@ this avoids a database and its migration surface entirely.
   exposes the model lists and **Test connection** lists what the key can reach.
 - No cloud sync, no accounts, no multi-device support. Move a cellar between phones with the backup
   file.
-- The app was compiled and packaged in a Linux VM without an emulator or device, so the UI flows
-  have not been exercised on hardware. The quick start's logic is covered by a JVM harness (file
+- The app was compiled and packaged in a Linux VM; the screens were later rendered on an Android 14
+  emulator (Pixel 6 AVD `vinoteca-test`, light and dark), so the layout has been looked at. No real
+  phone run is recorded here, and the emulator's camera is a synthetic scene, so camera capture and
+  the photo picker have not been exercised on hardware.
+- The scan result's advice block needs a provider key to reach. For layout work, a debug build reads
+  two files from the app's `files/` — `debug-scan.json` and `debug-advice.txt` — through the app's
+  own `ScanParsing` and shows them as a finished list scan. Release builds never read them; the
+  commands are in `docs/INSIGHT_REDESIGN.md` Step 7.

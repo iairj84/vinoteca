@@ -3,6 +3,24 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased
+
+**A shelf is answered, not scored.** A shop shelf now gets the same treatment as a wine list: one
+advice request over every bottle the photo printed, up to three bottles worth taking — each with the
+price from the record, why it earns the spot and, when a price was read, a good/fair/poor value call
+— and a short list of tempting skips with reasons. The buy-or-leave pill on every card is gone with
+it. What survives of the per-card verdict is facts only: a limit the bottle breaks, a window that has
+passed, a bottle already in your cellar; a record that speaks to none of them gets no chip, so the
+`?  nothing in the record speaks either way` line is gone from shelf and list cards alike. The scan
+queue asks for the same answer from **What to buy from this shelf** — once across the whole batch,
+not once per frame.
+
+**One 503 no longer costs the advice.** Gemini answers the advice request with a 503 ("model
+experiencing high demand") about one attempt in three, and the scan read that as a spent budget and
+dropped straight to the per-wine ranking. The advice call is now retried once — only for a failure
+that waiting can fix (a retryable error or a rate limit), and only while the scan has budget left —
+with both attempts listed in the scan details panel. A second failure falls back exactly as before.
+
 ### 1.0.12: a list is answered, not scored
 
 **A tap is not a measurement.** "Avoid strong" no longer becomes a 13.5% ceiling — it contradicted

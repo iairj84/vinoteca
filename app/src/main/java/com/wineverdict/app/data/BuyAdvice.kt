@@ -56,6 +56,36 @@ object BuyAdvice {
         val strength: Int = 0
     )
 
+    /**
+     * A fact worth flagging on a card that already carries advice.
+     *
+     * [Advice] answers "should I spend the money", which is the right answer to a photo of one
+     * bottle in the hand. Once a model has explained which bottles on a shelf to buy, a second
+     * headline under every card is exactly the noise the advice replaced — so all that is left is
+     * what the app knows for certain and the advice does not: a limit the bottle breaks, a window
+     * it has passed, a bottle already at home. A gate the record cannot check (no ABV printed) is
+     * never a chip: that is a fact about the label, not a warning about the wine.
+     */
+    data class Chip(val text: String, val warning: Boolean)
+
+    fun chips(wine: Wine, rules: PalateRules, cellar: List<Wine>): List<Chip> {
+        val out = mutableListOf<Chip>()
+        rules.checks(wine)
+            .filter { it.verdict == GateVerdict.FAIL }
+            .forEach { out += Chip(it.detail, true) }
+        if (wine.drinkStatus() == DrinkStatus.PAST) {
+            out += Chip("past its ${wine.drinkTo} window", true)
+        }
+        // Unlike [forBottle], the id is not excluded: a scan card's wine often *is* the cellar
+        // record (the scan hands its own object to the cellar, id and all), and "this bottle is
+        // already at home" is exactly what the card should say about it.
+        val owned = cellar.count { sameBottle(it, wine) }
+        if (owned > 0) {
+            out += Chip(if (owned == 1) "already in your cellar" else "already have $owned", false)
+        }
+        return out.distinctBy { it.text }.take(3)
+    }
+
     fun forBottle(
         wine: Wine,
         rules: PalateRules,

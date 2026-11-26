@@ -408,6 +408,99 @@ object Prompts {
     }
 
     /**
+     * The advice question a photographed shop shelf gets.
+     *
+     * The same shape as [listAdvice] and for the same reason — a diner and a shopper both want two or
+     * three bottles explained, not a verdict under every line — with three differences that are
+     * facts about a shop rather than a menu: the money is retail, so a printed price can be a bargain
+     * or a rip-off and the answer has to say which ([VALUE]); a shelf is read as several photos, so
+     * the picks are spread across everything the session read instead of three per frame; and a shop
+     * sells bottles, not glasses, so there is no GLASS line.
+     *
+     * Numbers come from the caller and cover every bottle of the session, which is why the prompt
+     * says "across every bottle listed here" rather than "on this page".
+     */
+    fun shelfAdvice(
+        brief: String,
+        cellarSummary: String,
+        currency: String,
+        bottles: List<ScannedLabel>
+    ): String {
+        val wines = bottles.mapIndexed { index, label ->
+            val wine = label.wine
+            buildString {
+                append("${index + 1}. ").append(wine.title)
+                append(" — ").append(wine.type.label.lowercase())
+                val place = listOf(wine.appellation, wine.region, wine.country)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct()
+                    .joinToString(", ")
+                if (place.isNotBlank()) append(" — ").append(place)
+                if (wine.grapes.isNotEmpty()) {
+                    append(" (").append(wine.grapes.joinToString(", ")).append(")")
+                }
+                wine.price?.let {
+                    append(" — ").append(currency).append(' ')
+                        .append("%.0f".format(java.util.Locale.US, it))
+                }
+                label.valueVerdict.takeIf { it.isNotBlank() && it != "unknown" }?.let {
+                    append(" — the shelf reads as ").append(it).append(" value")
+                }
+            }
+        }.joinToString("\n")
+        val taste = brief.trim().ifBlank {
+            "(I have not told you what I like — recommend on the wines themselves)"
+        }
+        val owned = cellarSummary.trim().ifBlank { "(nothing yet)" }
+        return """
+        You are an experienced wine buyer in a shop, helping one shopper choose from what is on the
+        shelf. Read EVERY bottle listed before deciding. Then say what this shopper should buy.
+
+        Knowledge rules:
+        - Use your general knowledge of regions, grapes, styles, vintages and producers.
+          When something is typical rather than printed, say "typically".
+        - Do not state producer-specific specifics you cannot be sure of (months in oak,
+          blend percentages, exact alcohol, scores, awards).
+        - Never invent a wine, price or vintage. Refer to bottles ONLY by their number.
+        - A bottle's colour/style is the section it is listed under.
+
+        Taste: read MY TASTE below. Treat oak, alcohol and sweetness as preferences.
+        Budget: these are retail prices, so the range in MY TASTE is what I would pay in a shop.
+        Prefer bottles inside it, and say when a bottle is good value at the price printed.
+
+        Reply in exactly this format, nothing before or after:
+
+        PICK 1 | <number> | <one-line headline>
+        WHY: <2-4 sentences: what it is, why it tastes that way, why it suits me>
+        VALUE: good|fair|poor — <one clause about the printed price>
+        PICK 2 | <number> | <headline>
+        WHY: <2-4 sentences>
+        VALUE: good|fair|poor — <one clause>
+        PICK 3 | <number> | <headline>            (optional)
+        WHY: <2-4 sentences>
+        VALUE: good|fair|poor — <one clause>
+        SKIP | <number> | <one sentence why>       (1-3 bottles, the tempting wrong choices)
+        NOTE: <optional one sentence>
+
+        - Three picks at most, across every bottle listed here — not three per photo.
+        - VALUE is about the money only: good = a bargain at the printed price, fair = about
+          right, poor = overpriced for what it is. Omit the whole VALUE line for a bottle whose
+          price is not printed; never guess one.
+        - Every SKIP has to say why it is the tempting wrong choice, not just that it is cheap.
+
+        MY TASTE
+        $taste
+
+        WHAT I ALREADY OWN (summary)
+        $owned
+
+        WINES
+        $wines
+        """.trimIndent()
+    }
+
+    /**
      * The recovery pass for the one failure that matters in a restaurant: a legible wine list that
      * came back with nothing. It asks for the wines and only the wines, with no scene decision and no
      * transcription to hide behind, and it is sent only after an empty first answer — one extra

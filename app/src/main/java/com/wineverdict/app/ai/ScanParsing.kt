@@ -117,7 +117,15 @@ data class AdvicePick(
     /** 0-based index into [SceneScan.bottles]: the card is built from that bottle, never the text. */
     val index: Int,
     val headline: String,
-    val why: String
+    val why: String,
+    /**
+     * Shelf advice only: good, fair or poor at the printed price. Null on a list (a menu price is
+     * a markup, not a deal) and on any bottle whose price was not printed, because a value claim
+     * about a price nobody read is not evidence.
+     */
+    val value: String? = null,
+    /** The clause after the value word, when the answer gave one. */
+    val valueNote: String = ""
 )
 
 /** The advice answer, with every line that failed a check already removed. */
@@ -306,7 +314,7 @@ object ScanParsing {
             }
             if (!colourAgrees(draft, index)) return@forEach
             if (picks.size < 3) {
-                picks += AdvicePick(index, draft.headline, draft.why.toString().trim())
+                picks += pickOf(draft, index, read)
             } else {
                 dropped += "PICK ${index + 1} — more than three picks"
             }
@@ -320,14 +328,14 @@ object ScanParsing {
                 return@let null
             }
             if (!colourAgrees(draft, index)) return@let null
-            AdvicePick(index, draft.headline, draft.why.toString().trim())
+            pickOf(draft, index, read)
         }
 
         val skips = drafts.filter { it.kind == "SKIP" }
             .mapNotNull { draft ->
                 val index = resolve(draft) ?: return@mapNotNull null
                 if (!colourAgrees(draft, index)) return@mapNotNull null
-                AdvicePick(index, draft.headline, draft.why.toString().trim())
+                pickOf(draft, index, read)
             }
             .distinctBy { it.index }
             .take(4)
@@ -345,6 +353,8 @@ object ScanParsing {
     ) {
         val why = StringBuilder()
         var open = false
+        /** The shelf's VALUE line, kept apart from the WHY so the two are not run together. */
+        val value = StringBuilder()
     }
 
     private fun adviceDrafts(raw: String): List<AdviceDraft> {
@@ -379,6 +389,15 @@ object ScanParsing {
                         draft.open = true
                     }
                 }
+                upper.startsWith("VALUE") && line.contains(':') -> {
+                    // A shop answer's price verdict, attached to the bottle it follows. It does not
+                    // open the WHY, or the value clause would be glued onto the reason text.
+                    val draft = last
+                    if (draft != null && draft.kind != "NOTE") {
+                        draft.value.append(line.substringAfter(':').trim())
+                        draft.open = false
+                    }
+                }
                 upper.startsWith("NOTE") && line.contains(':') -> {
                     val draft = AdviceDraft("NOTE", null, null, "")
                     draft.why.append(line.substringAfter(':').trim())
@@ -394,6 +413,34 @@ object ScanParsing {
             }
         }
         return out
+    }
+
+    /**
+     * One validated line as the card needs it.
+     *
+     * The shelf's value word is kept only when the price it is about was printed: a claim that a
+     * bottle is good value next to no price is the model inventing the number it compared.
+     */
+    private fun pickOf(draft: AdviceDraft, index: Int, read: SceneScan): AdvicePick {
+        // A menu price is a markup, not a deal, so a list answer keeps no value whatever the model
+        // volunteers; only a shop's printed shelf price can be called good or poor.
+        val price = if (read.scene == Scene.SHELF) read.bottles[index].wine.price else null
+        val (value, note) = valueOf(draft, price)
+        return AdvicePick(index, draft.headline, draft.why.toString().trim(), value, note)
+    }
+
+    /** "good — a bargain at $24" becomes "good" and "a bargain at $24". */
+    private fun valueOf(draft: AdviceDraft, price: Double?): Pair<String?, String> {
+        if (price == null) return null to ""
+        val text = draft.value.toString().trim()
+        if (text.isEmpty()) return null to ""
+        val word = Regex("(?i)\\b(good|fair|poor)\\b").find(text)
+            ?.groupValues?.get(1)?.lowercase() ?: return null to ""
+        val note = text.substring(text.lowercase().indexOf(word) + word.length)
+            .trim()
+            .trimStart('—', '-', ':', '|', ',', ' ')
+            .trim()
+        return word to note
     }
 
     /** The colour the list's section says a wine is, or null when the section says nothing. */

@@ -227,8 +227,88 @@ The colour check from Step 6 gained one rule: a colour word introduced by `like`
 `unlike` is a comparison, not a claim about this wine, so "drinks like a white but with the tannin
 of a red" no longer drops a red.
 
-Not verified on hardware: no device or emulator is available here, so the block has never been
-rendered.
+**Rendered on an emulator** (2026-11-26). An earlier note here claimed no device or emulator was
+available; that was wrong. `C:\dev` holds the Android SDK and a Pixel 6 AVD called `vinoteca-test`,
+and the advice block and the read cards below it have now been rendered from the 26-wine fixture in
+both themes (`.screens/advice-light.png`, `.screens/advice-dark.png`, `.screens/read-cards-light.png`,
+`.screens/read-cards-dark.png` — local files, not committed). A second pass rendered the block from a
+real Gemini answer (`.screens/live-advice-light-*.png`, `.screens/live-advice-dark-*.png`); see the
+live run below. `emulator`, `avdmanager` and
+`sdkmanager` are not on `PATH`, which is what hid it; call them by full path. To do it again:
+
+```
+export PATH="/c/dev/platform-tools:$PATH"
+/c/dev/emulator/emulator.exe -avd vinoteca-test -no-window -no-audio -no-boot-anim \
+  -gpu swiftshader_indirect &
+adb wait-for-device && adb shell getprop sys.boot_completed   # 1 when it is up, ~40 s
+./gradlew :app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.wineverdict.app/.MainActivity
+adb exec-out screencap -p > .screens/advice-light.png
+adb shell cmd uimode night yes                                # dark theme; `no` goes back
+```
+
+Git Bash rewrites adb arguments that start with `/`, so a device path needs a doubled slash
+(`//sdcard/Download/...`).
+
+The fixture reaches the screen through a debug-only loader (`data/DebugScan.kt`): `debug-scan.json`
+(in the shape the vision reply has) and `debug-advice.txt` (PICK/WHY) sit in the app's `files/` and
+are run through `ScanParsing` itself, so the validators apply exactly as they would to a live
+answer. `ScanScreen` reads them only under `BuildConfig.DEBUG`. Seeding:
+
+```
+adb shell run-as com.wineverdict.app sh -c 'cat > files/debug-scan.json' < .screens/seed/debug-scan.json
+adb shell run-as com.wineverdict.app sh -c 'cat > files/debug-advice.txt' < .screens/seed/gemini-advice.txt
+```
+
+Piping into `run-as` is the recipe that works: `adb push` to `/sdcard/Download` succeeds but
+`run-as cp /sdcard/Download/...` fails with `Permission denied` (scoped storage), and a push to
+`/data/local/tmp` fails with `remote fchown failed`.
+
+**Live run, 2026-11-26.** A real Gemini key (`gemini-3.1-flash-lite`) on the emulator, and a printed
+wine list rendered to `wine-list.png` and picked from the gallery: the page read came back with 26
+wines in 11.7 s and drew 26 cards (`.screens/state.png`, `.screens/top.png`). The advice call was
+never made, for a reason worth knowing: `judgeList` is reached only when the phone's own OCR read the
+list (`LocalListRead.wines(instantLines)`), and this AVD has no ML Kit OCR module —
+`DynamiteModule: Local module descriptor class for com.google.android.gms.vision.ocr not found`, and
+the scan panel records `on-device OCR · 0 chars · failed`. With no OCR there is no advice, only the
+read-basis ranking. On a phone whose Play services OCR works the call is made as designed; on this
+emulator it cannot be.
+
+So the answer was measured with `ai/LiveGeminiAdviceTest` (`-Plive`), which builds the real
+`Prompts.listAdvice` over the 26-wine fixture and sends it through `chatPayload` exactly as the
+screen does (`reasoning_effort=medium`, `max_tokens=5,800`): HTTP 200, 1,679 chars, 407 completion
+tokens, and `parseAdvice` turned it into three picks (lines 17, 22, 20), a glass pour (17), one skip
+(26, the $380 Tondonia) and the note, with nothing dropped. That answer was seeded as
+`debug-advice.txt` and is what the second set of screenshots shows.
+
+Gemini is not steady on this request: 1 in 3 host attempts came back 503 "model experiencing high
+demand", and on the emulator two scans in a row lost the advice that way. `judgeList` used to treat
+a retryable advice failure as a spent budget and skip the answer — right for Groq's 8,000-token
+minute, wrong for Gemini's 250,000. It now retries once, for a failure waiting can fix and only
+while the scan has budget, and lists both attempts in the panel; a second failure still falls back
+to the ranking.
+
+**What the render showed.** The block reads top to bottom as intended in both themes: the pours
+toggle, then `Order this` / `Second` / `Third` with the title and prices taken from the record
+(`USD 62.00 bottle`, `USD 58.00 bottle · USD 15.00 glass`), the headline and the whole WHY, then
+`By the glass`, `Skip` with its two reasons, and the note in outline type. The 26 read cards below
+carry no ranks and no Buy/Leave chip, and dark mode keeps the pills and the muted lines legible.
+
+Two things it exposed. The seeded page has no provider key, so the screen also prints "No API key
+set yet" above the advice — an artefact of the fixture, not of the layout. And every read card still
+prints `?  nothing in the record speaks either way`: Step 7 removed the chip, and the chip is gone,
+but `VerdictBlock`'s `advice.unknowns` line survives and 26 cards carry 26 copies of a line that says
+nothing. That belongs with Step 9, which touches the same block.
+
+Two things the live answer exposed. Gemini writes the wine's own name as the pick headline, so each
+pick prints the title twice — once from the record, once from the model. And the glass pour it chose
+is the same bottle as pick 1, which the validators allow; whether the block should suppress a
+duplicate is a Step 9 question, not a parsing bug.
+
+Still not verified: the advice call on the device itself (this AVD has no OCR module, so the branch
+that asks for it is never taken), the camera path (the emulator's camera is a synthetic scene), and
+a real phone.
 
 ---
 
@@ -316,6 +396,60 @@ text-only advice model.
 > For shop shelves (scene "shelf" and the batch queue), after the read completes, call a new `Prompts.shelfAdvice(...)` built like `listAdvice` with these changes: it's a shop, so use retail budget, add a `VALUE: good|fair|poor` line per pick when a price is visible, and allow `PICK` of up to 3 bottles across all frames read in the session. Change `data/BuyAdvice.kt` so that it no longer produces the headline verdict when advice exists: it only adds warning chips for known facts (e.g. "14.8% ABV — above your preference", "already in your cellar"). Keep the gate logic only for those chips. UNKNOWN never produces a chip. Commit.
 
 **Done when:** a shelf scan shows explained picks; Buy/Leave chips appear only when a known fact triggers them.
+
+**Shipped.** A shelf read (scene `shelf`) now asks `Prompts.shelfAdvice` for the shape the wine list
+already uses — up to three bottles across everything the photo printed, a `VALUE:` line per pick, skips
+with their reasons — and `VerdictBlock` stops producing a headline verdict once an answer exists. What
+is left is `BuyAdvice.chips`: a broken limit, a window that has passed, a bottle already at home, and
+nothing else. UNKNOWN returns nothing, so the `?  nothing in the record speaks either way` line Step 7
+left behind is gone from shelf and list cards. The batch queue asks for the same answer from a **What
+to buy from this shelf** tap, over the whole batch.
+
+Two departures worth the words:
+
+- **The queue asks on a tap.** The queue is a background reader, and spending another 4,000-token
+  reasoning call after it drains is a cost nobody asked for on a screen they may have left. The button
+  disappears once an answer exists; a new frame or a cleared batch forgets it, because the shelf it
+  described is gone.
+- **A value call needs a printed price and a shelf.** `pickOf` keeps a `VALUE:` only when a price was
+  read and the scene is `SHELF`, so a list answer that volunteers one cannot smuggle a shop verdict
+  into a restaurant, and a pick with no price cannot claim "good value" from nothing.
+
+**Live run, 2026-11-26** (emulator, real Gemini key, `.screens/seed/shelf.png` — four priced bottles
+rendered to a shelf photo — and no fixture files in `files/`):
+
+| run | scene read | read | shelf advice | result |
+|---|---|---|---|---|
+| 1 | SHELF | `read the page` 909 chars, 3.4 s | 503 → retry 1,391 chars, 13.7 s | 3 picks, 1 skip, values good/good/fair |
+| 2 | LIST | `read the page (smaller photo)` 982 chars, 17.2 s | not attempted | ranking fallback |
+| 3 | SHELF | `structured read` 3,046 chars, 4.1 s | 503 → retry 1,091 chars, 8.2 s | 3 picks, 2 skips |
+
+Runs 1 and 3 both lost the first advice attempt to `Google Gemini had a server error (503)` and were
+saved by the retry from the previous commit — the exact failure that used to cost the answer.
+
+Run 2 is a finding, not a bug in this step: the same photo and key read as a restaurant list and took
+the list path, which asks for advice only when the phone's OCR read the page — and this AVD has no ML
+Kit OCR module. Scene detection is the model's word, and it is not stable on a shelf with price tags
+under the bottles. A shelf scan on a phone can therefore land on the ranked list UI; nothing here
+changes that.
+
+**What the render showed** (`.screens/shelf-advice-light-1.png`, `-2.png`, `shelf-chip-light.png`,
+`shelf-advice-dark-1.png`, `-2.png`): `What to buy`, then `Buy this` / `Second` / `Third`, each with the
+price from the record, the pick's one-line why and the whole reason, and a `good value` / `fair value`
+pill with its clause; `Skip` carries its rows with reasons — in the light run one of them reads "You
+already own this bottle", the model using the cellar summary the prompt hands it. Below, the cards show
+the read's why and the chip, nothing else.
+
+**The chip had a bug the render found.** `chips` skipped the wine's own id, copied from `forBottle`,
+where the id check means "not this bottle's own page". On a scan card the record you add *is* the scan
+object, id and all, so the one chip that should have fired never did: the Tintilla sat in the cellar
+and its card said nothing. It now counts any matching record, and `theSameRecordCountsAsOwnedNotAsOneself`
+holds it.
+
+Not verified: the queue's own advice call (its `adviseShelf` plumbing, budget and button are compiled
+and unit-covered, but no tap was made — the scan path exercises the same prompt), an ABV chip from a
+real label (no card carried a printed ABV, so the ceiling chip never rendered), the camera path, and a
+real phone.
 
 ---
 
