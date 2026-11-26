@@ -16,8 +16,17 @@ class DetailsBackfillTest {
     private fun wine(
         id: String,
         alcohol: Double? = null,
+        notes: String = "",
         notesChecked: Long = 0L,
         abvChecked: Long = 0L,
+        windowChecked: Long = 0L,
+        placeChecked: Long = 0L,
+        grapesChecked: Long = 0L,
+        from: Int? = null,
+        to: Int? = null,
+        region: String = "",
+        country: String = "",
+        grapes: List<String> = emptyList(),
         name: String = "Syrah",
         producer: String = "Test Cellar"
     ) = Wine(
@@ -25,21 +34,47 @@ class DetailsBackfillTest {
         producer = producer,
         name = name,
         alcohol = alcohol,
+        expertNotes = notes,
         alcoholCheckedAt = abvChecked,
         notesCheckedAt = notesChecked,
+        windowCheckedAt = windowChecked,
+        placeCheckedAt = placeChecked,
+        grapesCheckedAt = grapesChecked,
+        drinkFrom = from,
+        drinkTo = to,
+        region = region,
+        country = country,
+        grapes = grapes,
         quantity = 1
+    )
+
+    /** A bottle every lookup has answered for, with every fact the job fills already on it. */
+    private fun complete(id: String) = wine(
+        id,
+        alcohol = 13.5,
+        notes = "Peppery and savory, cool-site fruit.",
+        notesChecked = 5_000,
+        abvChecked = 5_000,
+        windowChecked = 5_000,
+        placeChecked = 5_000,
+        grapesChecked = 5_000,
+        from = 2026,
+        to = 2036,
+        region = "Northern Rhône",
+        country = "France",
+        grapes = listOf("Syrah")
     )
 
     private fun run(
         wines: List<Wine>,
         lookup: suspend (Wine) -> SourcedNotes,
-        saved: MutableMap<String, Double?> = mutableMapOf(),
+        saved: MutableMap<String, SourcedNotes> = mutableMapOf(),
         workers: Int = 1
     ): DetailsBackfill {
         val job = DetailsBackfill(
             wines = { wines },
             lookup = lookup,
-            save = { id, abv, _ -> saved[id] = abv },
+            save = { id, _, result -> saved[id] = result },
             scope = CoroutineScope(Dispatchers.Unconfined),
             workers = workers
         )
@@ -47,16 +82,17 @@ class DetailsBackfillTest {
         return job
     }
 
-    private val none = SourcedNotes("", emptyList(), emptyList())
-
     @Test
     fun pendingIsOneQueueNotTwo() {
         val pending = DetailsBackfill.pending(
             listOf(
                 wine("unread"),                                  // nothing checked yet
-                wine("notes-only", notesChecked = 5_000),        // has notes, no ABV
-                wine("done", alcohol = 14.2, notesChecked = 5_000, abvChecked = 5_000),
-                wine("missed", notesChecked = 5_000, abvChecked = 5_000),
+                wine("notes-only", notes = "A published note.", notesChecked = 5_000),
+                complete("done"),                                // every fact, every stamp
+                wine(
+                    "missed", notes = "A published note.", notesChecked = 5_000, abvChecked = 5_000,
+                    windowChecked = 5_000, placeChecked = 5_000, grapesChecked = 5_000
+                ),
                 wine("nameless", name = "", producer = "")
             )
         )
@@ -64,19 +100,44 @@ class DetailsBackfillTest {
     }
 
     @Test
-    fun askingAgainPicksUpTheStampedMisses() {
-        val stamped = wine("missed", notesChecked = 5_000, abvChecked = 5_000)
-        val done = wine("done", alcohol = 13.5, notesChecked = 5_000, abvChecked = 5_000)
-        assertEquals(emptyList<String>(), DetailsBackfill.pending(listOf(stamped, done)).map { it.id })
-        assertEquals(listOf("missed"), DetailsBackfill.pending(listOf(stamped, done), again = true).map { it.id })
+    fun aBottleWithNotesAndAnAbvIsStillPendingForItsWindow() {
+        val bottle = wine(
+            "a", alcohol = 13.8, notes = "A published note.",
+            notesChecked = 5_000, abvChecked = 5_000
+        )
+        assertEquals(listOf("window", "place", "grapes"), DetailsBackfill.missing(bottle))
+        assertEquals(listOf("a"), DetailsBackfill.pending(listOf(bottle)).map { it.id })
     }
 
     @Test
-    fun oneLookupFillsBothTheNotesAndTheFigure() {
-        val saved = mutableMapOf<String, Double?>()
+    fun aFactThePagesNeverPrintedIsNotAskedForTwiceUnlessTheRunSaysAgain() {
+        val asked = wine(
+            "a", alcohol = 13.8, notes = "A published note.", notesChecked = 5_000,
+            abvChecked = 5_000, windowChecked = 5_000, placeChecked = 5_000, grapesChecked = 5_000
+        )
+        assertEquals(emptyList<String>(), DetailsBackfill.pending(listOf(asked)).map { it.id })
+        assertEquals(listOf("a"), DetailsBackfill.pending(listOf(asked), again = true).map { it.id })
+        assertEquals(listOf("a"), DetailsBackfill.stillMissing(listOf(asked)).map { it.id })
+    }
+
+    @Test
+    fun oneLookupFillsEveryFactAtOnce() {
+        val saved = mutableMapOf<String, SourcedNotes>()
         val job = run(
             wines = listOf(wine("a")),
-            lookup = { SourcedNotes("Peppery and savory, cool-site fruit.", listOf("peppery"), emptyList(), alcohol = 13.8) },
+            lookup = {
+                SourcedNotes(
+                    notes = "Peppery and savory, cool-site fruit.",
+                    tags = listOf("peppery"),
+                    sources = listOf("https://example.com/a"),
+                    alcohol = 13.8,
+                    drinkFrom = 2026,
+                    drinkTo = 2036,
+                    country = "France",
+                    region = "Northern Rhône",
+                    grapes = listOf("Syrah")
+                )
+            },
             saved = saved
         )
         val progress = job.progress.value
@@ -84,17 +145,47 @@ class DetailsBackfillTest {
         assertEquals(1, progress.done)
         assertEquals(1, progress.notes)
         assertEquals(1, progress.abv)
-        assertEquals(mapOf("a" to 13.8), saved)
+        assertEquals(1, progress.windows)
+        assertEquals(1, progress.place)
+        assertEquals(1, progress.grapes)
+        assertEquals(2036, saved.getValue("a").drinkTo)
     }
 
     @Test
-    fun aBottleAlreadyCarryingAnAbvIsNotCountedAsGainingOne() {
+    fun aFactTheRecordAlreadyHoldsIsNotCountedAsGained() {
         val job = run(
-            wines = listOf(wine("a", alcohol = 14.0)),
-            lookup = { SourcedNotes("Peppery and savory.", listOf("peppery"), emptyList(), alcohol = 13.8) }
+            wines = listOf(
+                wine(
+                    "a", alcohol = 14.0, from = 2024, to = 2030,
+                    region = "Rhône", grapes = listOf("Syrah")
+                )
+            ),
+            lookup = {
+                SourcedNotes(
+                    notes = "Peppery and savory.",
+                    tags = listOf("peppery"),
+                    sources = emptyList(),
+                    alcohol = 13.8,
+                    drinkFrom = 2026,
+                    drinkTo = 2036,
+                    region = "Northern Rhône",
+                    grapes = listOf("Grenache")
+                )
+            }
         )
         assertEquals(0, job.progress.value.abv)
+        assertEquals(0, job.progress.value.windows)
+        assertEquals(0, job.progress.value.place)
+        assertEquals(0, job.progress.value.grapes)
         assertEquals(1, job.progress.value.done)
+    }
+
+    @Test
+    fun aPrintedWindowIsSavedAndAPlausibleNoiseIsNot() {
+        assertEquals(2026 to 2036, DetailsBackfill.acceptableWindow(2026, 2036))
+        assertEquals(null to null, DetailsBackfill.acceptableWindow(2036, 2026))
+        assertEquals(null to null, DetailsBackfill.acceptableWindow(1900, 1905))
+        assertEquals(2028 to null, DetailsBackfill.acceptableWindow(2028, null))
     }
 
     @Test
@@ -154,11 +245,15 @@ class DetailsBackfillTest {
 
     @Test
     fun severalLookupsInFlightStillCountEveryBottleOnce() {
-        val saved = mutableMapOf<String, Double?>()
+        val saved = mutableMapOf<String, SourcedNotes>()
         val wines = (1..4).map { wine("w$it") }
         val job = run(
             wines = wines,
-            lookup = { w -> SourcedNotes("Some published note about ${w.id}.", emptyList(), emptyList(), alcohol = 13.0) },
+            lookup = { w ->
+                SourcedNotes(
+                    "Some published note about ${w.id}.", emptyList(), emptyList(), alcohol = 13.0
+                )
+            },
             saved = saved,
             workers = 3
         )

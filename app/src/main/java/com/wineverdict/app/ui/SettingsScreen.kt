@@ -402,17 +402,23 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 val pending = DetailsBackfill.pending(data.wines).size
                 val withNotes = data.wines.count { it.notesCheckedAt > 0L }
                 val withAbv = data.wines.count { it.alcohol != null }
-                val missing = data.wines.count { it.alcohol == null || it.notesCheckedAt == 0L }
+                val withWindow = data.wines.count { it.drinkFrom != null || it.drinkTo != null }
+                val withPlace = data.wines.count {
+                    it.region.isNotBlank() || it.country.isNotBlank() || it.appellation.isNotBlank()
+                }
+                val withGrapes = data.wines.count { it.grapes.isNotEmpty() }
+                val missing = DetailsBackfill.stillMissing(data.wines).size
                 val rpm = AppGraph.settings.requestsPerMinute(primaryProvider).coerceAtLeast(1)
                 val minutes = (pending * 2 + rpm - 1) / rpm
                 val hasKey = AiProvider.entries.any { AppGraph.settings.key(it).isNotBlank() }
                 Text(
                     "$withNotes of ${data.wines.size} bottles carry notes read from published pages, " +
-                        "and $withAbv record an ABV. One pass fills in whatever is missing — a " +
-                        "paragraph about the wine, its flavour words, and the alcohol figure the " +
-                        "gates cannot work without — from pages somebody published, never from " +
-                        "guesswork. Three bottles run at a time, and a lookup that does not answer " +
-                        "is asked again next time rather than being written off.",
+                        "$withAbv record an ABV, $withWindow a drinking window, $withPlace their " +
+                        "place and $withGrapes their grapes. One pass asks for all of it at once — " +
+                        "the paragraph, the flavour words, the figure, the window, the country, " +
+                        "region and grapes — from pages somebody published, never from guesswork. " +
+                        "Three bottles run at a time, and a lookup that does not answer is asked " +
+                        "again next time rather than being written off.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

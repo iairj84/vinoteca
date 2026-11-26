@@ -72,6 +72,16 @@ data class Wine(
      * second attempt at the number the alcohol gate needs.
      */
     val alcoholCheckedAt: Long = 0,
+    /**
+     * When the drinking window was last looked up; 0 = never asked. Its own stamp because a page
+     * can describe a wine and print no window, which is a different thing from nobody looking: a
+     * miss that was asked for is a miss worth asking for again once a page exists.
+     */
+    val windowCheckedAt: Long = 0,
+    /** When the place — country, region, appellation — was last looked up; 0 = never asked. */
+    val placeCheckedAt: Long = 0,
+    /** When the grapes were last looked up; 0 = never asked. */
+    val grapesCheckedAt: Long = 0,
     val myNotes: String = "",
     val rating: Int? = null,
     val favorite: Boolean = false,

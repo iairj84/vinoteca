@@ -137,38 +137,19 @@ class CellarRepository(context: Context) {
 
     /**
      * Saves everything one lookup answered for a bottle: published notes with their pages, the
-     * flavour words, and the ABV a page printed.
+     * flavour words, the ABV, the drinking window, the place and the grapes.
      *
-     * Both check stamps move together because the lookup answered both questions at once — that is
-     * what makes one pass enough. A figure already on the record always wins, and a null [alcohol]
-     * means pages were read that print none, not that nobody looked.
+     * Every check stamp moves together because one request answered every question — that is what
+     * makes one pass enough. A null [alcohol] means pages were read that print no figure, not that
+     * nobody looked, and the window, place and grape stamps say the same about their facts.
      */
-    suspend fun applyDetails(id: String, alcohol: Double?, result: SourcedNotes) {
+    suspend fun applyDetails(id: String, alcohol: Double?, result: SourcedNotes) = mutate { current ->
         val now = System.currentTimeMillis()
-        val notes = result.notes.trim()
-        mutate { current ->
-            current.copy(
-                wines = current.wines.map {
-                    if (it.id == id) {
-                        it.copy(
-                            alcohol = it.alcohol ?: alcohol,
-                            expertNotes = notes.ifBlank { it.expertNotes },
-                            flavorTags = if (result.tags.isNotEmpty()) result.tags else it.flavorTags,
-                            notesSource = if (notes.isBlank()) {
-                                it.notesSource
-                            } else {
-                                result.sources.joinToString(" ").trim()
-                            },
-                            notesCheckedAt = now,
-                            alcoholCheckedAt = now,
-                            updatedAt = now
-                        )
-                    } else {
-                        it
-                    }
-                }
-            )
-        }
+        current.copy(
+            wines = current.wines.map {
+                if (it.id == id) it.withDetails(result, alcohol, now) else it
+            }
+        )
     }
 
     suspend fun addTastingNote(id: String, note: String) = mutate { current ->
@@ -355,3 +336,35 @@ data class MergeOutcome(
     val locationsAdded: Int,
     val skipped: Int
 )
+
+/**
+ * Writes everything one lookup answered onto a bottle.
+ *
+ * A fact the record already holds always wins: the label in the user's hand beats a page. The
+ * window is taken only when the record has neither end, so the user's own years are never
+ * half-replaced by a page's. Every stamp moves, because every question was asked in the same
+ * request — a stamp says "looked", not "found", which is what lets a fact the pages did not print
+ * be asked again instead of reading as settled for ever.
+ */
+internal fun Wine.withDetails(result: SourcedNotes, alcohol: Double?, now: Long): Wine {
+    val note = result.notes.trim()
+    val hasWindow = drinkFrom != null || drinkTo != null
+    return copy(
+        alcohol = this.alcohol ?: alcohol,
+        expertNotes = note.ifBlank { expertNotes },
+        flavorTags = if (result.tags.isNotEmpty()) result.tags else flavorTags,
+        notesSource = if (note.isBlank()) notesSource else result.sources.joinToString(" ").trim(),
+        country = country.ifBlank { result.country },
+        region = region.ifBlank { result.region },
+        appellation = appellation.ifBlank { result.appellation },
+        grapes = if (grapes.isEmpty()) result.grapes else grapes,
+        drinkFrom = if (hasWindow) drinkFrom else result.drinkFrom,
+        drinkTo = if (hasWindow) drinkTo else result.drinkTo,
+        notesCheckedAt = now,
+        alcoholCheckedAt = now,
+        windowCheckedAt = now,
+        placeCheckedAt = now,
+        grapesCheckedAt = now,
+        updatedAt = now
+    )
+}

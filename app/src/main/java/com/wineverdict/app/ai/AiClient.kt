@@ -44,14 +44,29 @@ enum class Thinking { OFF, LOW, MEDIUM }
  */
 enum class AiJob { READ, ADVICE, CHAT }
 
-/** Published notes for one bottle, with the pages they were read from. */
+/**
+ * Everything one lookup read about one bottle, with the pages it read.
+ *
+ * One search and one extraction answer all of it — the note, its flavour words, the ABV, the
+ * drinking window, the place and the grapes — so a bottle is asked about once however many facts it
+ * is missing. A field no page stated stays null or empty: the app never fills a gap from what a
+ * grape usually does.
+ */
 data class SourcedNotes(
     val notes: String,
     val tags: List<String>,
     val sources: List<String>,
     val caveat: String = "",
     /** The ABV a page printed for this bottling, when one did. Never estimated. */
-    val alcohol: Double? = null
+    val alcohol: Double? = null,
+    /** The first year the pages say it is ready. Null when no page gives a window. */
+    val drinkFrom: Int? = null,
+    /** The last year they say it stays good. Null when no page gives one. */
+    val drinkTo: Int? = null,
+    val country: String = "",
+    val region: String = "",
+    val appellation: String = "",
+    val grapes: List<String> = emptyList()
 )
 
 /**
@@ -334,6 +349,11 @@ class AiClient(
         MATCH: yes or no
         NOTE: two to four sentences
         ABV: number or empty
+        DRINK: from-to or empty
+        COUNTRY: name or empty
+        REGION: name or empty
+        APPELLATION: name or empty
+        GRAPES: grape, grape, or empty
         TAGS: tag, tag, tag
         SOURCES: url url
         CAVEAT: one sentence
@@ -344,6 +364,14 @@ class AiClient(
           drinks now. Paraphrase; never copy a sentence word for word.
         - ABV is the alcohol figure the text prints for this bottling (14.1 from "14.1% vol"). Leave
           it empty when no page states it: never estimate it from the grape or the region.
+        - DRINK is the drinking window the text states for this bottling: 2027-2034, or one end
+          only (2029- when it says "best from 2029", -2031 when it says "drink by 2031"). Years
+          only, in that order. Leave it empty when no page prints a window: never work one out from
+          the vintage, the grape, the region or what similar wines usually keep.
+        - COUNTRY, REGION and APPELLATION are what the text names for this bottling, as it writes
+          them. Leave empty anything it does not name: do not repeat the identity above.
+        - GRAPES is 1 to 5 grapes the text lists for it, separated by commas, empty when it lists
+          none.
         - TAGS is 3 to 6 short tags the text supports (blackcurrant, cedar), separated by commas.
         - SOURCES is the URLs you used, copied exactly from the list above, separated by spaces.
         - CAVEAT is one sentence on what is uncertain — a neighbouring vintage, another bottling, a
@@ -384,6 +412,16 @@ class AiClient(
             .filter { known.contains(it) }
             .distinct()
             .toList()
+        // The window, the place and the grapes come from the same answer as the note: one request,
+        // every fact. A page that printed none of them leaves them empty rather than guessed.
+        val (windowFrom, windowTo) = DetailsFacts.window(field(raw, "DRINK"))
+        val country = DetailsFacts.place(field(raw, "COUNTRY"), 40)
+        val region = DetailsFacts.place(field(raw, "REGION"), 60)
+        val appellation = DetailsFacts.place(field(raw, "APPELLATION"), 60)
+        val grapes = DetailsFacts.grapes(field(raw, "GRAPES"))
+        // A page that says it is another wine can still be useful for nothing at all: its years and
+        // its appellation describe that wine, not this one.
+        val matched = matchLine != "no"
 
         if (matchLine == null && note.isBlank()) {
             // Nothing recognisable came back. Say what did, rather than a message that leaves the
@@ -415,7 +453,13 @@ class AiClient(
                 caveat = caveat.ifBlank {
                     if (matchLine == "no") "No page found described this bottling." else ""
                 },
-                alcohol = abv
+                alcohol = abv,
+                drinkFrom = if (matched) windowFrom else null,
+                drinkTo = if (matched) windowTo else null,
+                country = if (matched) country else "",
+                region = if (matched) region else "",
+                appellation = if (matched) appellation else "",
+                grapes = if (matched) grapes else emptyList()
             )
         }
         return SourcedNotes(
@@ -423,9 +467,20 @@ class AiClient(
             tags = tags,
             sources = cited.ifEmpty { known.take(2) },
             caveat = caveat,
-            alcohol = abv
+            alcohol = abv,
+            drinkFrom = if (matched) windowFrom else null,
+            drinkTo = if (matched) windowTo else null,
+            country = if (matched) country else "",
+            region = if (matched) region else "",
+            appellation = if (matched) appellation else "",
+            grapes = if (matched) grapes else emptyList()
         )
     }
+
+    /** One labelled line of the answer, or empty when the model wrote none. */
+    private fun field(raw: String, label: String): String =
+        Regex("(?im)^\\s*" + label + "\\s*:\\s*(.*)$")
+            .find(raw)?.groupValues?.get(1).orEmpty()
 
     private fun jsonNotes(raw: String, known: List<String>): SourcedNotes? {
         val text = raw.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
@@ -444,6 +499,29 @@ class AiClient(
         val caveat = root["caveat"]?.jsonPrimitive?.contentOrNull.orEmpty().trim()
         val alcohol = root["alcohol"]?.jsonPrimitive?.contentOrNull
             ?.replace(',', '.')?.toDoubleOrNull()?.takeIf { it in 4.0..22.0 }
+        val drink = root["drink"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        val (windowFrom, windowTo) = DetailsFacts.sane(
+            root["drink_from"]?.jsonPrimitive?.contentOrNull?.trim()?.toIntOrNull()
+                ?: DetailsFacts.window(drink).first,
+            root["drink_to"]?.jsonPrimitive?.contentOrNull?.trim()?.toIntOrNull()
+                ?: DetailsFacts.window(drink).second
+        )
+        val country = DetailsFacts.place(
+            root["country"]?.jsonPrimitive?.contentOrNull.orEmpty(), 40
+        )
+        val region = DetailsFacts.place(root["region"]?.jsonPrimitive?.contentOrNull.orEmpty(), 60)
+        val appellation = DetailsFacts.place(
+            root["appellation"]?.jsonPrimitive?.contentOrNull.orEmpty(), 60
+        )
+        val grapes = root["grapes"]?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }
+            ?.filter { it.isNotBlank() && it.length <= 30 }
+            ?.distinct()
+            ?.take(6)
+            .orEmpty()
+        // JSON may carry an explicit "match": false; anything else counts as describing the wine.
+        val describesThisWine =
+            root["match"]?.jsonPrimitive?.contentOrNull?.equals("false", true) != true
         val cited = root["sources"]?.jsonArray
             ?.mapNotNull { it.jsonPrimitive.contentOrNull?.trim() }
             ?.filter { it.isNotBlank() && known.contains(it) }
@@ -454,7 +532,13 @@ class AiClient(
             tags = tags,
             sources = if (notes.isBlank()) emptyList() else cited.ifEmpty { known.take(2) },
             caveat = caveat,
-            alcohol = alcohol
+            alcohol = alcohol,
+            drinkFrom = if (describesThisWine) windowFrom else null,
+            drinkTo = if (describesThisWine) windowTo else null,
+            country = if (describesThisWine) country else "",
+            region = if (describesThisWine) region else "",
+            appellation = if (describesThisWine) appellation else "",
+            grapes = if (describesThisWine) grapes else emptyList()
         )
     }
 

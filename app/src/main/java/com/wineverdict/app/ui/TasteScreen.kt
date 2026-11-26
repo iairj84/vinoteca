@@ -214,9 +214,9 @@ fun TasteScreen(
                         }
                         if (incomplete > 0) {
                             Text(
-                                "$incomplete of them are missing something the gates read — an ABV " +
-                                    "or published notes. Settings → Fill in the details collects " +
-                                    "them in one pass.",
+                                "$incomplete of them are missing something a verdict reads — a " +
+                                    "drinking window, a place, an ABV or published notes. " +
+                                    "Settings → Fill in the details collects them in one pass.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline
                             )

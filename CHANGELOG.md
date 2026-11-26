@@ -3,6 +3,23 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.7: the details pass fills every fact a verdict reads
+
+**One pass, every fact.** "Fill in the details" was written when notes and the ABV were the only
+things a lookup answered, so it left the drinking window, the place and the grapes exactly as they
+were — and the window is a fact the buy advice, the Hold / Drink now / At peak / Past peak badge and
+the sort order all turn on. The preferable pick could say "no window" about a bottle whose page had
+printed one. The extraction now asks for all of it in the same request: the note, the flavour words,
+the ABV, the drinking window, the country, the region, the appellation and the grapes. No extra
+lookups — the search and the page reads were already paid for.
+
+**Published windows only, and a stamp per fact.** A window is written only when a page prints one
+("2027-2038", "best from 2029"), never worked out from the vintage or the grape, and never over
+years already on the record. Each fact now carries its own stamp, so the app knows a bottle's window
+was asked for and the page had none, instead of leaving it looking unread; **Look again** re-asks
+those bottles, because a page published since can turn an unknown into a window. The card now counts
+the window, the place and the grapes beside the notes and the ABV.
+
 ### 1.2.6: a note with a line break no longer takes the Taste tab down
 
 **The crash 1.2.5's report was built for.** "This screen hit an error: IllegalStateException: prompt
