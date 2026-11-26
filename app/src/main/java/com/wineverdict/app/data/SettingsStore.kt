@@ -100,6 +100,10 @@ class SettingsStore(context: Context) {
     val adviceProviders: List<AiProvider>
         get() = AiProvider.adviceOrder(configuredProviders)
 
+    /** A chat turn resends the conversation every time, so it leads with the larger free budget. */
+    val chatProviders: List<AiProvider>
+        get() = AiProvider.chatOrder(configuredProviders)
+
     fun requestsPerMinute(provider: AiProvider): Int =
         prefs.getInt(name("rpm", provider), provider.defaultRequestsPerMinute).coerceAtLeast(1)
 

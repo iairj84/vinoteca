@@ -109,5 +109,22 @@ enum class AiProvider(
                 OPENROUTER -> 2
             }
         }
+
+        /**
+         * Which provider answers a chat turn, and why it is not [adviceOrder].
+         *
+         * A chat turn resends the brief, the cellar and every previous message, at 2,500 tokens of
+         * headroom each. Groq's free tier is 8,000 tokens a minute, so two or three turns exhaust
+         * it — and a chat is exactly where the user keeps going. Gemini's free minute is 250,000
+         * tokens, which is the shape a conversation needs. The advice call is the opposite: one
+         * large request, then the diner reads it, so Groq stays in front there.
+         */
+        fun chatOrder(providers: Collection<AiProvider>): List<AiProvider> = providers.sortedBy {
+            when (it) {
+                GEMINI -> 0
+                GROQ -> 1
+                OPENROUTER -> 2
+            }
+        }
     }
 }

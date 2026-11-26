@@ -54,6 +54,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.model.ChatMessage
@@ -144,8 +145,9 @@ fun ChatScreen() {
                             turns = history,
                             imageBase64 = base64,
                             vision = base64 != null,
-                            // The chat is advice, not a read: the advice model answers it.
-                            advice = true,
+                            // Advice model, chat order: Gemini leads because every turn resends
+                            // the history and Groq's free minute cannot carry a conversation.
+                            job = AiJob.CHAT,
                             // Prose advice, not JSON: this is the one request that wants the model
                             // to reason. Thinking shares the completion budget, so the cap is
                             // above what an answer alone needs.

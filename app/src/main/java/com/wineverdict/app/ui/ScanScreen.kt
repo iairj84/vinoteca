@@ -53,6 +53,7 @@ import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ScanHandoff
 import com.wineverdict.app.ai.AiException
+import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.ListAdvice
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.ScanParsing
@@ -455,7 +456,7 @@ fun ScanScreen(onReview: () -> Unit) {
                                 ),
                                 vision = false,
                                 // Advice, so it goes to the advice model and Groq leads.
-                                advice = true,
+                                job = AiJob.ADVICE,
                                 jsonMode = false,
                                 thinking = Thinking.MEDIUM,
                                 temperature = 0.4,

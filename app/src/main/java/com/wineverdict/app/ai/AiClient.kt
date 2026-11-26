@@ -35,6 +35,15 @@ class AiException(
 /** How hard the model may think before answering. Mapped per provider. */
 enum class Thinking { OFF, LOW, MEDIUM }
 
+/**
+ * What a request is for.
+ *
+ * It decides two things a caller should not have to assemble: which model field answers, and which
+ * provider leads. The advice call and the chat want different models and different orders, because
+ * one is a single large reasoning step and the other sends the whole conversation every turn.
+ */
+enum class AiJob { READ, ADVICE, CHAT }
+
 /** Published notes for one bottle, with the pages they were read from. */
 data class SourcedNotes(
     val notes: String,
@@ -75,11 +84,8 @@ class AiClient(
         imageBase64: String? = null,
         imagesBase64: List<String> = emptyList(),
         vision: Boolean = false,
-        /**
-         * The advice question or the chat: the advice model answers, and Groq leads when it has a
-         * key. A scan read keeps the text/vision models and the primary provider.
-         */
-        advice: Boolean = false,
+        /** What the request is for: it decides the model and who answers. */
+        job: AiJob = AiJob.READ,
         jsonMode: Boolean = false,
         thinking: Thinking = Thinking.OFF,
         temperature: Double = 0.4,
@@ -94,7 +100,7 @@ class AiClient(
             imageBase64?.takeIf { it.isNotBlank() }?.let { add(it) }
             imagesBase64.filter { it.isNotBlank() }.forEach { add(it) }
         }
-        val targets = resolveTargets(provider, model, vision, advice)
+        val targets = resolveTargets(provider, model, vision, job)
         if (targets.isEmpty()) {
             throw AiException(
                 "Add an API key in Settings. Groq and Google Gemini both have free tiers and either one is enough.",
@@ -381,23 +387,24 @@ class AiClient(
         provider: AiProvider?,
         model: String?,
         vision: Boolean,
-        advice: Boolean = false
+        job: AiJob = AiJob.READ
     ): List<Target> {
         val providers = if (provider != null) {
             listOf(provider)
-        } else if (advice) {
-            settings.adviceProviders
-        } else {
-            settings.configuredProviders
+        } else when (job) {
+            AiJob.ADVICE -> settings.adviceProviders
+            AiJob.CHAT -> settings.chatProviders
+            AiJob.READ -> settings.configuredProviders
         }
         return providers.mapNotNull { candidate ->
             val key = settings.key(candidate)
             if (key.isBlank()) return@mapNotNull null
+            // An attached photo still needs a model that can see it, whichever job asked.
             val chosen = model?.takeIf { provider != null && it.isNotBlank() }
                 ?: when {
-                    advice -> settings.adviceModel(candidate)
                     vision -> settings.visionModel(candidate)
-                    else -> settings.textModel(candidate)
+                    job == AiJob.READ -> settings.textModel(candidate)
+                    else -> settings.adviceModel(candidate)
                 }
             Target(
                 provider = candidate,

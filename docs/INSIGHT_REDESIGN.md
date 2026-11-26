@@ -263,8 +263,16 @@ Two departures:
 Not verified: a live advice call on Gemini's slot, since there is no Gemini key on the machine that
 built this, so only the Groq default is measured. And Groq's free tier allows 8,000 tokens a
 minute: one advice call (~2,000 prompt, up to ~5,800 completion with the reasoning reserve) can use
-the whole minute, with no room for a retry. Groq leading suits one list per sitting; a chatty
-session wants Gemini's 250,000-token minute in front, which is a one-line change in `adviceOrder`.
+the whole minute, with no room for a retry. Groq leading therefore suits one list per sitting.
+
+**Follow-up** (`AiJob`, after `b138047`). The chat did not keep that order. A chat turn resends the
+brief, the cellar and every earlier message at 2,500 tokens of headroom, so two or three turns
+empty Groq's free minute — and a conversation is where the user keeps going. `AiClient.complete`
+now takes `job: AiJob` (`READ`, `ADVICE`, `CHAT`) instead of an `advice` flag; `READ` keeps the
+text/vision models and the primary order, `ADVICE` leads with `adviceOrder` (Groq), `CHAT` leads
+with `chatOrder` (Gemini) while still using the advice model. A request carrying a photo takes the
+vision model first whichever job asked — the Step 8 version would have sent a chat photo to a
+text-only advice model.
 
 ---
 

@@ -42,6 +42,13 @@ is gone from list cards (a shelf and a single bottle keep it); a ranked line kee
 line that breaks one of your limits still says why. When the advice answer did not come back, the
 older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
 
+**The chat no longer shares an order tuned for one-shot reasoning.** Groq's free tier is 8,000
+tokens a minute, and a chat turn resends the brief, the cellar and every earlier message at 2,500
+tokens of headroom — two or three turns exhaust the minute, and a chat is exactly where you keep
+going. So the chat now leads with Gemini (250,000 tokens a minute) and falls back to Groq, while the
+advice call keeps Groq in front: one large request, then you read it. A photo in the chat still goes
+to a model that can see it.
+
 **The glass/bottle toggle is back on the advice result, and advice has its own model.** Choosing a
 pour is the first question at a table, and it disappeared when the ranked section it lived in was
 replaced: it is at the top of "What to order" again. Glass shows only the picks the list actually

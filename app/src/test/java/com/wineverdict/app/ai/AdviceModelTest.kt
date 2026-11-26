@@ -8,7 +8,8 @@ import org.junit.Test
  * The advice call and the chat do not go wherever the scan goes.
  *
  * Reasoning over a whole wine list at 4,000 tokens is a different job from reading a label, so it
- * has its own model field and its own provider order: Groq first when it has a key, then Gemini.
+ * has its own model field and its own provider order. The advice call and the chat do not share
+ * that order: one is a single large reasoning step, the other resends the conversation every turn.
  */
 class AdviceModelTest {
 
@@ -18,6 +19,22 @@ class AdviceModelTest {
             listOf(AiProvider.GROQ, AiProvider.GEMINI),
             AiProvider.adviceOrder(listOf(AiProvider.GEMINI, AiProvider.GROQ))
         )
+    }
+
+    @Test
+    fun geminiLeadsTheChatEvenWhenGroqCouldAnswer() {
+        // A chat turn resends the conversation; Groq's 8,000-token minute is two or three turns.
+        assertEquals(
+            listOf(AiProvider.GEMINI, AiProvider.GROQ),
+            AiProvider.chatOrder(listOf(AiProvider.GROQ, AiProvider.GEMINI))
+        )
+    }
+
+    @Test
+    fun theChatAndTheAdviceCallDoNotShareAnOrder() {
+        val both = listOf(AiProvider.GROQ, AiProvider.GEMINI)
+        assertEquals(AiProvider.GROQ, AiProvider.adviceOrder(both).first())
+        assertEquals(AiProvider.GEMINI, AiProvider.chatOrder(both).first())
     }
 
     @Test
