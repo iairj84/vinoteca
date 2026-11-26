@@ -390,9 +390,8 @@ fun ScanScreen(onReview: () -> Unit) {
                             temperature = 0.1,
                             maxTokens = 3600,
                             onBudgetWait = hold,
-                            onAnswer = { p, m -> readWho = p.shortLabel; readModel = m },
-                            // A failed read has no answering provider, so the row takes the one
-                            // that was asked from the client instead of saying "no provider".
+                            // The target as the request goes out: it names the row whether or not
+                            // anyone answers, and on success it is the target that answered.
                             onTry = { p, m -> readWho = p.shortLabel; readModel = m }
                         )
                         }
@@ -435,7 +434,6 @@ fun ScanScreen(onReview: () -> Unit) {
                                 thinking = Thinking.OFF,
                                 temperature = 0.1,
                                 maxTokens = 400,
-                                onAnswer = { p, m -> fineWho = p.shortLabel; fineModel = m },
                                 onTry = { p, m -> fineWho = p.shortLabel; fineModel = m }
                             )
                         }
@@ -486,7 +484,6 @@ fun ScanScreen(onReview: () -> Unit) {
                                 temperature = 0.4,
                                 maxTokens = 4_000,
                                 onBudgetWait = hold,
-                                onAnswer = { p, m -> who = p.shortLabel; model = m },
                                 // A failed row still names who was asked: the panel used to say
                                 // "no provider" for every 429, which hid the one fact it had.
                                 onTry = { p, m -> who = p.shortLabel; model = m }
@@ -592,7 +589,6 @@ fun ScanScreen(onReview: () -> Unit) {
                                 // payload adds so reasoning cannot eat it.
                                 maxTokens = 4_000,
                                 onBudgetWait = hold,
-                                onAnswer = { p, m -> judgeWho = p.shortLabel; judgeModel = m },
                                 onTry = { p, m -> judgeWho = p.shortLabel; judgeModel = m }
                             )
                         } ?: throw AiException("The ranking did not arrive in time.")
