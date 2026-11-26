@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.data.AlcoholBackfill
 import com.wineverdict.app.data.GateVerdict
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.data.PalateFile
@@ -186,6 +187,18 @@ fun TasteScreen(
                                 "the record.",
                             style = MaterialTheme.typography.bodySmall
                         )
+                        val missingAbv = remember(cellar.wines) {
+                            AlcoholBackfill.pending(cellar.wines).size
+                        }
+                        if (missingAbv > 0) {
+                            Text(
+                                "$missingAbv of them have no ABV on record, so the alcohol gate " +
+                                    "cannot check them. Settings → Alcohol on the labels fills them " +
+                                    "from published pages.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
                     Text(
                         "A missing fact reads as unknown, never as a pass — an unlisted ABV cannot " +

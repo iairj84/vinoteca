@@ -40,6 +40,10 @@ Gemini or Groq — with your own key.
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and a 1–5 star
   rating.
+- **Published facts** — a lookup reads real pages for a bottle's reference notes and for the alcohol
+  figure they print. Settings fills the ABV on the bottles that have none, which is what the alcohol
+  gate needs to pass or fail them; a bottle whose pages print nothing stays unknown, never
+  estimated.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

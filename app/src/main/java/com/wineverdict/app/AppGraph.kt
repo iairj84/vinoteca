@@ -2,6 +2,7 @@ package com.wineverdict.app
 
 import android.content.Context
 import com.wineverdict.app.ai.AiClient
+import com.wineverdict.app.data.AlcoholBackfill
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.InsightStore
@@ -46,6 +47,8 @@ object AppGraph {
         private set
     lateinit var notes: NotesBackfill
         private set
+    lateinit var alcohol: AlcoholBackfill
+        private set
     lateinit var updater: Updater
         private set
 
@@ -81,6 +84,23 @@ object AppGraph {
         // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
         insights = InsightStore(app, ai, cellar) { taste.brief() }
         notes = NotesBackfill(ai, cellar, scope)
+        // The alcohol gate needs a number on the record; most scanned bottles arrive without one.
+        // The job only fills what a published page prints, and never overwrites a figure already there.
+        alcohol = AlcoholBackfill(
+            wines = { cellar.data.value.wines },
+            lookup = { wine ->
+                val found = ai.sourcedNotes(wine)
+                // A producer's own page often skips the figure; a shop's listing almost always
+                // prints it. Ask that question only when the notes pages did not answer it.
+                if (found.alcohol != null) {
+                    found
+                } else {
+                    found.copy(alcohol = runCatching { ai.abvOf(wine) }.getOrNull())
+                }
+            },
+            save = { id, abv, result -> cellar.applyAlcoholLookup(id, abv, result) },
+            scope = scope
+        )
         updater = Updater(app)
         scope.launch {
             cellar.load()

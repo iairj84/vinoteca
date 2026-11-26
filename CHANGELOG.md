@@ -11,6 +11,18 @@ no dish at all, which turned a 14.2% bottle from a conditional pass back into a 
 messages. The dish now carries across the conversation: the question wins, then the most recent
 earlier question that named a dish, and the food answer is only the fallback.
 
+**The gates get a number to work on.** Most of a scanned cellar has no ABV — 48 of 50 bottles here —
+and the alcohol gate reads unknown on a bottle without one, which is neither a pass nor a failure.
+Settings → **Alcohol on the labels** now works through the bottles that have none: it asks the same
+published-pages lookup the notes job uses, and when that prose carries no figure it asks the ABV
+question directly against shop listings, which nearly always print it. On that cellar it went from 2
+bottles out of 50 to 39. Only a one-decimal figure a page prints is stored — nothing is estimated, an
+out-of-range number is treated as a miss, and a miss is stamped so a second run does not pay for the
+same question. A figure already on the record always wins, and the notes that arrive with a lookup
+are kept with their pages. Two smaller fixes: an extraction whose prose was unusable no longer
+throws away an ABV it had read from the same page, and the ABV job stamps itself separately from the
+notes check so neither blocks the other.
+
 **The generated file refreshes itself.** `mytaste.md` is a projection of the stored answers and Ask
 sends that file, so an upgrade that changes what it renders needs it rewritten on disk; it is now
 rebuilt at startup from the answers already stored. Nothing has to be answered again, and a file

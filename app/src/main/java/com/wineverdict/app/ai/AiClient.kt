@@ -233,6 +233,75 @@ class AiClient(
         parseExtraction(answer, known)
     }
 
+    /**
+     * The ABV alone, for a bottle whose pages were read but never printed one.
+     *
+     * The notes lookup reads whatever page answers "tasting notes", and a producer's page often
+     * gives prose without the figure; a shop's listing almost always shows "% vol". This asks that
+     * question directly and reads the pages that answer it, so the alcohol gate has a number
+     * instead of UNKNOWN. Nothing is estimated: a page that prints no figure means null.
+     */
+    suspend fun abvOf(wine: Wine): Double? = withContext(Dispatchers.IO) {
+        val query = buildList {
+            if (wine.producer.isNotBlank()) add(wine.producer)
+            if (wine.name.isNotBlank()) add(wine.name)
+            wine.vintage?.let { add(it.toString()) }
+            add("alcohol by volume percent")
+        }.joinToString(" ")
+        val hits = runCatching { web.search(query) }.getOrNull().orEmpty()
+        if (hits.isEmpty()) return@withContext null
+        val excerpts = hits
+            .take(6)
+            .mapNotNull { hit ->
+                val text = runCatching { web.pageText(hit.url, 2500) }.getOrNull().orEmpty()
+                if (text.length < 200) null else hit to text
+            }
+            .take(2)
+        val evidence = buildString {
+            hits.take(6).forEach { hit ->
+                append("- ").append(hit.title.ifBlank { hit.url }).append(" (").append(hit.url)
+                    .append(")\n  ").append(hit.snippet).append("\n")
+            }
+            excerpts.forEach { (hit, text) ->
+                append("\nPAGE ").append(hit.url).append("\n").append(text).append("\n")
+            }
+        }
+        val answer = complete(
+            system = abvPrompt(wine),
+            turns = listOf(ChatMessage(role = "user", text = evidence)),
+            jsonMode = false,
+            thinking = Thinking.OFF,
+            temperature = 0.0,
+            maxTokens = 40
+        )
+        Regex("(?im)^\\s*ABV\\s*:\\s*([0-9]{1,2}(?:[.,][0-9]{1,2})?)")
+            .find(answer)?.groupValues?.get(1)?.replace(',', '.')?.toDoubleOrNull()
+            ?.takeIf { it in 4.0..22.0 }
+    }
+
+    private fun abvPrompt(wine: Wine): String {
+        val identity = buildList {
+            add("producer: ${wine.producer.ifBlank { "unknown" }}")
+            if (wine.name.isNotBlank()) add("cuvee: ${wine.name}")
+            wine.vintage?.let { add("vintage: $it") }
+            if (wine.appellation.isNotBlank()) add("appellation: ${wine.appellation}")
+        }.joinToString("\n")
+        return """
+        Pages were fetched for one bottle. Print the alcohol by volume they state for it, and
+        nothing else.
+
+        $identity
+
+        Reply with exactly one line:
+
+        ABV: 14.2
+
+        - Use only a figure the text prints for this bottling ("14.1% vol", "13,5 %").
+        - If no page states it, reply "ABV:" with nothing after it.
+        - Never estimate it from the grape, the region, or what similar wines usually carry.
+        """.trimIndent()
+    }
+
     private fun notesQuery(wine: Wine): String = buildList {
         if (wine.producer.isNotBlank()) add(wine.producer)
         if (wine.name.isNotBlank()) add(wine.name)
@@ -335,13 +404,16 @@ class AiClient(
         ).containsMatchIn(note)
         val usable = note.length >= 40 && !refusal && !metaAnswer
         if (!usable) {
+            // The note is unusable, but the figure may not be: an unhelpful description and a
+            // printed ABV are different claims from the same page, and the gate needs the second.
             return SourcedNotes(
                 notes = "",
                 tags = emptyList(),
                 sources = emptyList(),
                 caveat = caveat.ifBlank {
                     if (matchLine == "no") "No page found described this bottling." else ""
-                }
+                },
+                alcohol = abv
             )
         }
         return SourcedNotes(

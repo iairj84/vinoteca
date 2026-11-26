@@ -1,6 +1,7 @@
 package com.wineverdict.app.data
 
 import android.content.Context
+import com.wineverdict.app.ai.SourcedNotes
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.StorageLocation
 import com.wineverdict.app.model.Wine
@@ -133,6 +134,41 @@ class CellarRepository(context: Context) {
                 }
             )
         }
+
+    /**
+     * Saves what an ABV lookup found. A value already on the record always wins, a miss only stamps
+     * the check, and published notes that came with it are kept with their pages.
+     *
+     * [Wine.notesCheckedAt] is stamped only when notes really arrived: an ABV lookup must not stop
+     * the notes backfill from asking a bottle that is still unread.
+     */
+    suspend fun applyAlcoholLookup(id: String, alcohol: Double?, result: SourcedNotes) {
+        val now = System.currentTimeMillis()
+        val notes = result.notes.trim()
+        mutate { current ->
+            current.copy(
+                wines = current.wines.map {
+                    if (it.id == id) {
+                        it.copy(
+                            alcohol = it.alcohol ?: alcohol,
+                            expertNotes = notes.ifBlank { it.expertNotes },
+                            flavorTags = if (result.tags.isNotEmpty()) result.tags else it.flavorTags,
+                            notesSource = if (notes.isBlank()) {
+                                it.notesSource
+                            } else {
+                                result.sources.joinToString(" ").trim()
+                            },
+                            notesCheckedAt = if (notes.isBlank()) it.notesCheckedAt else now,
+                            alcoholCheckedAt = now,
+                            updatedAt = now
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+        }
+    }
 
     suspend fun addTastingNote(id: String, note: String) = mutate { current ->
         val stamp = LocalDate.now().toString()

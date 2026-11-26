@@ -66,6 +66,12 @@ data class Wine(
     val notesSource: String = "",
     /** When a lookup last ran for this bottle, whether or not it found anything. 0 = never asked. */
     val notesCheckedAt: Long = 0,
+    /**
+     * When the ABV was last looked up; 0 = never asked. Kept apart from [notesCheckedAt] on
+     * purpose: an ABV miss must not stop the notes lookup, and a notes check must not block a
+     * second attempt at the number the alcohol gate needs.
+     */
+    val alcoholCheckedAt: Long = 0,
     val myNotes: String = "",
     val rating: Int? = null,
     val favorite: Boolean = false,

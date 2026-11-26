@@ -59,6 +59,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ai.AiProvider
+import com.wineverdict.app.data.AlcoholBackfill
 import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupFile
 import com.wineverdict.app.data.ImportPreview
@@ -81,6 +82,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
     val snackbarHostState = remember { SnackbarHostState() }
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val backfill by AppGraph.notes.progress.collectAsStateWithLifecycle()
+    val abvBackfill by AppGraph.alcohol.progress.collectAsStateWithLifecycle()
 
     var currency by remember { mutableStateOf(AppGraph.settings.currency) }
     var primaryProvider by remember { mutableStateOf(AppGraph.settings.primaryProvider) }
@@ -417,6 +419,60 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     }
                 }
                 backfill.message?.let { message ->
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            SectionCard("Alcohol on the labels") {
+                val missing = AlcoholBackfill.pending(data.wines).size
+                val known = data.wines.count { it.alcohol != null }
+                val lookedUp = data.wines.count { it.alcohol == null && it.alcoholCheckedAt > 0L }
+                val rpm = AppGraph.settings.requestsPerMinute(primaryProvider).coerceAtLeast(1)
+                val minutes = (missing + rpm - 1) / rpm
+                val hasKey = AiProvider.entries.any { AppGraph.settings.key(it).isNotBlank() }
+                Text(
+                    "$known of ${data.wines.size} bottles record an ABV. The alcohol gate cannot be " +
+                        "checked without one: a bottle whose number is missing is not a pass and not a " +
+                        "failure, it simply cannot be judged. Filling them reads the same published " +
+                        "pages the notes lookup uses and keeps what a page printed — never an estimate.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (missing > 0) {
+                    val alreadyMissed = if (lookedUp > 0) " ($lookedUp already looked up, none found)" else ""
+                    Text(
+                        "$missing without a number$alreadyMissed — about $minutes minutes at " +
+                            "$rpm a minute. Keep the app open; it carries on where it stopped.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                if (abvBackfill.running) {
+                    Text(
+                        "${(abvBackfill.done + 1).coerceAtMost(abvBackfill.total)} of " +
+                            "${abvBackfill.total} · ${abvBackfill.current}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(onClick = { AppGraph.alcohol.cancel() }) { Text("Stop") }
+                } else {
+                    OutlinedButton(
+                        onClick = { AppGraph.alcohol.start() },
+                        enabled = missing > 0 && hasKey
+                    ) {
+                        Text(
+                            when {
+                                missing == 0 -> "Every bottle has an ABV or a check"
+                                !hasKey -> "Add an API key first"
+                                else -> "Fill in $missing ABVs"
+                            }
+                        )
+                    }
+                }
+                abvBackfill.message?.let { message ->
                     Text(
                         message,
                         style = MaterialTheme.typography.bodySmall,
