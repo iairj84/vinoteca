@@ -238,6 +238,11 @@ The file is seeded on first run and lives in the app's private files directory
 - **The brief is not a file.** It is rendered from the stored profile each time a request is made,
   capped at 2,000 characters, and printed verbatim on the Taste tab under *What the model reads*.
   There is nothing on disk to keep in sync and no way for it to drift from the answers.
+- **The prompt is rendered, not written.** `PalateFile.renderModelPrompt` is the only path, and it
+  returns the text together with the id of the field behind every line; a line with no field throws
+  before the prompt can leave the app, so a hand-added sentence cannot survive an edit. Whether the
+  gates are described as hard ("a bottle that fails one is not offered") or as preferences is
+  generated from the gate severity, never written into the prose.
 - A blind head cut was the 1.3 behaviour and it was wrong: a real file opens with scoring
   tables, so the first 2,600 characters were all machinery and none of the preferences. The
   assistant then invented verdicts its own rules forbade — the same bottle for a Caesar, a
@@ -273,11 +278,19 @@ before it becomes a contract rather than after.
 
 Three things are deliberate:
 
-- **Taps write axes and preferences, not rules.** The only checkable gates a tap can set are
-  sweetness (from "none, please" or "a touch is fine") and oak. "Avoid strong" is a *preference*,
-  not a ceiling: a chip is not a measurement, and the 13.5% figure it used to invent contradicted
-  the 5★ Zinfandel in the same cellar. A numeric alcohol ceiling exists only when the user gives a
-  number, and a gate that cannot be checked from a record is never counted as broken.
+- **There are four gates, in the order the rules were written.** `GateRegistry` holds G1 Alcohol,
+  G2 Place, G3 Dry and G4 Style words; the ids and titles are fixed, and the profile table is
+  rendered from the same list the engine evaluates, so a gate cannot be missing from the table while
+  still being checked (that is how two of them were lost once). G1 is the one **hard** gate and
+  exists only when a ceiling is typed: at or under it passes; between it and 14.5% passes only with
+  a cool site or food, and the answer has to print the number; over 14.5% fails; no ABV on the
+  record is *unknown*, never a pass. G2 rejects a broad appellation with no vineyard named above
+  $10 and leaves an unlisted place unknown; G3 is the dry line, with a spice allowance that makes
+  an off-dry Riesling conditional rather than failed; G4 rejects jammy, plush, baked, sweet oak,
+  fruit bomb and "easy drinking" prose while keeping restrained vanilla and toast. "Avoid strong"
+  and "avoid heavy oak" are still *preferences*: a chip is not a measurement, and the 13.5% figure
+  it used to invent contradicted the 5★ Zinfandel in the same cellar. The 4.0 g/L sweetness
+  threshold is labelled *Ours* — "none, please" is the answer, the number is the app's.
 - **The thresholds are data, and the app checks them.** `PalateRules` compares a bottle record to the
   gates before any prompt is built: `Wine.alcohol == null` yields `UNKNOWN`, never `PASS`, and the
   cellar digest appends `app gate check: alcohol unknown …` so the model is told the fact is missing.
@@ -290,14 +303,18 @@ Three things are deliberate:
   acid for tomato, salt, sweetness, heat, umami — and stores only the food context the user gave.
 
 The file it writes is a receipt, not a summary: every value carries the words the user chose and a
-confidence (`Yours`, `Ours`, `Guess`, `Unknown`), and a field with no source renders as *unknown*. It
+confidence (`Yours`, `Ours`, `Guess`, `Unknown`), and a field with no source renders as *unknown*.
+The label is computed from where the value came from, never typed beside it: a typed 14.0% is
+*Yours*, the 4.0 g/L sweetness threshold and the oak line derived from a rejection are *Ours*. It
 opens with the confidence vocabulary and the precedence rules, then the anchor line, the taste axes,
 the gates with their sources, a settings table, the pairing policy, house rules, other drinkers, and
 two honesty sections — **What this file doesn't know** and **Conflicts**. Around 6,700 characters with
 all ten taps answered: inside the 12,000-character Ask budget, and section-ranked so a scan still
-gets *What I enjoy* and *What I avoid* first. It is marked Provisional, its anchor line says "not set
-yet", and the unknowns section lists every skipped question plus the missing alcohol ceiling, so the
-assistant asks instead of inventing.
+gets *What I enjoy* and *What I avoid* first. It is marked Provisional, and the unknowns section
+lists every skipped question plus the missing alcohol ceiling, so the assistant asks instead of
+inventing. The anchor line is the sentence you wrote about what links your bottles, kept as
+*Yours*; only when that sentence is missing does it say "not set yet", and then it names the answer
+that is missing rather than the generator's silence.
 
 Retaking the quick start rewrites a file the quick start wrote. A file saved in the advanced editor is
 kept, appended below the new one as *Notes from my previous file*.

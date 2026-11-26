@@ -1,14 +1,18 @@
 package com.wineverdict.app.data
 
 import com.wineverdict.app.model.Wine
-import com.wineverdict.app.model.WineType
 
-enum class GateVerdict { PASS, FAIL, UNKNOWN }
-
-data class GateResult(val gate: String, val verdict: GateVerdict, val detail: String) {
+data class GateResult(
+    val gate: String,
+    val verdict: GateVerdict,
+    val detail: String,
+    /** True when the profile put a number behind this gate; gates without one are not "set". */
+    val configured: Boolean = true
+) {
     val flag: String
         get() = when (verdict) {
             GateVerdict.PASS -> "pass"
+            GateVerdict.CONDITIONAL -> "conditional"
             GateVerdict.FAIL -> "fails"
             GateVerdict.UNKNOWN -> "unknown"
         }
@@ -22,6 +26,9 @@ data class GateResult(val gate: String, val verdict: GateVerdict, val detail: St
  * numbers or tests the app invents. And a missing fact is [GateVerdict.UNKNOWN], never
  * [GateVerdict.PASS]: an unlisted ABV cannot satisfy an alcohol ceiling, and saying so out loud is the
  * whole point. The model is told these results; it is never asked to compute them.
+ *
+ * The evaluation itself lives in [GateRegistry], which runs all four authored gates in order. This
+ * type only carries the two numbers a profile can set, so it stays the single source for them.
  */
 data class PalateRules(
     /** Grams per litre. 4.0 for "none, please", 8.0 for "a touch is fine". */
@@ -31,16 +38,27 @@ data class PalateRules(
 ) {
     val isEmpty: Boolean get() = maxSugar == null && maxAlcohol == null
 
-    fun checks(wine: Wine): List<GateResult> = buildList {
-        if (maxSugar != null) add(sugarCheck(wine))
-        if (maxAlcohol != null) add(alcoholCheck(wine))
-    }
+    /** The four specs for this profile, in authored order, for the profile table and the engine. */
+    fun specs(): List<GateSpec> = GateRegistry.specs(maxAlcohol, maxSugar)
+
+    /** All four gates, evaluated in the authored order, before anything is scored. */
+    fun verdicts(wine: Wine, dish: Dish? = null): List<GateResult> =
+        GateRegistry.evaluate(GateRow.of(wine), dish, specs())
+
+    /**
+     * The projection onto the gates that carry a number the user set. A cellar page shows these as
+     * the rules being enforced; a gate with no threshold is not a rule yet.
+     */
+    fun checks(wine: Wine): List<GateResult> = verdicts(wine).filter { it.configured }
 
     fun verdictOf(gate: String, wine: Wine): GateVerdict =
-        checks(wine).firstOrNull { it.gate == gate }?.verdict ?: GateVerdict.UNKNOWN
+        verdicts(wine).firstOrNull { it.gate == gate }?.verdict ?: GateVerdict.UNKNOWN
 
-    /** True when the bottle breaks one of the user's rules. An unknown answer is never a failure. */
-    fun fails(wine: Wine): Boolean = checks(wine).any { it.verdict == GateVerdict.FAIL }
+    /**
+     * True when the bottle breaks one of the user's rules. An unknown answer is never a failure, and
+     * a conditional pass is a pass that printed its basis.
+     */
+    fun fails(wine: Wine): Boolean = verdicts(wine).any { it.verdict == GateVerdict.FAIL }
 
     /**
      * A one-line notice when a bottle the user loves breaks a ceiling the user set themselves.
@@ -76,39 +94,9 @@ data class PalateRules(
         return notes.joinToString("; ")
     }
 
-    private fun sugarCheck(wine: Wine): GateResult = when (wine.type) {
-        WineType.DESSERT -> GateResult(
-            GATE_SUGAR,
-            GateVerdict.FAIL,
-            "dessert style, and my ceiling is ${fmt(maxSugar)} g/L"
-        )
-        WineType.FORTIFIED -> GateResult(
-            GATE_SUGAR,
-            GateVerdict.FAIL,
-            "fortified, so sweet by style and over my ${fmt(maxSugar)} g/L ceiling"
-        )
-        else -> GateResult(
-            GATE_SUGAR,
-            GateVerdict.UNKNOWN,
-            "sugar is not on the label, so it cannot be checked from the record"
-        )
-    }
-
-    private fun alcoholCheck(wine: Wine): GateResult {
-        val ceiling = maxAlcohol
-            ?: return GateResult(GATE_ALCOHOL, GateVerdict.UNKNOWN, "no ceiling set")
-        val abv = wine.alcohol
-            ?: return GateResult(GATE_ALCOHOL, GateVerdict.UNKNOWN, "the record has no ABV")
-        return if (abv > ceiling + 0.05) {
-            GateResult(GATE_ALCOHOL, GateVerdict.FAIL, "${fmt(abv)}% is over my ${fmt(ceiling)}% ceiling")
-        } else {
-            GateResult(GATE_ALCOHOL, GateVerdict.PASS, "${fmt(abv)}% is under my ${fmt(ceiling)}% ceiling")
-        }
-    }
-
     companion object {
-        const val GATE_SUGAR = "G1 sweetness"
-        const val GATE_ALCOHOL = "G3 alcohol"
+        val GATE_SUGAR = GateId.G3_DRY.title
+        val GATE_ALCOHOL = GateId.G1_ALCOHOL.title
 
         private fun fmt(value: Double?): String =
             if (value == null) "—" else String.format(java.util.Locale.US, "%.1f", value)

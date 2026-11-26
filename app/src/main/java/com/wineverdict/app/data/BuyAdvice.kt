@@ -107,10 +107,13 @@ object BuyAdvice {
         // Every gate that can fail is one the user set by name, so breaking it is a reason to walk
         // away rather than a style to weigh up. Oak used to be a soft "against"; it is a preference
         // in the brief now and no longer a test the app runs.
-        rules.checks(wine).forEach { check ->
+        // All four authored gates, in order, before anything is scored. A conditional is a pass
+        // whose basis is printed, so it belongs with what the bottle clears.
+        val gates = rules.verdicts(wine)
+        gates.forEach { check ->
             when (check.verdict) {
                 GateVerdict.FAIL -> hard += check.detail
-                GateVerdict.PASS -> clears += check.detail
+                GateVerdict.PASS, GateVerdict.CONDITIONAL -> clears += check.detail
                 GateVerdict.UNKNOWN -> Unit
             }
         }
@@ -177,10 +180,13 @@ object BuyAdvice {
         // A fact that argues for the money counts most, a limit passed counts a little, and a bottle
         // already at home or due a few years' sleep counts against it. A line that breaks a limit is
         // out of the ranking altogether, which ListPicks handles from the verdict.
+        // An unknown gate is not a pass. It is not a demerit on the verdict either, but it does
+        // rank below a bottle whose number is on record.
+        val unproven = gates.count { it.verdict == GateVerdict.UNKNOWN && it.configured }
         val strength = if (hard.isNotEmpty()) {
             0
         } else {
-            argues.size * 4 + clears.size * 2 - against.size * 3
+            argues.size * 4 + clears.size * 2 - against.size * 3 - unproven
         }
         return Advice(
             verdict = verdict,

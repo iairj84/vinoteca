@@ -64,7 +64,7 @@ fun TasteScreen(
     // A rule of the user's that fails a bottle the user loves is a contradiction worth one line.
     val lovedConflict = remember(cellar.wines, rules) { rules.lovedConflict(cellar.wines) }
     val passing = remember(cellar.wines, rules) {
-        cellar.wines.count { wine -> rules.checks(wine).any { it.verdict == GateVerdict.PASS } }
+        cellar.wines.count { wine -> rules.checks(wine).any { it.verdict.isPass } }
     }
     val answers = remember(profile) { PalateFile.answers(profile) }
     // The live brief, from the same lambda a scan uses: what is printed here is what a model reads.
@@ -163,11 +163,14 @@ fun TasteScreen(
                         style = MaterialTheme.typography.bodySmall
                     )
                 } else {
-                    rules.maxSugar?.let {
-                        LabeledValue("Sweetness", "dry — under ${oneDecimal(it)} g/L")
-                    }
-                    rules.maxAlcohol?.let {
-                        LabeledValue("Alcohol", "${oneDecimal(it)}% or under")
+                    // Rendered from the registry, so the screen cannot show fewer gates than the
+                    // engine runs: all four, in the authored order, with whose number each is.
+                    remember(rules) { rules.specs() }.forEach { spec ->
+                        LabeledValue(
+                            spec.title,
+                            "${spec.test} · ${spec.severity.name.lowercase()} · " +
+                                spec.confidence.label
+                        )
                     }
                     lovedConflict?.let {
                         Text(
@@ -254,6 +257,3 @@ fun TasteScreen(
     }
 }
 
-private fun oneDecimal(value: Double): String =
-    if (value == value.toInt().toDouble()) value.toInt().toString()
-    else (value * 10).toInt().let { "${it / 10}.${it % 10}" }

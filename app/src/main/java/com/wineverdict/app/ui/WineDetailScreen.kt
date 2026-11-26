@@ -163,7 +163,9 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             // page can honestly say is which of the user's own thresholds this bottle passes,
             // breaks, or cannot answer — and an unknown gate is shown as unknown.
             SectionCard("Your rules") {
-                val checks = remember(wine, rules) { rules.checks(wine) }
+                val checks = remember(wine, rules) {
+                    if (rules.isEmpty) emptyList() else rules.verdicts(wine)
+                }
                 if (checks.isEmpty()) {
                     Text(
                         "No sweetness, oak or alcohol limit set. Answer those three in Taste and every bottle gets checked against them.",
@@ -176,12 +178,13 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                             text = when (result.verdict) {
                                 GateVerdict.FAIL -> "\u2715  ${result.detail}"
                                 GateVerdict.PASS -> "\u2713  ${result.detail}"
+                                GateVerdict.CONDITIONAL -> "~  ${result.detail}"
                                 GateVerdict.UNKNOWN -> "?  ${result.detail}"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             color = when (result.verdict) {
                                 GateVerdict.FAIL -> MaterialTheme.colorScheme.error
-                                GateVerdict.PASS -> MaterialTheme.colorScheme.onSurface
+                                GateVerdict.PASS, GateVerdict.CONDITIONAL -> MaterialTheme.colorScheme.onSurface
                                 GateVerdict.UNKNOWN -> MaterialTheme.colorScheme.outline
                             }
                         )

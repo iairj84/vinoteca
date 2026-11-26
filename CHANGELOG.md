@@ -3,6 +3,49 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased: four gates again, and a prompt that is rendered not written
+
+**Two gates had gone missing, and the numbering kept the scars.** The generated profile ran G1
+sweetness and G3 alcohol, nothing between them — G2 Place and G4 Style words had been dropped while
+the ids stayed as they were in the hand-built file they replaced. G2 is the rule that catches a big
+appellation with an invented brand and no vineyard named above $10, so nothing rejected a bottle for
+having a vague place, and G4 was the only rule that rejected jammy, plush, baked, sweet-oak and
+"easy drinking" prose. Both are back in `GateRegistry`, along with G1 Alcohol and G3 Dry, evaluated
+in the authored order in one place. The profile table is rendered from that same registry, so a gate
+cannot be missing from the table while still being checked, and a test asserts exactly four rows.
+
+**The alcohol gate has its middle tier back.** The flattened rule made a 14.2% cool-site Syrah with
+dinner fail a rule the profile called unbreakable, which is his stated reason for drinking Syrah.
+Outcomes are now four values, not a boolean: at or under the typed ceiling passes; between it and
+14.5% is CONDITIONAL with a cool site or food — a pass that prints its basis ("14.2% — above your
+14.0%, allowed for the cool site") and is never promoted silently; over 14.5% fails; an unknown ABV
+is UNKNOWN, is reported, and loses to a bottle whose number is on record. The sweetness line carries
+the same shape in the other direction: the 4.0 g/L threshold renders as *Ours*, and an off-dry wine
+with a spicy dish is conditional rather than failed.
+
+**The prompt was a second copy of the profile, and the prompt won.** "Preferences, not rules" sat
+right after the alcohol line, so a model told the ceiling was a preference could recommend a 14.6%
+bottle and call it a departure while the engine applied a hard gate. `PalateFile.renderModelPrompt`
+is now the only path: it returns the text plus the field id behind every line, and
+`assertEveryLineRendered` throws on any line with nothing behind it, so a hand-written sentence
+cannot be added to the prompt. The gate sentence is generated from severity — "Gates: hard. A bottle
+that fails one is not offered." whenever a hard gate is configured. The restaurant price range is
+prefixed `derived:` and labelled *Ours* instead of being read as something he said, and the line
+about wanting to know where a wine comes from — which no answer supports — is gone. Anything the
+prompt carries from the optional interview now appears in the receipt too, from the same stored
+answers.
+
+**A sentence he wrote is no longer replaced with "not set yet".** The anchor line printed "nothing
+here has read them into one sentence" while the sentence sat in the input. A written anchor is a
+*Yours* field and survives regeneration; only its absence says "not set yet", and then it names the
+missing answer.
+
+**Confidence is computed, not typed.** `14.0% or under` stays *Yours*; the 4.0 g/L threshold is
+*Ours*; turning "I don't want heavy oak" into "restrained oak, vanilla in the background" is an
+inference, so that line is *Ours* too. And a bottle's reference note now renders only with its
+source and the date it was retrieved — an unattributed note keeps its flavour claims out and shows
+producer, region, grape, vintage and rating only.
+
 ### 1.2.1: notes take spaces
 
 **Notes take spaces.** The three answers only you can give — what you loved, what you did not, what

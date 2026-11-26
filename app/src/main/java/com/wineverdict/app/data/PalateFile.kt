@@ -1,10 +1,12 @@
 package com.wineverdict.app.data
 
 import com.wineverdict.app.model.Wine
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
- * Builds the `mytaste.md` a quick-start user starts with.
+ * Builds the `mytaste.md` a quick-start user starts with, and renders the short prompt a model reads.
  *
  * The shape is a receipt: every line carries where it came from and how sure the app is, a field with
  * no source renders as *unknown*, and the file says what it does not know. That is what keeps a
@@ -12,6 +14,11 @@ import java.time.LocalDate
  *
  * Two things the generator will not do. It will not fill a field from general knowledge, and it will
  * not write a claim about a specific wine: bottle facts live in bottle records, with citations.
+ *
+ * The prompt is the other half, and it used to be written beside the receipt rather than rendered
+ * from it — its own prose, its own grape list, its own memories. [renderModelPrompt] fixes that: every
+ * line carries the id of the field that produced it, and [assertEveryLineRendered] refuses a line
+ * with no field behind it. A sentence cannot be hand-added to the prompt any more.
  */
 object PalateFile {
 
@@ -44,7 +51,7 @@ object PalateFile {
         blocks += PRECEDENCE
 
         blocks += "## Anchor line"
-        blocks += anchor(ratings)
+        blocks += anchor(profile)
 
         blocks += "## My taste"
         blocks += tasteSection(profile, rules)
@@ -116,7 +123,7 @@ object PalateFile {
             if (labels.isEmpty()) null else question.prompt to labels.joinToString(", ")
         }
 
-    private data class Fact(val value: String, val source: String, val confidence: String)
+    private data class Fact(val value: String, val source: String, val confidence: Confidence)
 
     private fun provisional(profile: PalateProfile, ratings: Int): String {
         val taps = "${profile.baselineAnswered} of ${QuickStart.baseline.size} taps"
@@ -130,30 +137,57 @@ object PalateFile {
         }
     }
 
-    private fun anchor(ratings: Int): String =
-        if (ratings == 0) {
-            "_Not set yet — nothing has been loved in this app._"
-        } else {
-            "_Not set yet — $ratings rated, and nothing here has read them into one sentence._"
+    /**
+     * The sentence the user wrote that links their bottles, kept as an answer of its own.
+     *
+     * It used to render as "Not set yet — $ratings rated, and nothing here has read them into one
+     * sentence", which printed the generator's silence as a fact about the user while the sentence
+     * sat in the input. A written anchor is a *Yours* field; only its absence renders "Not set yet",
+     * and then it names the answer that is missing.
+     */
+    private fun anchor(profile: PalateProfile): String {
+        val sentence = profile.links.trim()
+        if (sentence.isNotEmpty()) {
+            return "- $sentence — *\"what links them\" (the quick start) · Yours*"
         }
+        return "_Not set yet — the line that links your bottles has not been written. Answer " +
+            "\"what links them\" in the quick start._"
+    }
 
     private fun tasteSection(profile: PalateProfile, rules: PalateRules): String {
         val facts = mutableListOf<Fact>()
         style(profile)?.let {
-            facts += Fact(it, source(profile, QuickStart.Q_STYLE), "Yours")
+            facts += Fact(it, source(profile, QuickStart.Q_STYLE), Confidence.YOURS)
         }
         sweetness(profile)?.let {
-            facts += Fact(it, source(profile, QuickStart.Q_SWEET), "Yours")
+            facts += Fact(it, source(profile, QuickStart.Q_SWEET), Confidence.YOURS)
         }
         if (QuickStart.AVOID_OAK in profile.choices(QuickStart.Q_AVOID)) {
+            // "I don't want heavy oak" turned into "restrained oak, vanilla in the background" is an
+            // inference: the wording is his, the value is ours, and the line says so.
             facts += Fact(
                 "Oak restrained: vanilla and toast in the background, never the flavour",
                 source(profile, QuickStart.Q_AVOID),
-                "Yours"
+                Confidence.OURS
             )
         }
         rules.maxAlcohol?.let {
-            facts += Fact("${fmt(it)}% or under", "typed on the Taste screen", "Yours")
+            facts += Fact("${fmt(it)}% or under", "typed on the Taste screen", Confidence.YOURS)
+        }
+        // The optional interview is part of the same field list the prompt is rendered from, so it
+        // appears here too: a fact a model reads must never be missing from the receipt beside it.
+        QuickStart.extras.forEach { question ->
+            if (question.briefLead.isBlank()) return@forEach
+            val phrases = profile.choices(question.id).mapNotNull { id ->
+                question.options.firstOrNull { it.id == id }?.brief?.takeIf { phrase -> phrase.isNotBlank() }
+            }
+            if (phrases.isEmpty()) return@forEach
+            val value = if (question.multi) phrases.joinToString(", ") else phrases.first()
+            facts += Fact(
+                "${question.briefLead}: $value",
+                "\"${question.prompt}\" · optional interview",
+                Confidence.YOURS
+            )
         }
         if (facts.isEmpty()) {
             return "_Unknown — no answer here describes what a wine should taste of. The quick start " +
@@ -162,24 +196,27 @@ object PalateFile {
         return bullets(facts)
     }
 
+    /**
+     * The gate table, rendered from [GateRegistry] — never assembled row by row.
+     *
+     * Four rows, always, in the authored order. The old table had two because G2 and G4 were dropped
+     * and the numbering kept the scars; rendering the registry is what makes that impossible again.
+     */
     private fun gateTable(profile: PalateProfile, rules: PalateRules): String {
-        val rows = mutableListOf<String>()
-        rules.maxSugar?.let {
-            rows += "| **${PalateRules.GATE_SUGAR}** | Dry — under ${fmt(it)} g/L | hard | " +
-                "${source(profile, QuickStart.Q_SWEET)} | Yours |"
-        }
-        rules.maxAlcohol?.let {
-            rows += "| **${PalateRules.GATE_ALCOHOL}** | ${fmt(it)}% or under | hard | " +
-                "typed on the Taste screen | Yours |"
-        }
-        if (rows.isEmpty()) {
-            return "_No gate is set yet — no answer named a limit. Style and price below are " +
-                "guidance, not gates._"
-        }
+        val specs = GateRegistry.specs(
+            alcoholCeiling = rules.maxAlcohol,
+            sugarCeiling = rules.maxSugar,
+            sugarSource = if (rules.maxSugar != null) source(profile, QuickStart.Q_SWEET) else null
+        )
         return buildString {
             appendLine("| Gate | Test | Type | Source | Confidence |")
             appendLine("|---|---|---|---|---|")
-            rows.forEach { appendLine(it) }
+            specs.forEach { spec ->
+                appendLine(
+                    "| **${spec.title}** | ${spec.test} | " +
+                        "${spec.severity.name.lowercase()} | ${spec.source} | ${spec.confidence.label} |"
+                )
+            }
         }.trimEnd()
     }
 
@@ -245,13 +282,13 @@ object PalateFile {
     private fun enjoy(profile: PalateProfile): String {
         val facts = mutableListOf<Fact>()
         pours(profile)?.let {
-            facts += Fact(it, source(profile, QuickStart.Q_POURS), "Yours")
+            facts += Fact(it, source(profile, QuickStart.Q_POURS), Confidence.YOURS)
         }
         style(profile)?.let {
-            facts += Fact(it, source(profile, QuickStart.Q_STYLE), "Yours")
+            facts += Fact(it, source(profile, QuickStart.Q_STYLE), Confidence.YOURS)
         }
         sweetness(profile)?.let {
-            facts += Fact(it, source(profile, QuickStart.Q_SWEET), "Yours")
+            facts += Fact(it, source(profile, QuickStart.Q_SWEET), Confidence.YOURS)
         }
         if (facts.isEmpty()) {
             return "_Unknown — nothing here says what a good bottle tastes like. Three ratings will " +
@@ -267,18 +304,18 @@ object PalateFile {
         }
         if (QuickStart.AVOID_NOTHING in avoids) {
             return bullets(
-                listOf(Fact("Nothing excluded yet", source(profile, QuickStart.Q_AVOID), "Yours"))
+                listOf(Fact("Nothing excluded yet", source(profile, QuickStart.Q_AVOID), Confidence.YOURS))
             )
         }
         val facts = mutableListOf<Fact>()
         if (QuickStart.AVOID_STRONG in avoids) {
-            facts += Fact("Strong, high-alcohol wines", source(profile, QuickStart.Q_AVOID), "Yours")
+            facts += Fact("Strong, high-alcohol wines", source(profile, QuickStart.Q_AVOID), Confidence.YOURS)
         }
         if (QuickStart.AVOID_OAK in avoids) {
-            facts += Fact("Heavy oak: vanilla, toast, buttery", source(profile, QuickStart.Q_AVOID), "Yours")
+            facts += Fact("Heavy oak: vanilla, toast, buttery", source(profile, QuickStart.Q_AVOID), Confidence.YOURS)
         }
         if (QuickStart.AVOID_SWEET in avoids) {
-            facts += Fact("Sweet wines", source(profile, QuickStart.Q_AVOID), "Yours")
+            facts += Fact("Sweet wines", source(profile, QuickStart.Q_AVOID), Confidence.YOURS)
         }
         return bullets(facts)
     }
@@ -394,7 +431,7 @@ object PalateFile {
 
     /** The optional answers, verbatim: nothing here is turned into a rule. */
     private fun inMyWords(profile: PalateProfile): String = buildList {
-        profile.links.trim().takeIf { it.isNotBlank() }?.let { add("What links them: $it") }
+        // The links sentence is the anchor line above, so it is not repeated here.
         profile.lovedNote.trim().takeIf { it.isNotBlank() }?.let { add("Wines I loved: $it") }
         profile.dislikedNote.trim().takeIf { it.isNotBlank() }?.let { add("One I didn't enjoy: $it") }
         profile.curiousNote.trim().takeIf { it.isNotBlank() }?.let { add("Curious to try: $it") }
@@ -409,7 +446,7 @@ object PalateFile {
         }
 
     private fun bullets(facts: List<Fact>): String =
-        facts.joinToString("\n") { "- ${it.value} — *${it.source} · ${it.confidence}*" }
+        facts.joinToString("\n") { "- ${it.value} — *${it.source} · ${it.confidence.label}*" }
 
     private fun pours(profile: PalateProfile): String? =
         when (profile.choice(QuickStart.Q_POURS)) {
@@ -488,30 +525,71 @@ object PalateFile {
 
     private fun fmt(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
 
-    /**
-     * About 330 words: the whole taste brief that rides along with a list or a label.
-     *
-     * It was 1,500 until the optional interview existed. Twelve answered questions at one short line
-     * each pushed a full profile — four loved bottles, three disliked, three written notes — past the
-     * cap, and the cut fell on the closing lines rather than on anything redundant.
-     */
-    const val BRIEF_MAX_CHARS = 2_000
+    // ---- The prompt -------------------------------------------------------------------------
 
     /**
-     * The taste brief a model actually reads.
+     * A prompt and, for every line, the field that produced it. `lineFields[i]` is null only for
+     * formatting (a blank separator or the `## Notes` heading).
+     */
+    data class RenderedPrompt(val text: String, val lineFields: List<String?>)
+
+    private data class PromptLine(val text: String, val field: String?)
+
+    /**
+     * Refuses any line with nothing behind it. Called by [renderModelPrompt] itself, so a sentence
+     * added to the prompt by hand cannot ship; it throws in the test suite first.
+     */
+    fun assertEveryLineRendered(rendered: RenderedPrompt) {
+        val lines = rendered.text.split("\n")
+        check(lines.size == rendered.lineFields.size) {
+            "prompt has ${lines.size} lines but ${rendered.lineFields.size} field ids"
+        }
+        lines.forEachIndexed { index, line ->
+            if (line.isNotBlank() && line !in FORMATTING && rendered.lineFields[index] == null) {
+                throw IllegalStateException(
+                    "prompt line ${index + 1} has no field behind it: \"$line\""
+                )
+            }
+        }
+    }
+
+    /**
+     * Where a rendered field came from, and therefore its confidence. UNKNOWN means the field is
+     * absent from this profile and must not reach a model.
+     */
+    fun fieldConfidence(profile: PalateProfile, fieldId: String): Confidence = when {
+        fieldId == FIELD_EMPTY || fieldId == FIELD_GATES -> Confidence.OURS
+        fieldId == FIELD_RESTAURANT -> Confidence.OURS
+        fieldId == "alcohol_ceiling" -> Confidence.YOURS
+        fieldId == "links" -> Confidence.YOURS
+        fieldId.startsWith("notes.") -> Confidence.YOURS
+        fieldId.startsWith("bottles.") -> Confidence.YOURS
+        fieldId.startsWith("q") || fieldId.startsWith("x_") ->
+            if (profile.answered(fieldId)) Confidence.YOURS else Confidence.UNKNOWN
+        else -> Confidence.UNKNOWN
+    }
+
+    /** Lines the renderer owns: a separator, and the heading above the carried notes. */
+    private val FORMATTING = setOf("## Notes")
+
+    const val FIELD_EMPTY = "profile.empty"
+    const val FIELD_GATES = "gates.severity"
+    const val FIELD_RESTAURANT = "budget.restaurant"
+
+    /**
+     * The taste brief a model actually reads, rendered from the stored profile.
      *
      * `mytaste.md` is a receipt: provenance on every line, gate tables, precedence rules, what the
      * file does not know. That is the right shape for a person to audit and the wrong shape for a
-     * prompt. It runs to ~1,800 words of meta-rules, and two of those rules — "Unknown is not a
-     * pass" and "never from memory" — tell the model to ignore the knowledge that is the whole
-     * reason to ask it about a wine list. On a list, nothing prints ABV or oak, so a gate that
-     * needs those facts fails or goes unknown on every line.
+     * prompt. On a list, nothing prints ABV or oak, so a gate that needs those facts fails or goes
+     * unknown on every line.
      *
-     * So the brief is short, first-person and permissive: what I drink, what I like, the bottles I
-     * loved, the budget in retail and restaurant terms, and how far a pick may stray. Oak and
-     * alcohol are stated as preferences, because that is what a tap can honestly support.
+     * So the brief is short, first-person and about the wine: what I drink, what I like, the bottles
+     * I loved, the budget in retail terms, and how far a pick may stray. Oak and alcohol are stated
+     * as preferences because that is what a tap can honestly support — and whether they are
+     * preferences or gates is generated from the gate severity, never authored.
      */
-    fun brief(
+    fun renderModelPrompt(
         profile: PalateProfile,
         rules: PalateRules = PalateRules.from(profile),
         loved: List<Wine> = emptyList(),
@@ -519,8 +597,15 @@ object PalateFile {
         links: String? = null,
         notes: String = "",
         maxChars: Int = BRIEF_MAX_CHARS
-    ): String {
-        val parts = mutableListOf<String>()
+    ): RenderedPrompt {
+        val lines = mutableListOf<PromptLine>()
+        fun emit(text: String, field: String) {
+            val clean = text.trim()
+            if (clean.isNotEmpty()) lines += PromptLine(clean, field)
+        }
+
+        val specs = rules.specs()
+        val hasHardGate = specs.any { it.severity == Severity.HARD && it.configured }
 
         val pours = when (profile.choice(QuickStart.Q_POURS)) {
             QuickStart.POUR_RED -> "red"
@@ -544,10 +629,10 @@ object PalateFile {
             QuickStart.SWEET_SWEETER -> "sweeter than dry, balanced by acid"
             else -> null
         }
-
-        pours?.let { parts += "I mostly drink $it." }
-        style?.let { parts += "I like $it." }
-        sweet?.let { parts += "Sweetness: $it." }
+        var tasteFields = 0
+        pours?.let { emit("I mostly drink $it.", QuickStart.Q_POURS); tasteFields++ }
+        style?.let { emit("I like $it.", QuickStart.Q_STYLE); tasteFields++ }
+        sweet?.let { emit("Sweetness: $it.", QuickStart.Q_SWEET); tasteFields++ }
 
         // Oak and alcohol as preferences. A list prints neither, so a gate on them is a rule that
         // can never be checked there — which is how every red on a list came back "unknown".
@@ -562,31 +647,46 @@ object PalateFile {
         }
         if (preferences.isNotEmpty()) {
             // Semicolons, because each preference already carries a dash clause of its own.
-            parts += "I prefer ${preferences.joinToString("; ")}. Preferences, not rules."
+            val field = if (rules.maxAlcohol != null) "alcohol_ceiling" else QuickStart.Q_AVOID
+            emit("I prefer ${preferences.joinToString("; ")}.", field)
+            tasteFields++
         }
 
         val lovedLine = loved.take(4).map { bottleLine(it) }.filter { it.isNotBlank() }
-        if (lovedLine.isNotEmpty()) parts += "Bottles I loved: ${lovedLine.joinToString("; ")}."
+        if (lovedLine.isNotEmpty()) {
+            emit("Bottles I loved: ${lovedLine.joinToString("; ")}.", BOTTLES_LOVED)
+            tasteFields++
+        }
 
         val dislikedLine = disliked.take(3).map { bottleLine(it) }.filter { it.isNotBlank() }
-        if (dislikedLine.isNotEmpty()) parts += "Bottles I didn't enjoy: ${dislikedLine.joinToString("; ")}."
+        if (dislikedLine.isNotEmpty()) {
+            emit("Bottles I didn't enjoy: ${dislikedLine.joinToString("; ")}.", BOTTLES_DISLIKED)
+            tasteFields++
+        }
 
         // Verbatim, but capped here as well as at entry: a hand-edited profile can be any length,
         // and the brief has a hard budget of its own.
         profile.lovedNote.trim().takeIf { it.isNotBlank() }?.let {
-            parts += "Wines I loved, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+            emit("Wines I loved, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}", "notes.loved")
+            tasteFields++
         }
         profile.dislikedNote.trim().takeIf { it.isNotBlank() }?.let {
-            parts += "A wine I didn't enjoy, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+            emit("A wine I didn't enjoy, in my words: ${it.take(PalateProfile.NOTE_MAX_CHARS)}", "notes.disliked")
+            tasteFields++
         }
         profile.curiousNote.trim().takeIf { it.isNotBlank() }?.let {
-            parts += "Curious to try: ${it.take(PalateProfile.NOTE_MAX_CHARS)}"
+            emit("Curious to try: ${it.take(PalateProfile.NOTE_MAX_CHARS)}", "notes.curious")
+            tasteFields++
         }
 
         val linkLine = links ?: profile.links
         linkLine.trim().takeIf { it.isNotBlank() }?.let {
             // Their own sentence, so do not staple a second full stop onto it.
-            parts += "What links them: ${it.take(PalateProfile.NOTE_MAX_CHARS).trimEnd('.', '!', '?')}."
+            emit(
+                "What links them: ${it.take(PalateProfile.NOTE_MAX_CHARS).trimEnd('.', '!', '?')}.",
+                "links"
+            )
+            tasteFields++
         }
 
         // The optional interview, one line per answered question and nothing for the rest. The
@@ -598,56 +698,137 @@ object PalateFile {
                 question.options.firstOrNull { it.id == id }?.brief?.takeIf { phrase -> phrase.isNotBlank() }
             }
             if (phrases.isEmpty()) return@forEach
-            parts += if (question.multi) {
-                "${question.briefLead}: ${phrases.joinToString(", ")}."
-            } else {
-                "${question.briefLead}: ${phrases.first()}."
-            }
+            emit(
+                if (question.multi) {
+                    "${question.briefLead}: ${phrases.joinToString(", ")}."
+                } else {
+                    "${question.briefLead}: ${phrases.first()}."
+                },
+                question.id
+            )
+            tasteFields++
         }
 
         budgetBand(profile.choice(QuickStart.Q_BUDGET))?.let { retail ->
-            val restaurant = restaurantBand(profile.choice(QuickStart.Q_BUDGET))
-            parts += if (restaurant != null) {
-                "Budget: $retail a bottle at retail, about $restaurant on a restaurant list."
-            } else {
-                "Budget: $retail a bottle."
+            emit("Budget: $retail a bottle at retail.", QuickStart.Q_BUDGET)
+            tasteFields++
+            // Retail x 2.5–3.5 is arithmetic on his band, not something he said. It is prefixed
+            // derived: and is never labelled Yours.
+            restaurantBand(profile.choice(QuickStart.Q_BUDGET))?.let { restaurant ->
+                emit(
+                    "derived: about $restaurant on a restaurant list (retail × 2.5–3.5).",
+                    FIELD_RESTAURANT
+                )
             }
         }
 
-        parts += "I want to know where a wine comes from and why it tastes the way it does."
-
         when (profile.choice(QuickStart.Q_ADVENTURE)) {
-            QuickStart.ADVENTURE_FAMILIAR -> parts += "Keep picks close to what I already drink."
-            QuickStart.ADVENTURE_SIMILAR -> parts += "One step out is welcome: same style, a different producer or place."
-            QuickStart.ADVENTURE_SURPRISE -> parts += "Surprise me when the reason is good."
+            QuickStart.ADVENTURE_FAMILIAR -> {
+                emit("Keep picks close to what I already drink.", QuickStart.Q_ADVENTURE)
+                tasteFields++
+            }
+            QuickStart.ADVENTURE_SIMILAR -> {
+                emit("One step out is welcome: same style, a different producer or place.", QuickStart.Q_ADVENTURE)
+                tasteFields++
+            }
+            QuickStart.ADVENTURE_SURPRISE -> {
+                emit("Surprise me when the reason is good.", QuickStart.Q_ADVENTURE)
+                tasteFields++
+            }
             else -> Unit
         }
 
-        if (parts.size <= 2) {
-            parts += "I have not told you what I like yet — recommend on the wines themselves and say why."
+        if (tasteFields == 0) {
+            emit(
+                "I have not told you what I like yet — recommend on the wines themselves and say why.",
+                FIELD_EMPTY
+            )
         }
 
-        // The carried sections arrive with their own headings, so adding "## Notes" above them
-        // stacked two headings; plain text still gets one.
-        val notesBlock = notes.trim().take(600).takeIf { it.isNotBlank() }
-            ?.let { if (it.startsWith("## ")) "\n\n$it" else "\n\n## Notes\n$it" }
-            .orEmpty()
-        val text = (parts.joinToString("\n") + notesBlock).trim()
-        if (text.length <= maxChars) return text
-        // A hard cap, cut at a line boundary when one falls late enough that keeping it still
-        // says something: half a sentence and an ellipsis beats half a word.
-        val room = text.take(maxChars - 1)
-        val boundary = room.lastIndexOf('\n')
-        val body = if (boundary > maxChars / 2) room.take(boundary) else room
-        val trimmed = body.trimEnd()
-        // A heading whose section did not fit is worse than no section at all.
-        val cleaned = if (trimmed.endsWith("## Notes")) {
-            trimmed.dropLast("## Notes".length).trimEnd()
-        } else {
-            trimmed
+        // Generated from the gate registry, never written by hand. A model told the ceiling is a
+        // preference will recommend a 14.6% bottle and call it a departure.
+        emit(
+            if (hasHardGate) {
+                "Gates: hard. A bottle that fails one is not offered."
+            } else {
+                "Preferences, not rules — a departure costs a stated reason."
+            },
+            FIELD_GATES
+        )
+
+        // The user's own notes section, carried from the file they wrote. It is last so a cap cuts
+        // it rather than the taste facts above it.
+        val notesText = notes.trim().take(600)
+        if (notesText.isNotBlank()) {
+            lines += PromptLine("", null)
+            if (!notesText.startsWith("## ")) lines += PromptLine("## Notes", null)
+            notesText.split("\n").forEach { lines += PromptLine(it, "notes.assistant") }
         }
-        return cleaned + "…"
+
+        val text = lines.joinToString("\n") { it.text }
+        val rendered = if (text.length <= maxChars) {
+            RenderedPrompt(text, lines.map { it.field })
+        } else {
+            cap(lines, maxChars)
+        }
+        assertEveryLineRendered(rendered)
+        return rendered
     }
+
+    /**
+     * A hard cap, cut at a line boundary when one falls late enough that keeping it still says
+     * something: half a sentence and an ellipsis beats half a word. A heading whose section did not
+     * fit is worse than no section at all.
+     */
+    private fun cap(lines: List<PromptLine>, maxChars: Int): RenderedPrompt {
+        val room = maxChars - 1
+        val kept = mutableListOf<PromptLine>()
+        var length = 0
+        for (line in lines) {
+            val add = if (kept.isEmpty()) line.text.length else line.text.length + 1
+            if (length + add > room) break
+            kept += line
+            length += add
+        }
+        // A heading whose section did not fit is worse than no heading, and a trailing separator
+        // would vanish into trimEnd — either would leave more field ids than lines.
+        fun dropTail() {
+            while (kept.isNotEmpty() && kept.last().text.isBlank()) kept.removeAt(kept.lastIndex)
+        }
+        dropTail()
+        if (kept.isNotEmpty() && kept.last().text == "## Notes") {
+            kept.removeAt(kept.lastIndex)
+            dropTail()
+        }
+        if (kept.isEmpty()) {
+            return RenderedPrompt("…", listOf(FIELD_EMPTY))
+        }
+        val body = kept.joinToString("\n") { it.text }.trimEnd()
+        return RenderedPrompt(body + "…", kept.map { it.field })
+    }
+
+    private const val BOTTLES_LOVED = "bottles.loved"
+    private const val BOTTLES_DISLIKED = "bottles.disliked"
+
+    /**
+     * About 330 words: the whole taste brief that rides along with a list or a label.
+     *
+     * It was 1,500 until the optional interview existed. Twelve answered questions at one short line
+     * each pushed a full profile — four loved bottles, three disliked, three written notes — past the
+     * cap, and the cut fell on the closing lines rather than on anything redundant.
+     */
+    const val BRIEF_MAX_CHARS = 2_000
+
+    /** The brief as plain text. Kept for callers that do not need the field map. */
+    fun brief(
+        profile: PalateProfile,
+        rules: PalateRules = PalateRules.from(profile),
+        loved: List<Wine> = emptyList(),
+        disliked: List<Wine> = emptyList(),
+        links: String? = null,
+        notes: String = "",
+        maxChars: Int = BRIEF_MAX_CHARS
+    ): String = renderModelPrompt(profile, rules, loved, disliked, links, notes, maxChars).text
 
     /** One loved or disliked bottle, named the way the user would name it. */
     private fun bottleLine(wine: Wine): String {
@@ -660,6 +841,60 @@ object PalateFile {
         val tags = wine.flavorTags.take(3).joinToString(", ")
         return if (tags.isBlank()) withPlace else "$withPlace — $tags"
     }
+
+    /**
+     * The "Bottles I love" block, rebuilt from rated and favourited wines.
+     *
+     * A reference note is a claim about a specific bottle, so it renders only with its source and the
+     * date it was retrieved. A note with no source keeps its flavour claims out of the exercise
+     * entirely: the bottle is named, region, grape, vintage and rating — nothing it tastes of.
+     */
+    fun lovedSection(wines: List<Wine>): String {
+        val loved = wines
+            .filter { it.favorite || (it.rating ?: 0) >= 4 }
+            .sortedWith(
+                compareByDescending<Wine> { (it.rating ?: 0) }
+                    .thenByDescending { it.favorite }
+                    .thenByDescending { it.updatedAt }
+            )
+        if (loved.isEmpty()) {
+            return "_No loved bottles yet. Favourite a wine or rate it 4★ or more, then rebuild this section._"
+        }
+        return loved.take(30).joinToString("\n") { wine ->
+            val origin = listOf(wine.region, wine.country)
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(", ")
+            val meta = listOf(wine.type.label, origin, wine.grapes.joinToString(", "))
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
+            val rating = wine.rating?.let { "$it★" } ?: "favourite"
+            buildString {
+                append("- **${wine.title}** — $meta · $rating")
+                if (wine.flavorTags.isNotEmpty()) {
+                    append("\n  - flavours: ${wine.flavorTags.joinToString(", ")}")
+                }
+                if (wine.myNotes.isNotBlank()) {
+                    append("\n  - my note: ${wine.myNotes.replace("\n", " ").take(220)}")
+                }
+                if (wine.expertNotes.isNotBlank() && wine.notesSource.isNotBlank()) {
+                    append(
+                        "\n  - reference (source: ${wine.notesSource.trim().take(120)}, " +
+                            "retrieved ${retrievedOn(wine.notesCheckedAt)}): " +
+                            wine.expertNotes.replace("\n", " ").take(160)
+                    )
+                }
+            }
+        }
+    }
+
+    private fun retrievedOn(epochMillis: Long): String =
+        if (epochMillis <= 0L) {
+            "unknown"
+        } else {
+            Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        }
 
     private fun budgetBand(choice: String?): String? = when (choice) {
         QuickStart.BUDGET_UNDER_12 -> "under \$12"

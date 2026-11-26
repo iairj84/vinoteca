@@ -62,35 +62,11 @@ class TasteStore(context: Context) {
                     .thenByDescending { it.updatedAt }
             )
 
-    fun lovedSectionMarkdown(wines: List<Wine>): String {
-        val loved = lovedBottles(wines)
-        if (loved.isEmpty()) {
-            return "_No loved bottles yet. Favourite a wine or rate it 4★ or more, then rebuild this section._"
-        }
-        return loved.take(30).joinToString("\n") { wine ->
-            val origin = listOf(wine.region, wine.country)
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .joinToString(", ")
-            val meta = listOf(wine.type.label, origin, wine.grapes.joinToString(", "))
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .joinToString(" · ")
-            val rating = wine.rating?.let { "$it★" } ?: "favourite"
-            buildString {
-                append("- **${wine.title}** — $meta · $rating")
-                if (wine.flavorTags.isNotEmpty()) {
-                    append("\n  - flavours: ${wine.flavorTags.joinToString(", ")}")
-                }
-                if (wine.myNotes.isNotBlank()) {
-                    append("\n  - my note: ${wine.myNotes.replace("\n", " ").take(220)}")
-                }
-                if (wine.expertNotes.isNotBlank()) {
-                    append("\n  - reference: ${wine.expertNotes.replace("\n", " ").take(160)}")
-                }
-            }
-        }
-    }
+    /**
+     * The block is pure text, so it lives in [PalateFile.lovedSection] where it can be tested
+     * without Android. A reference note renders only with its source and retrieval date.
+     */
+    fun lovedSectionMarkdown(wines: List<Wine>): String = PalateFile.lovedSection(wines)
 
     /** Rewrites only the block between the AUTO markers. */
     fun rebuildLovedSection(wines: List<Wine>): String {
