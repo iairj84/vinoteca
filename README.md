@@ -47,8 +47,8 @@ Gemini or Groq — with your own key.
   markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
-- **Notes** — reference notes from the model, plus your own dated tasting notes and a 1–5 star
-  rating.
+- **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
+  verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,
@@ -58,7 +58,7 @@ Gemini or Groq — with your own key.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
-  generated “Bottles I love” half rebuilt from your favourites and 4★+ bottles. Import/export it as
+  generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.
 - **Crash report** — a fatal error is written to a file on the phone and shown in Settings → About
   under **Last crash**, with Copy and Forget it. Nothing leaves the device.
@@ -155,7 +155,7 @@ like wine columns. Columns are matched by name from an alias table rather than b
 all land in the right place; unknown columns are ignored. Handled on the way in: UTF-8 and
 windows-1252 files, comma/semicolon/tab delimiters, quoted fields with embedded commas and newlines,
 CellarTracker's non-vintage `1001`, one-bottle-per-row exports, 100-point scores (kept as a line in
-the reference notes), 1–5 star ratings, purchase price with currency, drinking-window years and
+the reference notes), 1–5 star ratings rounded to the four verdicts, purchase price with currency, drinking-window years and
 per-bottle locations. A cell that says `Unknown`, `N/A`, `None`, `null`, `-` or `?` is a missing
 value, not a name: a designation holding one is not appended to the wine, and a placeholder country,
 region, appellation or grape is stored as blank so the details pass can fill it. A name already
@@ -245,14 +245,14 @@ The file is seeded on first run and lives in the app's private files directory
 
 ## Bottles I love
 <!-- AUTO:LOVED:START -->
-- **2016 Barolo · Giacomo Conterno** — Red · Piedmont, Italy · Nebbiolo · 5★
+- **2016 Barolo · Giacomo Conterno** — Red · Piedmont, Italy · Nebbiolo · Loved
   - my note: tar and roses, still tannic
 <!-- AUTO:LOVED:END -->
 ```
 
 - The hand-written half is yours; the app never rewrites it.
 - **Rebuild from loved bottles** replaces only the block between the AUTO markers, using the wines
-  you favourited or rated 4★ or more.
+  you called Good or Loved.
 - **Ask** sends the whole file — up to 12,000 characters, about 3,000 tokens. Longer files are
   cut at that point and the model is told the rest is missing.
 - **Every request except Ask reads the short brief**, not the file: the ten taps, the twelve

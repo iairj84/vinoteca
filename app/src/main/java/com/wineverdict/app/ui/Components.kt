@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -37,10 +38,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import com.wineverdict.app.model.DrinkStatus
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
@@ -126,28 +127,42 @@ fun Pill(text: String, modifier: Modifier = Modifier, color: Color? = null) {
     }
 }
 
+/**
+ * The four words, one tap each. A five-star count asked for a precision the app never read — every
+ * threshold treated the number as a bucket — and an unlabelled scale made 1★ and 2★ the same
+ * answer without saying so. Tapping the chosen word again clears it, which is how a bottle is
+ * unrated. Words wrap rather than shrink: "Not for me" is the longest and chip text does not
+ * ellipsise.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun RatingStars(
-    rating: Int?,
-    modifier: Modifier = Modifier,
-    size: Dp = 20.dp,
-    onRating: ((Int?) -> Unit)? = null
-) {
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        (1..5).forEach { star ->
-            val filled = (rating ?: 0) >= star
-            val starModifier = if (onRating != null) {
-                Modifier
-                    .size(size)
-                    .clickable { onRating(if (rating == star) null else star) }
-            } else {
-                Modifier.size(size)
-            }
-            Icon(
-                imageVector = if (filled) Icons.Filled.Star else Icons.Filled.StarBorder,
-                contentDescription = if (onRating != null) "$star stars" else null,
-                tint = if (filled) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline,
-                modifier = starModifier
+fun VerdictChips(rating: Int?, modifier: Modifier = Modifier, onRating: (Int?) -> Unit) {
+    val current = Verdict.of(rating)
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Verdict.values().forEach { verdict ->
+            val chosen = verdict == current
+            FilterChip(
+                selected = chosen,
+                onClick = { onRating(if (chosen) null else verdict.rating) },
+                label = { Text(verdict.label) },
+                shape = RoundedCornerShape(50),
+                // The chosen word is the claret stamp, exactly as the filters read.
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = Color.Transparent,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = chosen,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    selectedBorderColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     }
@@ -217,7 +232,7 @@ fun WineRow(wine: Wine, locationName: String, onClick: () -> Unit) {
                 if (wine.favorite) {
                     Icon(
                         Icons.Filled.Star,
-                        contentDescription = "Favourite",
+                        contentDescription = "Loved",
                         tint = MaterialTheme.colorScheme.secondary
                     )
                 }

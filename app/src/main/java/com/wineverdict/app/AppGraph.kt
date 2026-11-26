@@ -15,6 +15,7 @@ import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.TasteStore
 import com.wineverdict.app.data.TasteText
 import com.wineverdict.app.data.Updater
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -70,7 +71,7 @@ object AppGraph {
                 profile = profile,
                 rules = palate.rules,
                 loved = taste.lovedBottles(wines),
-                disliked = wines.filter { (it.rating ?: 0) in 1..2 },
+                disliked = wines.filter { Verdict.disliked(it) },
                 // Whatever the user typed themselves. The generated half of the file is already
                 // rendered above from the same profile, so this is the only text that would
                 // otherwise be lost between the file and the brief.

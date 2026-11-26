@@ -60,6 +60,7 @@ import com.wineverdict.app.ai.BottleCandidate
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.model.CellarData
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
@@ -585,7 +586,7 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
                 com.wineverdict.app.model.DrinkStatus.READY,
                 com.wineverdict.app.model.DrinkStatus.PEAK
             )
-        CellarFilter.LOVED -> wine.favorite || (wine.rating ?: 0) >= 4
+        CellarFilter.LOVED -> Verdict.liked(wine)
     }
     if (!filterMatch) return false
     if (query.isBlank()) return true

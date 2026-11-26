@@ -30,7 +30,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -46,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ScanHandoff
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
 import com.wineverdict.app.model.locationName
@@ -83,7 +83,6 @@ fun WineEditorScreen(wineId: String?, onDone: () -> Unit) {
     var drinkTo by remember { mutableStateOf(initial.drinkTo?.toString().orEmpty()) }
     var expertNotes by remember { mutableStateOf(initial.expertNotes) }
     var myNotes by remember { mutableStateOf(initial.myNotes) }
-    var favorite by remember { mutableStateOf(initial.favorite) }
     var rating by remember { mutableStateOf(initial.rating) }
     var locationMenuOpen by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -116,7 +115,9 @@ fun WineEditorScreen(wineId: String?, onDone: () -> Unit) {
             expertNotes = expertNotes.trim(),
             myNotes = myNotes.trim(),
             rating = rating,
-            favorite = favorite
+            // The word sets the favourite flag the rest of the app reads. A bottle that was
+            // hearted before the four words existed keeps its heart until it is given a word.
+            favorite = if (rating != null) rating == Verdict.LOVED.rating else initial.favorite
         )
         scope.launch {
             AppGraph.cellar.upsert(updated)
@@ -339,21 +340,13 @@ fun WineEditorScreen(wineId: String?, onDone: () -> Unit) {
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Loved bottle", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Feeds your mytaste.md profile",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(checked = favorite, onCheckedChange = { favorite = it })
-            }
-            RatingStars(rating) { rating = it }
+            Text("Your verdict", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "Good and Loved feed your mytaste.md profile",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            VerdictChips(rating) { rating = it }
 
             OutlinedTextField(
                 value = expertNotes,

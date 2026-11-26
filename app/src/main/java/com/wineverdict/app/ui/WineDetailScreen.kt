@@ -17,8 +17,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,6 +45,7 @@ import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.InsightParsing
 import com.wineverdict.app.data.GateScope
 import com.wineverdict.app.data.GateVerdict
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
@@ -96,13 +95,6 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 },
                 actions = {
                     if (wine != null) {
-                        IconButton(onClick = { scope.launch { AppGraph.cellar.toggleFavorite(wine.id) } }) {
-                            Icon(
-                                imageVector = if (wine.favorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = "Favourite",
-                                tint = if (wine.favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
                         IconButton(onClick = { onEdit(wine.id) }) {
                             Icon(Icons.Filled.Edit, contentDescription = "Edit")
                         }
@@ -148,18 +140,15 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 DrinkBadge(wine.drinkStatus())
                 Pill(if (wine.quantity > 0) "${wine.quantity} in cellar" else "none left")
                 wine.alcohol?.let { Pill("${oneDecimal(it)}% vol") }
-                when {
-                    (wine.rating ?: 0) >= 4 -> Pill("${wine.rating}★")
-                    wine.rating != null -> Pill("${wine.rating}★")
-                    wine.favorite -> Pill("loved")
-                }
+                // One word, not a count: the scale is the four verdicts now.
+                Verdict.labelFor(wine)?.let { Pill(it) }
             }
 
-            RatingStars(wine.rating) { value ->
+            VerdictChips(wine.rating) { value ->
                 scope.launch { AppGraph.cellar.setRating(wine.id, value) }
             }
             Text(
-                text = "Tap a star to rate what you thought of it.",
+                text = "Tap a word for what you thought of it. Tap the same word again to clear it.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
             )

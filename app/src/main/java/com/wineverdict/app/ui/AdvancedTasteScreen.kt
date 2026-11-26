@@ -127,7 +127,7 @@ fun AdvancedTasteScreen(onBack: () -> Unit) {
             SectionCard("Loved bottles that feed this file") {
                 Text(
                     if (loved.isEmpty()) {
-                        "No favourite or 4★+ bottles yet."
+                        "No Good or Loved bottles yet."
                     } else {
                         "${loved.size} bottles: " + loved.take(6).joinToString(", ") { it.title } +
                             if (loved.size > 6) "…" else ""

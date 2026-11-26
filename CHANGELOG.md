@@ -3,6 +3,25 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.13: the rating is four words instead of five stars
+
+**A star count asked for a precision the app never used.** Every place that read a rating read it
+as a bucket — 4 or more was loved, 1 or 2 was disliked, 3 was silence — so 1★ and 2★ were the same
+answer under two names, 4★ and 5★ were the same answer again, and the heart in the bottle's top bar
+said "loved" a second time in a different alphabet. The bottle page and the editor now offer **Not
+for me / Fine / Good / Loved**, one tap each, large enough to hit with a thumb; the cellar's Loved
+filter, its sort order, the taste brief and the `mytaste.md` loved block all read those words.
+
+**Nothing on an existing record moved.** The words store as the old 1, 3, 4 and 5, so a bottle rated
+before this release keeps its place and its meaning: 4 and 5 are still Good and Loved, 3 is Fine,
+and a stored 2 — a level nobody can pick any more — reads as Not for me. An import that lands on 2
+now stores 1 for the same reason: the app has four answers, so it holds four numbers.
+
+**The heart had to go with it.** A favourite star in the top bar and a rating row on the page were
+two controls for one answer. Picking a word now sets the favourite flag the rest of the app already
+reads, so a loved bottle is still marked in the list and still sorts first — there is just one place
+to say it. A bottle that was hearted but never rated keeps both until it is given a word.
+
 ### 1.2.12: the cellar reads as a ledger, and the layout holds when the text grows
 
 **Claret used to be the chrome.** A maroon status bar and a maroon stats block put the brand colour

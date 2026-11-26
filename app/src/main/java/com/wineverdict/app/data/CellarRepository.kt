@@ -4,6 +4,7 @@ import android.content.Context
 import com.wineverdict.app.ai.SourcedNotes
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Placeholders
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.StorageLocation
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
@@ -94,18 +95,20 @@ class CellarRepository(context: Context) {
         )
     }
 
+    /**
+     * Records the verdict and keeps the favourite flag in step with it. "Loved" is what the Loved
+     * filter, the cellar's sort order, the taste brief and the mytaste.md loved block have always
+     * read as a favourite, so one answer sets both instead of asking for the same thing twice.
+     * Every other word clears it: a bottle called Fine should not still carry a heart.
+     */
     suspend fun setRating(id: String, rating: Int?) = mutate { current ->
         current.copy(
             wines = current.wines.map {
-                if (it.id == id) it.copy(rating = rating, updatedAt = System.currentTimeMillis()) else it
-            }
-        )
-    }
-
-    suspend fun toggleFavorite(id: String) = mutate { current ->
-        current.copy(
-            wines = current.wines.map {
-                if (it.id == id) it.copy(favorite = !it.favorite, updatedAt = System.currentTimeMillis()) else it
+                if (it.id == id) it.copy(
+                    rating = rating,
+                    favorite = rating == Verdict.LOVED.rating,
+                    updatedAt = System.currentTimeMillis()
+                ) else it
             }
         )
     }

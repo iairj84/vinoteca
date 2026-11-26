@@ -1,6 +1,7 @@
 package com.wineverdict.app.data
 
 import android.content.Context
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +56,7 @@ class TasteStore(context: Context) {
             ?: TasteText.brief(_text.value, TasteText.BRIEF_MAX_CHARS)
 
     fun lovedBottles(wines: List<Wine>): List<Wine> =
-        wines.filter { it.favorite || (it.rating ?: 0) >= 4 }
+        wines.filter { Verdict.liked(it) }
             .sortedWith(
                 compareByDescending<Wine> { (it.rating ?: 0) }
                     .thenByDescending { it.favorite }
@@ -141,7 +142,7 @@ class TasteStore(context: Context) {
 
 ## Bottles I love
 <!-- AUTO:LOVED:START -->
-_No loved bottles yet. Favourite a wine or rate it 4★ or more, then rebuild this section._
+_No loved bottles yet. Call a wine Good or Loved, then rebuild this section._
 <!-- AUTO:LOVED:END -->
 
 ## Notes for the assistant

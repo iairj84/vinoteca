@@ -138,6 +138,45 @@ enum class DrinkStatus(val label: String) {
     PAST("Past peak")
 }
 
+/**
+ * What a bottle was like, in four words instead of a 1–5 count.
+ *
+ * The count was a scale the app never read: every threshold treated the number as a bucket — 4 or
+ * more was loved, 1 or 2 was disliked, 3 was silence — so 1 and 2 were the same answer, 4 and 5
+ * were the same answer, and no step between them was ever asked for. These are the four buckets
+ * the app actually has, and they store as the old numbers (1, 3, 4, 5) so a bottle rated before
+ * this change keeps its place with no migration. A stored 2 still reads as [NOT_FOR_ME]: it was one
+ * when the number was the only way to say it.
+ */
+enum class Verdict(val rating: Int, val label: String) {
+    NOT_FOR_ME(1, "Not for me"),
+    FINE(3, "Fine"),
+    GOOD(4, "Good"),
+    LOVED(5, "Loved");
+
+    companion object {
+        fun of(rating: Int?): Verdict? = when {
+            rating == null || rating < 1 -> null
+            rating <= 2 -> NOT_FOR_ME
+            rating == 3 -> FINE
+            rating == 4 -> GOOD
+            else -> LOVED
+        }
+
+        fun label(rating: Int?): String? = of(rating)?.label
+
+        /** The word for a bottle: its rating, or the old heart when nothing was ever rated. */
+        fun labelFor(wine: Wine): String? =
+            label(wine.rating) ?: if (wine.favorite) LOVED.label else null
+
+        /** Good and Loved are what the loved list, the Loved filter and the brief read. */
+        fun liked(wine: Wine): Boolean = wine.favorite || (wine.rating ?: 0) >= GOOD.rating
+
+        /** Not for me is the only "did not like it" answer. */
+        fun disliked(wine: Wine): Boolean = (wine.rating ?: 0) in 1..2
+    }
+}
+
 fun Wine.drinkStatus(currentYear: Int = Year.now().value): DrinkStatus {
     val from = drinkFrom
     val to = drinkTo

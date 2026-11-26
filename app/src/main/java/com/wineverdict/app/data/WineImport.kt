@@ -1,6 +1,7 @@
 package com.wineverdict.app.data
 
 import com.wineverdict.app.model.Placeholders
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
 import com.wineverdict.app.util.Csv
@@ -263,13 +264,24 @@ object WineImport {
         return numeric.takeIf { it in 1900..2100 }
     }
 
-    /** Vivino exports 1-5 stars; CellarTracker's Rating column is on the 100-point scale. */
+    /**
+     * Vivino exports 1-5 stars, halves included; CellarTracker's Rating column is on the 100-point
+     * scale. Both land on one of the four verdicts, so the nearest half decides the word: 4.5 and
+     * up is Loved, 3.5 up is Good, 2.5 up is Fine, and anything lower is Not for me. A 2 is stored
+     * as 1 because the app only has four answers to give.
+     */
     private fun starsOrNull(raw: String): Int? {
         val value = raw.replace(",", ".").trim().toDoubleOrNull() ?: return null
+        val stars = when {
+            value >= 1.0 && value <= 5.0 -> value
+            value >= 50.0 && value <= 100.0 -> value / 20.0
+            else -> return null
+        }
         return when {
-            value >= 1.0 && value <= 5.0 -> value.roundToInt().coerceIn(1, 5)
-            value >= 50.0 && value <= 100.0 -> (value / 20.0).roundToInt().coerceIn(1, 5)
-            else -> null
+            stars >= 4.5 -> Verdict.LOVED.rating
+            stars >= 3.5 -> Verdict.GOOD.rating
+            stars >= 2.5 -> Verdict.FINE.rating
+            else -> Verdict.NOT_FOR_ME.rating
         }
     }
 }

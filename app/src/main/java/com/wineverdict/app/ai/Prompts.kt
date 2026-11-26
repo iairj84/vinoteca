@@ -4,6 +4,7 @@ import com.wineverdict.app.data.Dish
 import com.wineverdict.app.data.GateScope
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.model.CellarData
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
 import com.wineverdict.app.model.drinkStatus
@@ -966,8 +967,9 @@ object Prompts {
                     append(" | $place")
                     if (wine.slot.isNotBlank()) append(" / ${wine.slot}")
                 }
-                wine.rating?.let { append(" | $it★") }
-                if (wine.favorite) append(" | favourite")
+                Verdict.of(wine.rating)?.let { append(" | my verdict: ${it.label}") }
+                // A heart with no word is the old way of saying the same thing; never both.
+                if (wine.favorite && wine.rating != Verdict.LOVED.rating) append(" | favourite")
                 wine.price?.let { append(" | paid ${wine.currency} ${"%.2f".format(java.util.Locale.US, it)}") }
                 if (wine.flavorTags.isNotEmpty()) {
                     append(" | flavours: ${wine.flavorTags.take(4).joinToString(", ")}")

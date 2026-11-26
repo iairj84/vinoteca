@@ -1,5 +1,6 @@
 package com.wineverdict.app.data
 
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import java.time.Instant
 import java.time.LocalDate
@@ -88,7 +89,7 @@ object PalateFile {
         blocks += "## Bottles I love"
         blocks += LOVED_START
         blocks += if (signals > 0) {
-            "_No loved bottle is listed yet — the app fills this from favourites and 4★+ ratings._"
+            "_No loved bottle is listed yet — the app fills this from the bottles you called Good or Loved._"
         } else {
             "_Nothing rated yet._"
         }
@@ -851,7 +852,8 @@ object PalateFile {
     }
 
     /**
-     * The "Bottles I love" block, rebuilt from rated and favourited wines.
+     * The "Bottles I love" block, rebuilt from the bottles called Good or Loved — and from any
+     * bottle still carrying the old favourite heart.
      *
      * A reference note is a claim about a specific bottle, so it renders only with its source and the
      * date it was retrieved. A note with no source keeps its flavour claims out of the exercise
@@ -859,14 +861,14 @@ object PalateFile {
      */
     fun lovedSection(wines: List<Wine>): String {
         val loved = wines
-            .filter { it.favorite || (it.rating ?: 0) >= 4 }
+            .filter { Verdict.liked(it) }
             .sortedWith(
                 compareByDescending<Wine> { (it.rating ?: 0) }
                     .thenByDescending { it.favorite }
                     .thenByDescending { it.updatedAt }
             )
         if (loved.isEmpty()) {
-            return "_No loved bottles yet. Favourite a wine or rate it 4★ or more, then rebuild this section._"
+            return "_No loved bottles yet. Call a wine Good or Loved, then rebuild this section._"
         }
         return loved.take(30).joinToString("\n") { wine ->
             val origin = listOf(wine.region, wine.country)

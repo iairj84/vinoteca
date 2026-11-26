@@ -1,5 +1,6 @@
 package com.wineverdict.app.data
 
+import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 
 data class GateResult(
@@ -79,7 +80,7 @@ data class PalateRules(
      */
     fun lovedConflict(wines: List<Wine>): String? {
         val broken = wines
-            .filter { it.favorite || (it.rating ?: 0) >= 4 }
+            .filter { Verdict.liked(it) }
             .firstNotNullOfOrNull { wine ->
                 checks(wine)
                     .firstOrNull { it.verdict == GateVerdict.FAIL }
