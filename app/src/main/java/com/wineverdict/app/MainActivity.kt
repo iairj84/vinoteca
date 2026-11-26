@@ -99,7 +99,16 @@ private fun AppRoot() {
             composable("cellar") {
                 CellarScreen(
                     onOpenWine = { id -> navController.navigate("wine/$id") },
-                    onAddWine = { navController.navigate("editor") }
+                    onAddWine = { navController.navigate("editor") },
+                    // Adding by name can dead-end (the web names no such wine), so the scan is one
+                    // tap away from the dialog rather than a screen the user has to find.
+                    onScan = {
+                        navController.navigate("scan") {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
                 )
             }
             composable("scan") {

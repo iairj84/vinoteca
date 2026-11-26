@@ -11,16 +11,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,13 +29,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,9 +43,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
@@ -70,20 +72,31 @@ private enum class CellarFilter(val label: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
+fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: () -> Unit) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(CellarFilter.ALL) }
 
-    // The search box is also how a bottle that is not in the cellar yet gets in: the words typed
-    // here are the query, the candidates come from the results, and the pages are read only for
-    // the one chosen.
+    // The search box above the list filters the cellar, and only the cellar. Adding a bottle that is
+    // not in it is a different question, asked by the + button: the bottle in words, one search over
+    // the result titles and snippets, a short list of the bottlings those results name, and the
+    // pages read only for the one picked.
     val scope = rememberCoroutineScope()
+    var addOpen by remember { mutableStateOf(false) }
+    var words by remember { mutableStateOf("") }
     var asked by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
     var candidates by remember { mutableStateOf<List<BottleCandidate>>(emptyList()) }
     var searchError by remember { mutableStateOf<String?>(null) }
     var adding by remember { mutableStateOf<String?>(null) }
+
+    fun closeAdd() {
+        addOpen = false
+        words = ""
+        asked = null
+        candidates = emptyList()
+        searchError = null
+    }
 
     fun lookUp(text: String) {
         val clean = text.trim()
@@ -104,6 +117,7 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
     }
 
     fun add(candidate: BottleCandidate) {
+        if (adding != null) return
         adding = candidate.key
         scope.launch {
             val wine = candidate.toWine(AppGraph.settings.currency)
@@ -132,7 +146,7 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
                 }
             }
             adding = null
-            asked = null
+            closeAdd()
             onOpenWine(id)
         }
     }
@@ -157,8 +171,8 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddWine) {
-                Icon(Icons.Filled.Add, contentDescription = "Add a wine")
+            FloatingActionButton(onClick = { addOpen = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add a bottle")
             }
         }
     ) { padding ->
@@ -184,28 +198,8 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     placeholder = { Text("Search producer, grape, region, shelf…") },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    // The same words that filter the cellar are the query for a bottle it does not
-                    // hold yet, so the keyboard's search key is the lookup.
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { lookUp(query) })
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) }
                 )
-            }
-            if (query.trim().length >= 3) {
-                item {
-                    OutlinedButton(
-                        onClick = { lookUp(query) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Filled.Search, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Find “${query.trim()}” on the web",
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
             }
             item {
                 FilterChipRow(
@@ -221,10 +215,11 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
                     EmptyState(
                         title = if (data.wines.isEmpty()) "Your cellar is empty" else "Nothing matches",
                         body = if (data.wines.isEmpty()) {
-                            "Scan a label or add a bottle by hand. Everything you record stays on this phone."
+                            "Tap + and name the bottle, scan its label, or type it in by hand. " +
+                                "Everything you record stays on this phone."
                         } else {
-                            "Nothing in the cellar matches. Look the bottle up on the web with the " +
-                                "button above, or add it by hand — everything you record stays on this phone."
+                            "No bottle in the cellar matches those words. To add one you do not " +
+                                "own yet, tap + — everything you record stays on this phone."
                         }
                     )
                 }
@@ -240,18 +235,101 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
         }
     }
 
-    asked?.let { words ->
-        AlertDialog(
-            onDismissRequest = { if (adding == null) asked = null },
-            title = { Text("Is this your bottle?") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+    if (addOpen) {
+        AddBottleDialog(
+            words = words,
+            onWords = { words = it },
+            asked = asked,
+            searching = searching,
+            candidates = candidates,
+            error = searchError,
+            adding = adding,
+            onSearch = { lookUp(words) },
+            onSearchAgain = { asked?.let { lookUp(it) } },
+            onPick = { add(it) },
+            onScan = {
+                closeAdd()
+                onScan()
+            },
+            onTypeIn = {
+                closeAdd()
+                onAddWine()
+            },
+            onClose = { if (adding == null) closeAdd() }
+        )
+    }
+}
+
+/**
+ * The way a bottle gets in when it is not in the cellar yet.
+ *
+ * It starts as one question with a text field, because the bottle is in the user's hand and the
+ * words on the label are what they know. The two fallbacks sit in the same dialog, so the choice
+ * between naming it, scanning it and typing it in is made in one place.
+ */
+@Composable
+private fun AddBottleDialog(
+    words: String,
+    onWords: (String) -> Unit,
+    asked: String?,
+    searching: Boolean,
+    candidates: List<BottleCandidate>,
+    error: String?,
+    adding: String?,
+    onSearch: () -> Unit,
+    onSearchAgain: () -> Unit,
+    onPick: (BottleCandidate) -> Unit,
+    onScan: () -> Unit,
+    onTypeIn: () -> Unit,
+    onClose: () -> Unit
+) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(if (asked == null) "Add a bottle" else "Is this your bottle?") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (asked == null) {
                     Text(
-                        "Searched for “$words”. Only the result titles and snippets were read; the " +
-                            "pages are opened for the one you pick.",
+                        "Type what the label says — the year, the producer, the bottling. One " +
+                            "search finds it and you pick the right one from the list.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = words,
+                        onValueChange = onWords,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(focus),
+                        singleLine = true,
+                        placeholder = { Text("2025 stoller rose") },
+                        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearch() })
+                    )
+                    Button(
+                        onClick = onSearch,
+                        enabled = !searching && words.trim().length >= 3,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Search, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Search")
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = onScan) { Text("Scan the label") }
+                        TextButton(onClick = onTypeIn) { Text("Type it in") }
+                    }
+                } else {
+                    Text(
+                        "Searched for “$asked”. Only the result titles and snippets were read; " +
+                            "the pages are opened for the one you pick.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -264,34 +342,43 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit) {
                             Spacer(Modifier.width(10.dp))
                             Text("Searching the web…", style = MaterialTheme.typography.bodySmall)
                         }
-                        searchError != null -> Text(searchError!!)
+                        error != null -> Column {
+                            Text(error)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(onClick = onSearchAgain) { Text("Search again") }
+                                TextButton(onClick = onTypeIn) { Text("Type it in") }
+                            }
+                        }
                         candidates.isEmpty() -> Column {
                             Text(
-                                "The results did not name that wine, so nothing was added rather " +
-                                    "than inventing a bottle."
+                                "The results did not name that wine, so nothing was added " +
+                                    "rather than inventing a bottle."
                             )
-                            TextButton(onClick = {
-                                asked = null
-                                onAddWine()
-                            }) { Text("Type it in instead") }
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(onClick = onSearchAgain) { Text("Search again") }
+                                TextButton(onClick = onScan) { Text("Scan the label") }
+                                TextButton(onClick = onTypeIn) { Text("Type it in") }
+                            }
                         }
                         else -> candidates.forEach { candidate ->
                             CandidateCard(
                                 candidate = candidate,
                                 busy = adding == candidate.key,
                                 enabled = adding == null,
-                                onClick = { add(candidate) }
+                                onClick = { onPick(candidate) }
                             )
                         }
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { asked = null }, enabled = adding == null) { Text("Close") }
             }
-        )
-    }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onClose, enabled = adding == null) {
+                Text(if (adding == null) "Close" else "Adding…")
+            }
+        }
+    )
 }
 
 @Composable

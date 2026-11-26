@@ -23,13 +23,13 @@ Gemini or Groq — with your own key.
   The answer is kept on the bottle and cached per wine, so the same bottle is never asked twice and
   a shelf that holds a wine you already know takes the explanation it already has. When the one
   request fails, the bottle page says why and offers to ask again.
-- **Add a bottle by name** — the cellar's search box is also the way in: type `2025 stoller rosé`,
-tap **Find it on the web**, and the app lists the bottlings the search results actually name —
-producer, cuvée, vintage, colour, place, grapes and, when a snippet prints one, the ABV. Pick one
-and it goes into the cellar with those facts; the published note, the drinking window and anything
-else missing are read from the pages afterwards, for that bottle only. Nothing is invented: a
-search that names no such wine adds nothing and says so, and the scan and the full editor are still
-there.
+- **Add a bottle by name** — tap **+** on the cellar and type `2025 stoller rosé`: one search, then
+  the bottlings the results actually name — producer, cuvée, vintage, colour, place, grapes and, when
+  a snippet prints one, the ABV. Pick one and it goes into the cellar with those facts; the note, the
+  drinking window and anything else missing are read from the pages afterwards, for that bottle only.
+  Nothing is invented: a search that names no such wine adds nothing and says so. **Scan the label**
+  and **Type it in** are in the same dialog. The cellar's own search box still just narrows the list
+  to bottles you own.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
   from the photo, why it earns the spot and — when a price is printed — whether that price is good,

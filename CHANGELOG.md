@@ -3,6 +3,26 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.10: the search box searches the cellar again, and + asks for the bottle
+
+**1.2.9 put the new question in the room where the old one lived.** The cellar's search box is how
+you find a bottle you own — producer, grape, region, shelf — and 1.2.9 turned it into a web lookup,
+so typing there offered to search the internet instead of narrowing the list, while the button that
+adds a bottle still opened a blank form. The box filters the rows again, exactly as before: type
+`stoller` and the cellar narrows to Stoller.
+
+**+ is where a bottle that is not in the cellar yet starts.** It now asks for the bottle in words —
+`2025 stoller rose` — runs one keyless search, reads only the titles and snippets, and lists up to
+four bottlings those results actually name, with their colour, place, grapes and any ABV a snippet
+printed. Pick one and it is added with those facts; the note, the ABV and the drinking window are
+read from the pages afterwards, for that bottle only. **Scan the label** and **Type it in** sit in
+the same dialog, and they are also offered when the search names nothing, so the two fallbacks are
+where the choice is made rather than on a screen you have to go and find.
+
+Everything 1.2.9 fixed about the lookup still holds: snippets before pages, a source the app did not
+fetch is refused, an impossible vintage or ABV is never stored, the colour comes from the result, and
+a bottle you already own gets one more bottle instead of a twin.
+
 ### 1.2.9: a bottle you can name before you own it
 
 **The search box now finds a bottle, not only a row.** Adding a bottle meant scanning it or typing
