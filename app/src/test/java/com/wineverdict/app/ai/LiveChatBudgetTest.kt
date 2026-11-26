@@ -1,6 +1,5 @@
 package com.wineverdict.app.ai
 
-import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.ChatMessage
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -33,15 +32,8 @@ class LiveChatBudgetTest {
     }
 
     private fun measure(label: String, digestLimit: Int, historyBudget: Int, key: String) {
-        val bottles = LiveGroq.wines()
-        assumeTrue("fixture did not parse", bottles.size >= 20)
-        val system = Prompts.chat(
-            LiveGroq.brief(),
-            CellarData(wines = bottles),
-            "USD",
-            rules = null,
-            digestLimit = digestLimit
-        )
+        assumeTrue("fixture did not parse", LiveGroq.wines().size >= 20)
+        val system = LiveGroq.chatSystem(digestLimit)
         // Long enough that the wide (8,000-token) window fills: an earlier run used 31 messages and
         // carried 2,300 tokens, so it never exercised the budget it was meant to test.
         val all = transcript(turns = 120) +
@@ -108,15 +100,8 @@ class LiveChatBudgetTest {
     fun rescueAfterA413() {
         val key = LiveGroq.key()
         assumeTrue("no Groq key file found; live prompts are skipped", key != null)
-        val bottles = LiveGroq.wines()
-        assumeTrue("fixture did not parse", bottles.size >= 20)
-        val system = Prompts.chat(
-            LiveGroq.brief(),
-            CellarData(wines = bottles),
-            "USD",
-            rules = null,
-            digestLimit = 140
-        )
+        assumeTrue("fixture did not parse", LiveGroq.wines().size >= 20)
+        val system = LiveGroq.chatSystem(digestLimit = 140)
         // Deliberately far past the minute: the point is to be refused, not to be realistic.
         val turns = transcript(turns = 200) +
             ChatMessage(id = "ask", role = "user", text = QUESTION)

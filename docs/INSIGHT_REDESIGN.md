@@ -270,24 +270,23 @@ through the real `chatPayload` and `chatHistory`):
 
 | history budget | digest | window | prompt | completion | outcome |
 |---|---|---|---|---|---|
-| 2,000 tokens | 55 bottles | 26 of 121 messages, 7,335 chars | **4,035** | 896 (747 reasoning) | 200, 3,613 tokens left in the minute |
-| 8,000 tokens | 140 bottles | 105 of 121 messages, 30,416 chars | — | — | **HTTP 413**: larger than the minute |
+| 2,000 tokens | 55 bottles | 26 of 121 messages, 7,335 chars | **3,908** | 794 (628 reasoning) | 200, 692 tokens left in the minute |
+| 8,000 tokens | 140 bottles | 105 of 121 messages, 30,416 chars | ~10,454 est. | — | **HTTP 413**: larger than the minute |
 
-Re-measured after the two harness copies were merged into one helper: thin gives prompt **3,908**,
-completion 824 (726 reasoning), 3,712 left in the minute. The few-hundred-character difference from
-the 4,035 above is the fixture parse, which the two old copies did slightly differently — one of the
-reasons they were merged.
+Every number here comes from one `-Plive` sweep of the merged harness, each case run on its own
+minute — `thin`, `wide` and `rescue` back to back would spend more than the 8,000-token minute and
+the later results would be 429s.
 
-The thin window is about 1,940 real tokens; chars/4 underestimates by roughly 6%, so a budget is
-slightly tighter than its name. One thin turn costs ~4,800 of the 8,000 and a second turn in the
+The thin window is about 1,925 real tokens; chars/4 underestimates by roughly 6%, so a budget is
+slightly tighter than its name. One thin turn costs ~4,700 of the 8,000 and a second turn in the
 same minute cannot fit — and trimming the history further does not buy one, because the 55-bottle
-digest is ~1,800 of the 2,096-token system prompt. The wide window is for Gemini's 250,000-token
+digest is ~1,700 of the 2,030-token system prompt. The wide window is for Gemini's 250,000-token
 minute only; on Groq it is refused outright.
 
-**Rescue measured** (`rescueAfterA413`, same harness): a 72,932-character body — 201 turns, ~17,552
-estimated tokens — came back **413**. The same conversation through `leanPayload` (8,204 chars, the
-newest turn only) answered **200**: prompt 2,311, completion 1,196 of which 1,088 was reasoning,
-5,350 tokens left in the minute. Dropping the history turns a refusal into an answer for ~44% of
+**Rescue measured** (`rescueAfterA413`, same harness): a 72,571-character body — 201 turns, ~17,462
+estimated tokens — came back **413**. The same conversation through `leanPayload` (7,843 chars, the
+newest turn only) answered **200**: prompt 2,184, completion 839 of which 681 was reasoning,
+5,485 tokens left in the minute. Dropping the history turns a refusal into an answer for ~38% of
 the minute, so the rescue is worth its retry.
 
 The window is now sized from the **thinnest configured provider**, not from the one that leads.
@@ -386,15 +385,17 @@ These supersede the steps above where they conflict.
    the model reasons at its default: at `max_tokens = 800`, **798 tokens went to reasoning, the
    answer was 0 characters**, `finish_reason=length`, and `parseContent` throws — so `judgeList`
    returns null and the judgement never lands at all. At `max_tokens = 4,000` the same prompt
-   finishes (`stop`), 2,777 reasoning tokens, 3,724 characters of answer, and `applyJudgement`
-   places 26 of 26. 4,000 is a floor, not a comfortable margin: 3,979 of it was used.
+   finished (`stop`) in one run — 2,777 reasoning tokens, 3,724 characters, 26 of 26 placed — and
+   in a later run with the merged harness spent **3,998 of the 4,000 on reasoning and returned 0
+   characters** (`finish_reason=length`). 4,000 is not a floor: it is a coin toss, because without
+   a reasoning cap the model decides how much to think and can take all of it.
    Consequence for Step 8: `Thinking.OFF` must map to something Groq accepts (or omit the field),
    and every `maxTokens` must budget for reasoning tokens.
 8. **Fixed, and re-measured.** `Thinking.OFF` now maps to `low` for Groq, and the payload adds a
    reasoning reserve to `maxTokens` (600 / 900 / 1,800 by level, ceiling 8,000). Same prompt,
-   `openai/gpt-oss-120b`, `reasoning_effort=low`, `max_tokens` 1,400: reasoning **133** tokens
-   (was 798), answer **4,115 characters** (was 0), 21 of 26 wines placed before the 1,400 ceiling
-   cut it. Omitting the field is *not* a safe alternative: the same prompt with no field spent all
+   `openai/gpt-oss-120b`, `reasoning_effort=low`, `max_tokens` 1,400, measured twice with the
+   merged harness: reasoning **87** and **133** tokens (was 798), answer **3,856** and **4,115**
+   characters (was 0), **26 of 26** and 21 of 26 wines placed before the 1,400 ceiling cut it. Omitting the field is *not* a safe alternative: the same prompt with no field spent all
    4,000 tokens on reasoning and returned nothing. Pinned by `ai/AiPayloadTest`.
 9. **Step 5's budget, shipped.** `judgeList` asks for `maxTokens = 4_000` (the payload sends 4,600
    with the reserve). `LIST_DEADLINE_MS = 130 s` applies only when the phone read the page as a

@@ -3,6 +3,7 @@ package com.wineverdict.app.ai
 import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.QuickStart
+import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
 import kotlinx.serialization.json.Json
@@ -22,7 +23,6 @@ internal data class LiveReply(
     val code: Int,
     val finish: String,
     val content: String,
-    val reasoning: String,
     val promptTokens: Int,
     val completionTokens: Int,
     val reasoningTokens: Int,
@@ -54,7 +54,7 @@ internal object LiveGroq {
      * The key is read here and nowhere else, and is never printed: it goes into the Authorization
      * header and stops there.
      */
-    fun keyFile(): File? = sequenceOf(
+    private fun keyFile(): File? = sequenceOf(
         System.getProperty("groqKeyFile"),
         System.getenv("GROQ_KEY_FILE"),
         System.getProperty("user.home") + "/.freebuff/groq.txt",
@@ -93,7 +93,6 @@ internal object LiveGroq {
                 code = res.code,
                 finish = choice?.get("finish_reason")?.jsonPrimitive?.contentOrNull.orEmpty(),
                 content = message?.get("content")?.jsonPrimitive?.contentOrNull.orEmpty(),
-                reasoning = message?.get("reasoning")?.jsonPrimitive?.contentOrNull.orEmpty(),
                 promptTokens = usage?.get("prompt_tokens")?.jsonPrimitive?.contentOrNull
                     ?.toIntOrNull() ?: 0,
                 completionTokens = usage?.get("completion_tokens")?.jsonPrimitive?.contentOrNull
@@ -118,6 +117,15 @@ internal object LiveGroq {
     )
 
     fun brief(): String = PalateFile.brief(profile())
+
+    /** The chat system prompt for a digest size, built exactly as the screen builds it. */
+    fun chatSystem(digestLimit: Int): String = Prompts.chat(
+        brief(),
+        CellarData(wines = wines()),
+        "USD",
+        rules = null,
+        digestLimit = digestLimit
+    )
 
     /** The 26-wine fixture as scanned labels, one section per wine type. */
     fun bottles(): List<ScannedLabel> {
