@@ -49,6 +49,10 @@ Gemini or Groq — with your own key.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from your favourites and 4★+ bottles. Import/export it as
   a file.
+- **Gates stand where you are standing** — a hard gate is a limit when buying, so a bottle over the
+  ceiling is left on the shelf or off the wine list. A bottle already in the cellar is read as a
+  glass: over the line it becomes a pass that says why (“drink it; not one to buy again”), and only
+  stands if the rest of the profile fails with it.
 
 ## Build
 

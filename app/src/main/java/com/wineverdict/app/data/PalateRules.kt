@@ -41,15 +41,25 @@ data class PalateRules(
     /** The four specs for this profile, in authored order, for the profile table and the engine. */
     fun specs(): List<GateSpec> = GateRegistry.specs(maxAlcohol, maxSugar)
 
-    /** All four gates, evaluated in the authored order, before anything is scored. */
-    fun verdicts(wine: Wine, dish: Dish? = null): List<GateResult> =
-        GateRegistry.evaluate(GateRow.of(wine), dish, specs())
+    /**
+     * All four gates, evaluated in the authored order, before anything is scored.
+     *
+     * [scope] decides what a hard gate means: a limit on the shelf, or advice about a bottle that is
+     * already home. Purchase is the default because that is the strict reading, and silence should
+     * never be the thing that relaxes a rule.
+     */
+    fun verdicts(
+        wine: Wine,
+        dish: Dish? = null,
+        scope: GateScope = GateScope.PURCHASE
+    ): List<GateResult> = GateRegistry.evaluate(GateRow.of(wine), dish, specs(), scope)
 
     /**
      * The projection onto the gates that carry a number the user set. A cellar page shows these as
      * the rules being enforced; a gate with no threshold is not a rule yet.
      */
-    fun checks(wine: Wine): List<GateResult> = verdicts(wine).filter { it.configured }
+    fun checks(wine: Wine, scope: GateScope = GateScope.PURCHASE): List<GateResult> =
+        verdicts(wine, scope = scope).filter { it.configured }
 
     fun verdictOf(gate: String, wine: Wine): GateVerdict =
         verdicts(wine).firstOrNull { it.gate == gate }?.verdict ?: GateVerdict.UNKNOWN
@@ -83,11 +93,15 @@ data class PalateRules(
      * One line for the cellar digest the chat prompt carries: the failures, plus an honest note when
      * the ceiling exists but the bottle cannot be checked.
      */
-    fun digestNote(wine: Wine, dish: Dish? = null): String {
+    fun digestNote(
+        wine: Wine,
+        dish: Dish? = null,
+        scope: GateScope = GateScope.PURCHASE
+    ): String {
         val notes = mutableListOf<String>()
         // A conditional pass is reported too: the model has to say the number and why, so the one
         // line it reads must carry both. Without a dish this is the same failure list as before.
-        verdicts(wine, dish)
+        verdicts(wine, dish, scope)
             .filter { it.configured && it.verdict in setOf(GateVerdict.FAIL, GateVerdict.CONDITIONAL) }
             .forEach { notes += "${it.gate} ${it.flag}: ${it.detail}" }
         if (maxAlcohol != null && wine.alcohol == null) {

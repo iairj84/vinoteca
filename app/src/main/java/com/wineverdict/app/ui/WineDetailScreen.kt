@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.InsightParsing
+import com.wineverdict.app.data.GateScope
 import com.wineverdict.app.data.GateVerdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.drinkStatus
@@ -164,7 +165,9 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             // breaks, or cannot answer — and an unknown gate is shown as unknown.
             SectionCard("Your rules") {
                 val checks = remember(wine, rules) {
-                    if (rules.isEmpty) emptyList() else rules.verdicts(wine)
+                    // A bottle on this screen is already in the cellar, so the gates read it the
+                    // way a glass does: over the ceiling is a note about buying, not a refusal.
+                    if (rules.isEmpty) emptyList() else rules.verdicts(wine, scope = GateScope.OWNED)
                 }
                 if (checks.isEmpty()) {
                     Text(

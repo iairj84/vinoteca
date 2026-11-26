@@ -3,6 +3,19 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.4: a bottle you own is drunk, not bought
+
+**The hard gate knows where it is standing.** A hard gate is a limit on the shelf: a 14.9% bottle at
+a shop or on a wine list is one to leave, and that has not changed. But the same bottle in the
+cellar was already bought and paid for, and refusing to recommend it protected nothing — it just
+meant the app would not tell you to open a bottle sitting in your own rack. The gates now evaluate
+in one of two scopes: **buying** (the shelf, the wine list, the buy-advice card, the taste-page
+counts) where a hard gate still stops a bottle, and **owned** (the bottle page and the cellar digest
+Ask reads) where a hard gate it crosses becomes a conditional pass that says so — "over the 14.5
+ceiling, above your 14.0% — you already own this bottle, so drink it; it is not one to buy again".
+The rest of the profile still has to fit: a jammy, over-alcohol bottle the user owns is still
+refused, because a hard gate is only forgiven when it is the only thing wrong.
+
 ### 1.2.3: the dish that carries, and the number the gates were missing
 
 **A follow-up keeps the dinner.** Ask read the dish from the current question only, so "what about

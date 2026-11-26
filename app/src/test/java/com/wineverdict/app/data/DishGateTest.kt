@@ -155,7 +155,10 @@ class DishGateTest {
         assertTrue(system, system.contains("G1 Alcohol conditional"))
         assertTrue(system, system.contains("The dish in this question: chicken tikka, spicy"))
 
+        // A bottle already in the cellar is read as a glass, not as a purchase: over the ceiling
+        // with no dish is still "drink it, don't buy another", not "do not open this".
         val noDish = Prompts.chat("taste", cellar, "USD", rules)
-        assertTrue(noDish, noDish.contains("G1 Alcohol fails"))
+        assertTrue(noDish, noDish.contains("G1 Alcohol conditional"))
+        assertTrue(noDish, noDish.contains("already own this bottle"))
     }
 }

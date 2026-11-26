@@ -31,6 +31,17 @@ enum class GateId(val title: String) {
 enum class Severity { HARD, SOFT }
 
 /**
+ * Where the bottle is being judged, which is not the same question twice.
+ *
+ * [PURCHASE] is the shelf, the wine list and the decision to buy: a hard gate there is a limit, and
+ * it is the whole point of having one. [OWNED] is a bottle already in the cellar: the money is
+ * spent and the glass is in front of you, so a hard gate it crosses is a reason not to buy another,
+ * never a reason to refuse the one you have. It still stands when something else in the profile
+ * fails — a jammy, over-alcohol bottle is not saved by having been bought.
+ */
+enum class GateScope { PURCHASE, OWNED }
+
+/**
  * PASS, CONDITIONAL, FAIL and UNKNOWN — four values, not a boolean.
  *
  * A [CONDITIONAL] is a pass that must print its basis ("14.2%, cool site, and there's food"). It is
@@ -276,8 +287,13 @@ object GateRegistry {
     )
 
     /** Every gate, in authored order. */
-    fun evaluate(row: GateRow, dish: Dish?, specs: List<GateSpec>): List<GateResult> =
-        specs.map { spec ->
+    fun evaluate(
+        row: GateRow,
+        dish: Dish?,
+        specs: List<GateSpec>,
+        scope: GateScope = GateScope.PURCHASE
+    ): List<GateResult> {
+        val results = specs.map { spec ->
             when (spec.id) {
                 GateId.G1_ALCOHOL -> alcohol(row, dish, spec)
                 GateId.G2_PLACE -> place(row, spec)
@@ -285,6 +301,23 @@ object GateRegistry {
                 GateId.G4_STYLE -> style(row, spec)
             }
         }
+        if (scope != GateScope.OWNED) return results
+        // The hard gate is forgiven only when it is the only thing wrong: "I'd drink it anyway" is
+        // about a bottle that otherwise fits, not about overriding the rest of the profile too.
+        val hard = specs.filter { it.severity == Severity.HARD }.map { it.title }.toSet()
+        if (results.any { it.verdict == GateVerdict.FAIL && it.gate !in hard }) return results
+        return results.map { result ->
+            if (result.verdict == GateVerdict.FAIL && result.gate in hard) {
+                result.copy(
+                    verdict = GateVerdict.CONDITIONAL,
+                    detail = "${result.detail} — you already own this bottle, so drink it; it is " +
+                        "not one to buy again"
+                )
+            } else {
+                result
+            }
+        }
+    }
 
     /**
      * FAIL removes a candidate. UNKNOWN keeps it out of the ranked picks but reports it, so an

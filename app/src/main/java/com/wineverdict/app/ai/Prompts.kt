@@ -1,6 +1,7 @@
 package com.wineverdict.app.ai
 
 import com.wineverdict.app.data.Dish
+import com.wineverdict.app.data.GateScope
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Wine
@@ -978,7 +979,9 @@ object Prompts {
                     append(" | my note: ${wine.myNotes.replace("\n", " ").take(100)}")
                 }
                 if (rules != null) {
-                    val gateNote = rules.digestNote(wine, dish)
+                    // These are bottles the user already owns: a hard gate over the line is a
+                    // reason not to buy another, not a reason to talk them out of the glass.
+                    val gateNote = rules.digestNote(wine, dish, GateScope.OWNED)
                     if (gateNote.isNotBlank()) append(" | app gate check: $gateNote")
                 }
             }
