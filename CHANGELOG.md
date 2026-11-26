@@ -3,6 +3,14 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.1: notes take spaces
+
+**Notes take spaces.** The three answers only you can give — what you loved, what you did not, what
+you are curious about — could not contain a space. The profile is rebuilt on every keystroke, and it
+trimmed the text on the way in, so a space was erased the moment it was typed and "2019 Ultreia"
+came out as "2019Ultreia". The links sentence had the same trim. Both now keep exactly what was
+typed, and `PalateFile` trims on the way out, so the file and the brief read the same as before.
+
 ### 1.2.0: the month says what it cost, and the cap holds
 
 **A spend cap, counted from real usage.** A paid key bills by the token, and the app had no idea what
