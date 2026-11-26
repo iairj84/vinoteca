@@ -41,6 +41,8 @@ class AlcoholBackfill(
         val current: String = "",
         val found: Int = 0,
         val missed: Int = 0,
+        /** Lookups that did not complete. Nothing was written, so the next run asks again. */
+        val failed: Int = 0,
         val message: String? = null
     )
 
@@ -62,6 +64,7 @@ class AlcoholBackfill(
             var found = 0
             var missed = 0
             var failures = 0
+            var failed = 0
             var problem: String? = null
             _progress.value = Progress(running = true, total = pending.size)
 
@@ -80,7 +83,11 @@ class AlcoholBackfill(
                     // Same policy as the notes backfill: a bad key fails every bottle, so stop at
                     // the first one; anything else gets three tries before giving up.
                     failures++
+                    failed++
                     problem = e.message ?: "The lookup failed."
+                    // No save: a lookup that did not answer is not an answer. The bottle stays
+                    // unstamped, so the next tap asks it again instead of recording that its ABV
+                    // is unknown when nobody looked.
                     if (e is AiException && e.fatal) break
                     if (failures >= 3) break
                     continue
@@ -94,6 +101,9 @@ class AlcoholBackfill(
                     "Looked up $done of ${pending.size}: $found with an ABV on a page, " +
                         "$missed with none found."
                 )
+                if (failed > 0) {
+                    append(" $failed did not answer and will be asked again next time.")
+                }
                 if (done < pending.size) append(" Stopped early; tap again to carry on from here.")
                 problem?.let { append("\n").append(it) }
             }
@@ -103,6 +113,7 @@ class AlcoholBackfill(
                 total = pending.size,
                 found = found,
                 missed = missed,
+                failed = failed,
                 message = summary
             )
         }
@@ -118,7 +129,11 @@ class AlcoholBackfill(
     }
 
     companion object {
-        /** Bottles the gate cannot check and this job has not already asked about. */
+        /**
+         * Bottles the gate cannot check and this job has not already answered for. A failed lookup
+         * writes nothing, so it comes back here on the next run; only a real answer — a figure, or
+         * pages read that print none — is stamped.
+         */
         fun pending(wines: List<Wine>): List<Wine> = wines.filter {
             it.alcohol == null &&
                 it.alcoholCheckedAt == 0L &&

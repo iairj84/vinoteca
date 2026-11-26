@@ -92,11 +92,9 @@ object AppGraph {
                 val found = ai.sourcedNotes(wine)
                 // A producer's own page often skips the figure; a shop's listing almost always
                 // prints it. Ask that question only when the notes pages did not answer it.
-                if (found.alcohol != null) {
-                    found
-                } else {
-                    found.copy(alcohol = runCatching { ai.abvOf(wine) }.getOrNull())
-                }
+                // A failure here is thrown, not turned into "no ABV": the backfill leaves that
+                // bottle unstamped and asks it again next time.
+                if (found.alcohol != null) found else found.copy(alcohol = ai.abvOf(wine))
             },
             save = { id, abv, result -> cellar.applyAlcoholLookup(id, abv, result) },
             scope = scope

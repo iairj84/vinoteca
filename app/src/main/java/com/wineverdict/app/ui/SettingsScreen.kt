@@ -438,7 +438,9 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     "$known of ${data.wines.size} bottles record an ABV. The alcohol gate cannot be " +
                         "checked without one: a bottle whose number is missing is not a pass and not a " +
                         "failure, it simply cannot be judged. Filling them reads the same published " +
-                        "pages the notes lookup uses and keeps what a page printed — never an estimate.",
+                        "pages the notes lookup uses and keeps what a page printed — never an estimate. " +
+                        "A lookup that does not answer is not counted against the bottle: it is " +
+                        "asked again next time.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

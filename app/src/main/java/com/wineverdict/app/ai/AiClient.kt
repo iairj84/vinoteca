@@ -248,7 +248,9 @@ class AiClient(
             wine.vintage?.let { add(it.toString()) }
             add("alcohol by volume percent")
         }.joinToString(" ")
-        val hits = runCatching { web.search(query) }.getOrNull().orEmpty()
+        // A search that could not be reached throws: "nobody answered" and "no page printed a
+        // figure" are different answers, and only the second one is worth stamping.
+        val hits = web.search(query)
         if (hits.isEmpty()) return@withContext null
         val excerpts = hits
             .take(6)

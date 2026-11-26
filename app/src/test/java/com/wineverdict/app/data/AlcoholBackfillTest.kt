@@ -1,5 +1,6 @@
 package com.wineverdict.app.data
 
+import com.wineverdict.app.ai.AiException
 import com.wineverdict.app.ai.SourcedNotes
 import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +75,32 @@ class AlcoholBackfillTest {
         assertEquals(2, progress.done)
         assertEquals(1, progress.found)
         assertEquals(1, progress.missed)
+    }
+
+    @Test
+    fun aLookupThatFailsIsNotStampedAndIsAskedAgain() {
+        var calls = 0
+        val wines = listOf(wine("a"))
+        val job = AlcoholBackfill(
+            wines = { wines },
+            lookup = {
+                calls++
+                throw AiException("The web search did not answer.")
+            },
+            save = { _, _, _ -> throw AssertionError("a failed lookup must not be written") },
+            scope = CoroutineScope(Dispatchers.Unconfined)
+        )
+
+        job.start()
+
+        assertEquals(1, calls)
+        assertEquals(1, job.progress.value.failed)
+        assertEquals(0, job.progress.value.done)
+        assertEquals(true, job.progress.value.message!!.contains("asked again"))
+
+        // Nothing was saved, so the bottle is still pending and a second run asks it again.
+        job.start()
+        assertEquals(2, calls)
     }
 
     @Test

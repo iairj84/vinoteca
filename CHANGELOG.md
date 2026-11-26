@@ -3,7 +3,7 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased: the dish carries through a conversation
+### 1.2.3: the dish that carries, and the number the gates were missing
 
 **A follow-up keeps the dinner.** Ask read the dish from the current question only, so "what about
 the second bottle" after a question about chicken tikka fell back to the stored food habit — or to
@@ -19,7 +19,9 @@ question directly against shop listings, which nearly always print it. On that c
 bottles out of 50 to 39. Only a one-decimal figure a page prints is stored — nothing is estimated, an
 out-of-range number is treated as a miss, and a miss is stamped so a second run does not pay for the
 same question. A figure already on the record always wins, and the notes that arrive with a lookup
-are kept with their pages. Two smaller fixes: an extraction whose prose was unusable no longer
+are kept with their pages. A lookup that does not answer is not an answer either: a search that
+cannot be reached now throws instead of reading as "no ABV", so the bottle stays unstamped and the
+next tap asks it again. Two smaller fixes: an extraction whose prose was unusable no longer
 throws away an ABV it had read from the same page, and the ABV job stamps itself separately from the
 notes check so neither blocks the other.
 
