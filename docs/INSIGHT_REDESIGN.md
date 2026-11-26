@@ -601,12 +601,21 @@ shows `on-device OCR · 0 chars · failed` and then a ranking from the read's ow
 That is the app's best answer withheld from the page it is best at, because a different component was
 missing.
 
-**What changed.** `judgeList(read, fallback)` runs for a list the model read as well, under the same
-budget rules — `remainingMs() > 15_000` before the call, the `ADVICE_DEADLINE_MS` extension, the 60 s
-cap — and the same single retry for a 503 inside `adviceAnswer`. What is deliberately not copied is the
-fallback: a model-read list already carries its own order from the read, so a second 4,000-token
-`listJudge` call would buy a ranking that is already on screen. The phone path keeps it, because a
-failed answer there leaves no ranking at all.
+**What changed.** `judgeList(read, rankIfUnanswered)` runs for a list the model read as well, under the
+same budget rules — `remainingMs() > 15_000` before the call, the 60 s cap — and the same single retry
+for a 503 inside `adviceAnswer`. The deadline now moves out to `ADVICE_DEADLINE_MS` inside
+`adviceAttempt` itself, so the rule is written once, at the call that needs the longer window: a page
+that had to be read first must not fail on the budget the read was given. What is deliberately not
+copied is the ranking call: a model-read list already carries its own order, so a second 4,000-token
+`listJudge` would buy a ranking that is already on screen. The phone path keeps it, because a failed
+answer there leaves no ranking at all.
+
+**Reviewed, same day — no double call.** The two advice hooks are now one guard and one `when` on the
+scene, so only one of them can fire per scan. The list hook's `onPhone == null` is exactly "the list
+answer has not been asked yet": the phone branch always asks it first, so there is no path that asks
+twice, and a page that fell through to the model's read has already spent both its attempts. The one
+case left without advice is the intended one — OCR worked, the answer failed twice, and a third
+4,000-token call in the same free-tier minute would only 429.
 
 **Measured, 2026-11-26** (emulator, real Gemini key, the 26-wine `wine-list.png` picked from the
 gallery): `on-device OCR · ML Kit · 0 chars · failed` → `read the page · Gemini · 5,673 chars ·
@@ -614,7 +623,9 @@ gallery): `on-device OCR · ML Kit · 0 chars · failed` → `read the page · G
 `Order this` (Vall Llach 'Embruix'), `Second`, `Third` ('Stimatum' Akoi…), a `By the glass` card
 (Olabarri Reserva, `USD 58.00 bottle · USD 15.00 glass`), `Skip` with its reason, and the note about
 the Tondonia magnum. No retry row: the first attempt answered. The same photo previously produced
-"Basic ranking" and no picks at all.
+"Basic ranking" and no picks at all. Run again after the review refactor: `read the page · Gemini ·
+5,726 chars · 8.4 s` → one `advice` row, `1,721 chars · 5.2 s`, block rendered — the refactor is
+behaviour-neutral, and the panel showed a single advice row (no retry) both times.
 
 Not verified: the advice *failing* on the model path — no 503 arrived in this run, so the retry and
 the no-fallback branch are code paths only; the phone-read path on hardware with working OCR; and Groq

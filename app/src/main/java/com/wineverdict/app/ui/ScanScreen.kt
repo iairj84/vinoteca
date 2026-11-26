@@ -455,6 +455,10 @@ fun ScanScreen(onReview: () -> Unit) {
                 // One attempt, with its own row in the panel: a retried call has to show as two
                 // requests, or the panel reports a length that came from neither of them.
                 suspend fun adviceAttempt(label: String, system: String, turn: String): String {
+                    // The advice is the expensive call, so it is also the one that moves the scan's
+                    // deadline out: a page that had to be read first must not fail on the budget the
+                    // read was given, and the per-wine ranking that may follow it needs the room too.
+                    deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
                     val start = System.currentTimeMillis()
                     var who = ""
                     var model = ""
@@ -513,20 +517,16 @@ fun ScanScreen(onReview: () -> Unit) {
                     }
 
                 /**
-                 * The list answer, for a list the phone read *and* for one the model read.
+                 * The list answer, for a list the phone read and for one the model read: the OCR
+                 * module is missing on some devices, and a legible list must not go unanswered
+                 * because a different component was.
                  *
-                 * The advice used to be reached only through the on-device OCR pass. That pass needs
-                 * the ML Kit text module, which some devices (and this project's emulator) do not
-                 * have, so a legible list could come back ranked and unexplained — the app's best
-                 * answer for exactly the page it is best at, withheld because a different component
-                 * was missing.
-                 *
-                 * [fallback] is the per-wine ranking call. The phone path has no ranking of its own,
-                 * so a failed answer leaves it with nothing and the fallback earns its 4,000 tokens.
-                 * A list the model read already carries the model's own order from the read, so a
-                 * second call there would buy a ranking that is already on screen.
+                 * [rankIfUnanswered] is the per-wine ranking call. The phone path has no ranking of
+                 * its own, so a failed answer leaves it with nothing and the call earns its 4,000
+                 * tokens. A model-read list already carries its own order, so there it would buy a
+                 * ranking that is already on screen.
                  */
-                suspend fun judgeList(read: SceneScan, fallback: Boolean = true): SceneScan? {
+                suspend fun judgeList(read: SceneScan, rankIfUnanswered: Boolean): SceneScan? {
                     var judgeWho = ""
                     var judgeModel = ""
                     val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
@@ -552,7 +552,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             adviceTimedOut || (failure as? AiException)?.let {
                                 it.retryable || it.retryAfterMs != null
                             } == true
-                        if (budget || !fallback) return null
+                        if (budget || !rankIfUnanswered) return null
                     }
 
                     val fallbackStart = System.currentTimeMillis()
@@ -774,7 +774,7 @@ fun ScanScreen(onReview: () -> Unit) {
                     // A bottle the phone could not read never arrives here — it takes the vision
                     // path below, unchanged.
                     stage = "Thinking about the list…"
-                    parsed = judgeList(onPhone)
+                    parsed = judgeList(onPhone, rankIfUnanswered = true)
                     if (parsed != null) {
                         scan = parsed
                         localOnly = false
@@ -831,29 +831,26 @@ fun ScanScreen(onReview: () -> Unit) {
                     parsed = readJson()?.takeIf { it.bottles.isNotEmpty() }
                 }
 
-                // A shelf is worth one question more than a read: which of these to buy, and
-                // whether the printed price is any good. Asked after every path so a shelf the
-                // model read gets the same answer a list does; skipped with no time to hear it.
-                val shelf = parsed
-                if (shelf != null && shelf.scene == Scene.SHELF && shelf.bottles.size > 1 &&
-                    remainingMs() > 15_000L
-                ) {
-                    stage = "Picking from the shelf…"
-                    deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
-                    judgeShelf(shelf)?.let { parsed = it }
-                }
-
-                // A list the model read gets the same answer the phone path gets. Without this the
-                // advice was gated on the phone's OCR: no module, no advice, however legible the
-                // page. Its own read order stands in for the fallback, so only the advice call —
-                // with its one retry for a 503 and its own deadline — is spent here.
-                val list = parsed
-                if (list != null && list.scene == Scene.LIST && list.bottles.size > 1 &&
-                    onPhone == null && remainingMs() > 15_000L
-                ) {
-                    stage = "Thinking about the list…"
-                    deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
-                    judgeList(list, fallback = false)?.let { parsed = it }
+                // A shelf or a list is worth one question more than a read: what to buy or order,
+                // and whether the printed price is any good. Asked after every path, so a page the
+                // model read gets the same answer one the phone read does; skipped with no time left
+                // to hear it.
+                val shop = parsed
+                if (shop != null && shop.bottles.size > 1 && remainingMs() > 15_000L) {
+                    when (shop.scene) {
+                        Scene.SHELF -> {
+                            stage = "Picking from the shelf…"
+                            judgeShelf(shop)?.let { parsed = it }
+                        }
+                        // `onPhone` is also the record of whether the list answer was asked: that
+                        // branch always asks it first, so a page that fell through to the model's
+                        // read has already spent both its attempts. Its read order is on screen.
+                        Scene.LIST -> if (onPhone == null) {
+                            stage = "Thinking about the list…"
+                            judgeList(shop, rankIfUnanswered = false)?.let { parsed = it }
+                        }
+                        else -> Unit
+                    }
                 }
 
                 if (parsed == null) {
@@ -871,14 +868,15 @@ fun ScanScreen(onReview: () -> Unit) {
                 // A bottle that only came out of the fallback read still gets the small print.
                 // Skipped when the parallel pass above already asked for it, or when the scan
                 // budget is nearly spent: no scan takes minutes.
-                val only = parsed?.bottles?.singleOrNull()
-                if (!finePrinted && parsed != null && only != null &&
+                val current = parsed
+                val only = current?.bottles?.singleOrNull()
+                if (!finePrinted && current != null && only != null &&
                     (only.wine.alcohol == null || only.wine.vintage == null) &&
                     remainingMs() > 10_000L
                 ) {
                     val fine = cropDeferred.await()?.let { readFinePrint(it) }
                     if (fine != null) {
-                        parsed = parsed.copy(bottles = listOf(only.withFinePrint(fine)))
+                        parsed = current.copy(bottles = listOf(only.withFinePrint(fine)))
                     }
                 }
 
