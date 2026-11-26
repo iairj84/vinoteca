@@ -107,6 +107,19 @@ class AiClient(
             imageBase64?.takeIf { it.isNotBlank() }?.let { add(it) }
             imagesBase64.filter { it.isNotBlank() }.forEach { add(it) }
         }
+        // The month's money is checked before anything is built: a cap that only warns is a
+        // suggestion, and this one is meant to hold a dollar. An uncapped meter (limit 0) never
+        // blocks, so a user who wants no cap is not punished for it.
+        val spent = settings.spend.total()
+        if (spent.blocked) {
+            throw AiException(
+                "This month's spend limit is used: ${spent.spent} of ${spent.limit}. Nothing was " +
+                    "sent. Raise the limit in Settings, or it starts again on " +
+                    "${spent.month.plusMonths(1)}.",
+                fatal = true
+            )
+        }
+
         val targets = resolveTargets(provider, model, vision, job)
         if (targets.isEmpty()) {
             throw AiException(
@@ -484,6 +497,9 @@ class AiClient(
                 )
             }
             limiter.record(limitKey, headers)
+            // Billed whether or not the answer parses, so the usage is recorded before the
+            // content is read; a reply cut off by the token budget still costs its tokens.
+            recordUsage(target, body)
             parseContent(target.provider, body)
         }
     }
@@ -529,6 +545,22 @@ class AiClient(
             ?.toDoubleOrNull()
             ?.let { return (it * 1000).toLong() }
         return RateLimiter.parseDurationMillis(res.header("x-ratelimit-reset-tokens"))
+    }
+
+    /**
+     * Adds what this answer cost to the month's total, from the provider's own counts.
+     *
+     * Every OpenAI-compatible provider returns `usage` on a successful answer. A provider that
+     * does not is left uncounted rather than estimated: the cap is the one number that must not be
+     * fiction.
+     */
+    private fun recordUsage(target: Target, body: String) {
+        val usage = runCatching {
+            Json.parseToJsonElement(body).jsonObject["usage"]?.jsonObject
+        }.getOrNull() ?: return
+        val input = usage["prompt_tokens"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: return
+        val output = usage["completion_tokens"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
+        settings.spend.add(target.provider, target.model, input, output)
     }
 
     private fun parseContent(provider: AiProvider, body: String): String {

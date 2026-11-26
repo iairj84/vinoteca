@@ -49,6 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -62,11 +63,15 @@ import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupFile
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.SettingsStore
+import com.wineverdict.app.data.SpendMeter
 import com.wineverdict.app.data.Updater
 import com.wineverdict.app.data.WineImport
 import com.wineverdict.app.model.StorageLocation
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -277,6 +282,8 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            SpendSection()
+
             SectionCard("Which provider runs first") {
                 Text(
                     "Questions and scans go to the first provider that has a key, and fall back to the other when it is rate-limited or fails. The batch queue spreads frames across every provider with a key.",
@@ -850,6 +857,114 @@ private fun draftOf(settings: SettingsStore, provider: AiProvider): ProviderDraf
     advice = settings.adviceModels(provider).joinToString(", "),
     rpm = settings.requestsPerMinute(provider).toString()
 )
+
+/** Amber, for "nearly at the cap": loud enough to read, not the red of "refused". */
+private val WarnAmber = Color(0xFFB26A00)
+
+/**
+ * The month's spend, counted from what the providers said each answer cost.
+ *
+ * It sits first in Settings because it is the one number that answers "what is this costing me?",
+ * and because the cap it enforces is silent until it fires: a warning at 80% is the only chance the
+ * reader gets to raise the limit before a scan is refused.
+ */
+@Composable
+private fun SpendSection() {
+    var tick by remember { mutableStateOf(0) }
+    var limitText by remember { mutableStateOf(centsText(AppGraph.settings.spend.limitCents)) }
+    // Other screens add to the meter while this one is open (a batch scan, a backfill of notes),
+    // so the figure is re-read rather than frozen at the moment Settings was opened.
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(2_000)
+            tick++
+        }
+    }
+    val total = remember(tick) { AppGraph.settings.spend.total() }
+
+    SectionCard("Spend this month") {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "${total.spent} of ${total.limit}",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                "${total.percent}%",
+                style = MaterialTheme.typography.titleMedium,
+                color = when {
+                    total.blocked -> MaterialTheme.colorScheme.error
+                    total.warning -> WarnAmber
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+        }
+        LinearProgressIndicator(
+            progress = { total.fraction },
+            modifier = Modifier.fillMaxWidth(),
+            color = when {
+                total.blocked -> MaterialTheme.colorScheme.error
+                total.warning -> WarnAmber
+                else -> MaterialTheme.colorScheme.primary
+            }
+        )
+        Text(
+            when {
+                total.blocked ->
+                    "The limit is used, so nothing more is sent until ${total.month.plusMonths(1)} " +
+                        "or until you raise it here."
+                total.warning ->
+                    "${SpendMeter.WARN_PERCENT}% used — ${total.remaining} left this month. " +
+                        "Requests are refused once it is gone."
+                total.limitNanos == 0L ->
+                    "No limit set. Scans and questions are sent whatever this month has cost."
+                else ->
+                    "${total.remaining} left this month. A label scan is about a third of a cent; " +
+                        "the meter counts the tokens each answer reports, at the model's listed price."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = when {
+                total.blocked -> MaterialTheme.colorScheme.error
+                total.warning -> WarnAmber
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
+            }
+        )
+        Text(
+            "${thousands(total.inputTokens)} tokens in · ${thousands(total.outputTokens)} out",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline
+        )
+        OutlinedTextField(
+            value = limitText,
+            onValueChange = { typed ->
+                limitText = typed.filter { it.isDigit() || it == '.' }.take(7)
+            },
+            label = { Text("Monthly limit (\$)") },
+            supportingText = { Text("0 means no limit") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Button(
+            onClick = {
+                val cents = ((limitText.toDoubleOrNull() ?: 0.0)
+                    .coerceIn(0.0, SpendMeter.MAX_LIMIT_CENTS / 100.0) * 100).roundToInt()
+                AppGraph.settings.spend.limitCents = cents
+                limitText = centsText(cents)
+                tick++
+            }
+        ) {
+            Text("Save limit")
+        }
+    }
+}
+
+private fun centsText(cents: Int): String = String.format(Locale.US, "%.2f", cents / 100.0)
+
+private fun thousands(value: Long): String = String.format(Locale.US, "%,d", value)
 
 @Composable
 private fun ProviderCard(

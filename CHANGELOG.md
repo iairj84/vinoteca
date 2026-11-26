@@ -5,6 +5,16 @@ Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
 ### Unreleased
 
+**A spend cap, counted from real usage.** A paid key bills by the token, and the app had no idea what
+it had spent: the only place to find out was the provider's console, after the fact. Every answer
+now has its `usage` counts priced at the answering model's published rate and added to a
+month-to-date total, shown first in Settings against a monthly limit that starts at $1.00 and is
+editable in the same card. At 80% the card turns amber and says how much is left; at the limit the
+request is refused before anything is sent, with the date it resets and where to raise it. A limit
+of 0 removes the cap, free models add tokens to the count but nothing to the total, and a provider
+that reports no usage is left uncounted rather than estimated. The month rolls over on its own and
+last month's total is kept.
+
 **What a scan costs, in numbers.** The Gemini card in Settings described only what the free tier
 allowed, which read as though a paid key changed nothing but the bill. It now says both: the paid
 tier allows far more requests a minute (raise the setting for batch testing), a label scan costs

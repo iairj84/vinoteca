@@ -1,6 +1,7 @@
 package com.wineverdict.app.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.wineverdict.app.ai.AiProvider
 
 /**
@@ -134,6 +135,9 @@ class SettingsStore(context: Context) {
             .putString(KEY_CURRENCY, value.trim().uppercase().ifBlank { DEFAULT_CURRENCY })
             .apply()
 
+    /** What the month has cost so far, counted from the token usage providers report. */
+    val spend = SpendMeter(PreferenceCounters(prefs))
+
     private fun name(slot: String, provider: AiProvider): String = "$slot.${provider.id}"
 
     private fun list(key: String, fallback: List<String>): List<String> =
@@ -159,5 +163,17 @@ class SettingsStore(context: Context) {
         private const val LEGACY_MODEL_LIST = "model_list"
 
         const val DEFAULT_CURRENCY = "USD"
+    }
+}
+
+private class PreferenceCounters(private val prefs: SharedPreferences) : SpendCounters {
+    override fun getLong(key: String, fallback: Long): Long = prefs.getLong(key, fallback)
+    override fun putLong(key: String, value: Long) {
+        prefs.edit().putLong(key, value).apply()
+    }
+
+    override fun getInt(key: String, fallback: Int): Int = prefs.getInt(key, fallback)
+    override fun putInt(key: String, value: Int) {
+        prefs.edit().putInt(key, value).apply()
     }
 }

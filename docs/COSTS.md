@@ -82,3 +82,24 @@ about $0.66 on its own.
 4. **Don't ask for the recheck** unless a read disagrees with itself; it nearly doubles a scan.
 5. **Lists dominate.** One wine list costs as much as two labels because the advice call thinks
    through 26 wines. That is the right place to spend: one list replaces twenty label scans.
+
+## The cap
+
+`data/SpendMeter.kt` turns the table above into an actual budget. Every successful answer carries
+`usage.prompt_tokens` and `usage.completion_tokens`; `AiClient` reads them and prices them at the
+answering model's rate, so the number is what was billed, not what was estimated. Money is kept in
+nano-dollars — $0.25 per million tokens is exactly 250 nano-dollars a token — in per-month keys, so
+correctness does not drift as calls accumulate and a new month starts from zero on its own.
+
+- **Default limit**: $1.00, editable in Settings → Spend this month. `0` means no limit.
+- **80%**: the card turns amber and states what is left. Nothing else changes yet.
+- **At the limit**: `AiClient.complete` refuses before building a request, so nothing is sent and
+  nothing is billed. The message names the spend, the limit and the first of next month.
+- **Free models**: tokens are counted, cost is zero — the free tier's usage stays visible without
+  pretending it is money.
+- **Unpriced**: a model outside the table is billed as Flash-Lite, the app's default class; a
+  provider that returns no `usage` is not guessed at at all.
+
+One thing the meter does not cover: Groq with a paid account. Its free tier is what the app
+documents, and counting it as free keeps the total honest for the default configuration; a paid Groq
+bill would be invisible here. Gemini is where the cap does its work.

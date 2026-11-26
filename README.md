@@ -189,6 +189,18 @@ faster and more reliable without the model talking itself out of it. The **Ask**
 asks for `"medium"` on either provider and its output cap is raised to leave room, since thinking is
 billed as completion tokens. A model that rejects the field gets one plain retry without it.
 
+**What it costs, and the cap that holds it.** A paid Gemini key bills by the token, so the app
+counts what it spends. Every answer carries the provider's own `usage` counts, and those are priced
+at the answering model's published rate (the table lives in `data/SpendMeter.kt`) and added to a
+running total for the calendar month: about a third of a cent for a label scan, half a cent for a
+restaurant list, a sixth of a cent for a question. **Settings → Spend this month** shows that total
+against a limit, which defaults to **$1.00** and is editable; at 80% the card turns amber, and at the
+limit requests are refused with a message that says so rather than leaving the screen guessing. Set
+the limit to `0` to remove the cap. Only models that cost money are priced: `:free` models, and
+Groq's and OpenRouter's free tiers, add tokens to the count but nothing to the total. A provider
+that reports no usage is not guessed at. The numbers behind the per-operation figures are measured
+and recorded in `docs/COSTS.md`.
+
 Free-tier notes worth knowing: Gemini may use free-tier content to improve its products (paid tiers
 do not); Groq's limits are per model, so listing two vision models doubles both throughput and the
 daily cap. Because the cellar summary and taste file are sent with each question, long questions cost
