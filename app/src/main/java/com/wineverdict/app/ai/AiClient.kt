@@ -249,6 +249,36 @@ class AiClient(
     }
 
     /**
+     * The bottlings a few typed words name, before any page has been read.
+     *
+     * The user's own words are the query — "2025 stoller rose" — and one keyless search plus one
+     * extraction over its titles and snippets answer with the wines those results actually name.
+     * Nothing is opened here: a page read is the expensive half and is spent only for the bottle
+     * the user picks, through the ordinary details lookup. An empty list is a real answer.
+     */
+    suspend fun findBottlings(query: String): List<BottleCandidate> = withContext(Dispatchers.IO) {
+        val clean = query.trim().replace(Regex("\\s+"), " ").take(120)
+        if (clean.count { it.isLetterOrDigit() } < 3) {
+            throw AiException("Type at least three characters of the wine's name.")
+        }
+        val hits = web.search(clean)
+        if (hits.isEmpty()) {
+            throw AiException(
+                "The web search had nothing for \"$clean\". Type the bottle in, or scan its label."
+            )
+        }
+        val answer = complete(
+            system = BottleSearch.prompt(clean),
+            turns = listOf(ChatMessage(role = "user", text = BottleSearch.evidence(hits))),
+            jsonMode = true,
+            thinking = Thinking.OFF,
+            temperature = 0.2,
+            maxTokens = 1000
+        )
+        BottleSearch.parse(answer, hits.map { it.url })
+    }
+
+    /**
      * The ABV alone, for a bottle whose pages were read but never printed one.
      *
      * The notes lookup reads whatever page answers "tasting notes", and a producer's page often

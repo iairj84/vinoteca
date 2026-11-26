@@ -3,6 +3,29 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.9: a bottle you can name before you own it
+
+**The search box now finds a bottle, not only a row.** Adding a bottle meant scanning it or typing
+nineteen fields, and then leaving the screen for Settings to ask for the rest — with the phone in
+one hand and the wine in the other that is a form, and without the bottle it is a form filled from
+memory. The cellar's search box is now also the way in: type `2025 stoller rose` and **Find it on
+the web** asks one keyless search, then one extraction over the result titles and snippets, and
+returns up to four bottlings to choose between. Pick one and it is added with the colour, place and
+grapes the results named; the note, the ABV and the drinking window are read from the pages
+*afterwards*, for that bottle only.
+
+**Snippets first, pages once.** Opening pages is the expensive half, so nothing is opened until you
+have chosen: the candidates are built from the same search results the model is shown, a source the
+app did not fetch is refused, and a vintage or an ABV outside the range a wine can actually have is
+never stored. A result about a different vintage is a different entry, not a detail of the one you
+wanted. When the results name no such wine the answer is an empty list and the app says so — it does
+not invent a bottle.
+
+**Two things this fixes on the way.** The colour comes from the result instead of the default, so a
+rosé added by name is not stored as a red; and a bottle the cellar already holds gets one more
+bottle on the existing record rather than a twin. Scanning the label and typing every field in both
+stay as they were.
+
 ### 1.2.8: an imported bottle stops being called "Unknown"
 
 **The word came from the spreadsheet, not the wine.** A CSV's Designation column is never empty —

@@ -23,6 +23,13 @@ Gemini or Groq — with your own key.
   The answer is kept on the bottle and cached per wine, so the same bottle is never asked twice and
   a shelf that holds a wine you already know takes the explanation it already has. When the one
   request fails, the bottle page says why and offers to ask again.
+- **Add a bottle by name** — the cellar's search box is also the way in: type `2025 stoller rosé`,
+tap **Find it on the web**, and the app lists the bottlings the search results actually name —
+producer, cuvée, vintage, colour, place, grapes and, when a snippet prints one, the ABV. Pick one
+and it goes into the cellar with those facts; the published note, the drinking window and anything
+else missing are read from the pages afterwards, for that bottle only. Nothing is invented: a
+search that names no such wine adds nothing and says so, and the scan and the full editor are still
+there.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
   from the photo, why it earns the spot and — when a price is printed — whether that price is good,
@@ -414,6 +421,9 @@ this avoids a database and its migration surface entirely.
   exposes the model lists and **Test connection** lists what the key can reach.
 - No cloud sync, no accounts, no multi-device support. Move a cellar between phones with the backup
   file.
+- **Adding a bottle by name** depends on the web results naming it: an obscure wine with no page, or
+a search that returns shops selling something else, comes back with nothing added. The app says so
+  rather than guessing — that is when the label scan or the editor is the right tool.
 - The app was compiled and packaged in a Linux VM; the screens were later rendered on an Android 14
   emulator (Pixel 6 AVD `vinoteca-test`, light and dark), so the layout has been looked at. No real
   phone run is recorded here, and the emulator's camera is a synthetic scene, so camera capture and
