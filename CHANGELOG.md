@@ -42,6 +42,14 @@ is gone from list cards (a shelf and a single bottle keep it); a ranked line kee
 line that breaks one of your limits still says why. When the advice answer did not come back, the
 older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
 
+**A long chat answers when Groq takes over, instead of failing.** The history window was sized from
+the provider leading the chat, so with both keys configured a long conversation sent 8,000 tokens
+of history to Gemini — and when Gemini was rate limited and Groq answered, Groq refused the whole
+request (HTTP 413, measured) because its free minute is 8,000 tokens in total. Both numbers are now
+sized from the thinnest provider configured: with a Groq key present the chat sends the 2,000-token
+window and the 55-bottle digest, on Gemini too. That is less context on the lead, paid deliberately
+so the fallback can actually answer.
+
 **The chat carries a window measured in tokens, not in messages.** Every turn resends the recent
 conversation, and that window used to be "the last twelve messages" — a count, which says nothing
 about size. Twelve long answers, plus the cellar digest and a 2,500-token reply, do not fit Groq's

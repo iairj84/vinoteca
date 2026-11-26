@@ -279,10 +279,12 @@ same minute cannot fit — and trimming the history further does not buy one, be
 digest is ~1,800 of the 2,096-token system prompt. The wide window is for Gemini's 250,000-token
 minute only; on Groq it is refused outright.
 
-One consequence worth deciding on: the window is sized from the provider that leads the chat, so a
-user with both keys gets 8,000 tokens of history on Gemini and, if Gemini is rate limited and Groq
-answers, a 413 rather than an answer. Sizing from the thinnest configured provider would make the
-fallback work at the cost of context on the lead.
+The window is now sized from the **thinnest configured provider**, not from the one that leads.
+Sized from the lead, a dual-key install sent 8,000 tokens of history to Gemini and, when Gemini was
+rate limited and Groq answered, got a 413 instead of an answer. The cost is context on the lead — a
+dual-key install always sends the thin window — and it is paid deliberately: an answer with less
+history beats a 413. `chatBudget` holds both numbers (history and digest) so they cannot drift
+apart, and a test pins the dual-key case.
 
 **Follow-up** (`AiJob`, after `b138047`). The chat did not keep that order. A chat turn resends the
 brief, the cellar and every earlier message at 2,500 tokens of headroom, so two or three turns

@@ -10,7 +10,9 @@ import org.junit.Test
  *
  * The stored transcript is capped at 60 messages by the chat repository, and the request used to cap
  * itself at the last 12 — a count, not a size. These pin the size: what goes is the oldest turn,
- * what stays is the previous answer, and the question is never trimmed.
+ * what stays is the previous answer, and the question is never trimmed. They also pin the budget's
+ * source, because sizing it from the lead provider made a fallback request the fallback cannot
+ * carry.
  */
 class ChatHistoryTest {
 
@@ -56,6 +58,29 @@ class ChatHistoryTest {
     fun aGenerousBudgetKeepsEverything() {
         val turns = (1..12).map { message("user", 100, "$it") }
         assertEquals(12, chatHistory(turns, budgetTokens = 8_000).size)
+    }
+
+    @Test
+    fun aDualKeyChatIsSizedForTheFallback() {
+        // Gemini leads the chat and Groq is the fallback, and the fallback receives the same body:
+        // 8,000 tokens of history is a 413 there, so the request is sized for the thinner minute.
+        val budget = chatBudget(listOf(AiProvider.GEMINI, AiProvider.GROQ))
+        assertEquals(2_000, budget.historyTokens)
+        assertEquals(55, budget.digestLimit)
+    }
+
+    @Test
+    fun aWideOnlyInstallKeepsTheLongWindow() {
+        assertEquals(8_000, chatBudget(listOf(AiProvider.GEMINI)).historyTokens)
+        assertEquals(140, chatBudget(listOf(AiProvider.GEMINI)).digestLimit)
+        assertEquals(8_000, chatBudget(listOf(AiProvider.OPENROUTER)).historyTokens)
+    }
+
+    @Test
+    fun aThinOnlyInstallGetsTheShortWindow() {
+        assertEquals(2_000, chatBudget(listOf(AiProvider.GROQ)).historyTokens)
+        // No key at all: no request, and the smaller budget is the safe reading.
+        assertEquals(2_000, chatBudget(emptyList()).historyTokens)
     }
 
     @Test

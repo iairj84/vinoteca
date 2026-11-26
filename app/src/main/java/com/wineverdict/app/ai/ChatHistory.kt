@@ -8,6 +8,34 @@ private const val CHARS_PER_TOKEN = 4
 /** Role, separators and the rest of a chat turn's framing. */
 private const val MESSAGE_OVERHEAD = 4
 
+/** A minute wide enough to carry a long conversation: Gemini's 250,000 tokens. */
+private const val WIDE_MINUTE_TOKENS = 100_000
+private const val WIDE_HISTORY_TOKENS = 8_000
+private const val THIN_HISTORY_TOKENS = 2_000
+private const val WIDE_DIGEST_BOTTLES = 140
+private const val THIN_DIGEST_BOTTLES = 55
+
+/** What one chat request may carry. */
+internal data class ChatBudget(val historyTokens: Int, val digestLimit: Int)
+
+/**
+ * How much to send, given who could answer.
+ *
+ * Sized from the thinnest provider in the list, not the one that leads. The fallback receives the
+ * same body, so a window that only the lead can afford is a window the fallback chokes on: an
+ * 8,000-token history is comfortable on Gemini's 250,000-token minute and a 413 on Groq's 8,000,
+ * which is what a long chat on Gemini used to get when Groq took over. Measured on Groq at a
+ * 121-message conversation: 2,000 tokens of history is a 4,035-token prompt that answers, 8,000 is
+ * refused outright.
+ */
+internal fun chatBudget(providers: Collection<AiProvider>): ChatBudget =
+    // No configured provider means no request, and the smaller budget is the safe answer.
+    if (providers.isNotEmpty() && providers.all { it.tokenBudgetPerMinute >= WIDE_MINUTE_TOKENS }) {
+        ChatBudget(historyTokens = WIDE_HISTORY_TOKENS, digestLimit = WIDE_DIGEST_BOTTLES)
+    } else {
+        ChatBudget(historyTokens = THIN_HISTORY_TOKENS, digestLimit = THIN_DIGEST_BOTTLES)
+    }
+
 /** What one message costs the prompt, before the caller strips its image. */
 internal fun tokensOf(message: ChatMessage): Int =
     message.text.length / CHARS_PER_TOKEN + MESSAGE_OVERHEAD
