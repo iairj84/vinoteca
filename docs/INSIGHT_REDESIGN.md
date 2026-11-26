@@ -273,6 +273,11 @@ through the real `chatPayload` and `chatHistory`):
 | 2,000 tokens | 55 bottles | 26 of 121 messages, 7,335 chars | **4,035** | 896 (747 reasoning) | 200, 3,613 tokens left in the minute |
 | 8,000 tokens | 140 bottles | 105 of 121 messages, 30,416 chars | — | — | **HTTP 413**: larger than the minute |
 
+Re-measured after the two harness copies were merged into one helper: thin gives prompt **3,908**,
+completion 824 (726 reasoning), 3,712 left in the minute. The few-hundred-character difference from
+the 4,035 above is the fixture parse, which the two old copies did slightly differently — one of the
+reasons they were merged.
+
 The thin window is about 1,940 real tokens; chars/4 underestimates by roughly 6%, so a budget is
 slightly tighter than its name. One thin turn costs ~4,800 of the 8,000 and a second turn in the
 same minute cannot fit — and trimming the history further does not buy one, because the 55-bottle

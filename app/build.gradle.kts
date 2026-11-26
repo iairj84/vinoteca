@@ -77,6 +77,20 @@ android {
     }
 }
 
+/*
+ * The live instruments (LiveListJudgeTest, LiveChatBudgetTest) talk to Groq and spend real
+ * free-tier quota, so the default test task leaves them out: `:app:testDebugUnitTest` stays offline
+ * and repeatable. Run them on purpose, one class at a time if quota is tight:
+ *
+ *     ./gradlew :app:testDebugUnitTest -Plive
+ *     ./gradlew :app:testDebugUnitTest -Plive --tests "*LiveChatBudgetTest.thinBudgetOnGroq"
+ */
+tasks.withType<Test>().configureEach {
+    if (!providers.gradleProperty("live").isPresent) {
+        exclude("**/Live*Test.class")
+    }
+}
+
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.09.03"))
     implementation("androidx.core:core-ktx:1.13.1")

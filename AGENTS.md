@@ -19,11 +19,16 @@ JDK 17 and the Android SDK (platform 34, build-tools 34.0.0). `local.properties`
 ./gradlew :app:assembleDebug        # debug APK
 ./gradlew :app:assembleSideload     # minified, debug-signed, for sharing
 ./gradlew :app:testDebugUnitTest    # JVM tests — run before saying a change works
+./gradlew :app:testDebugUnitTest -Plive  # also the live Groq instruments; spends quota
 ./gradlew :app:installDebug         # needs a connected device
 ```
 
 CI has no emulator and a dev machine often has none: JVM tests are the only automated check. Say
 plainly what was not run on hardware instead of implying a UI flow was exercised.
+
+The default test task excludes `Live*Test`: those are instruments against a real provider, they
+assert nothing, and each call costs free-tier quota. They run with `-Plive` and need a Groq key at
+`~/.freebuff/groq.txt` (or `-DgroqKeyFile=…`); without one they skip.
 
 ## Code map
 
