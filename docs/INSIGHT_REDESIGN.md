@@ -446,10 +446,27 @@ object, id and all, so the one chip that should have fired never did: the Tintil
 and its card said nothing. It now counts any matching record, and `theSameRecordCountsAsOwnedNotAsOneself`
 holds it.
 
-Not verified: the queue's own advice call (its `adviseShelf` plumbing, budget and button are compiled
-and unit-covered, but no tap was made — the scan path exercises the same prompt), an ABV chip from a
-real label (no card carried a printed ABV, so the ceiling chip never rendered), the camera path, and a
-real phone.
+**The queue's own button, on the same key** (`.screens/queue-advice-light.png`,
+`.screens/queue-cleared-light.png`). Two shelf frames were seeded as queued items — `shelf.png`
+(four bottles) and `shelf2.png` (three different ones) written into `files/scan-queue/` and listed in
+`files/scan-queue.json`, base64 through `run-as` so the JPEGs arrive intact. The queue read both in
+under 20 s: `2 photos read · 7 bottles found`. Tapping **What to buy from this shelf** replaced the
+button with the block inside 15 s — `Buy this` AALTO `USD 48.00` (good value), `Second` Finca Dofi
+`USD 95.00` (fair value), `Third` Ultreia Mencia `USD 62.00` (fair value), with the Tintilla (already in
+the cellar) and the Pecina among the skips. Two picks come from the second frame and one from the
+first, which is the point of asking once for the batch rather than once per photo.
+
+Then a third frame through **Shoot a shelf**: the button came back and the block went, the queue
+reading `3 photos read · 7 bottles found`. The new photo is a different shelf, so the answer it
+described is dropped on the tap that queues it, before the frame is even read. Two things the AVD
+added to that half: its capture intent returned 0-byte files on three attempts and a 36 KB JPEG on
+the fourth, and the frame it wrote holds the virtual scene — no bottles — so the batch grew a frame
+without growing the shelf. The card also has no trace panel, so whether the advice needed its retry
+is not visible here the way it is on the scan screen; that is a gap in the panel, not in the call.
+
+Not verified: an ABV chip from a real label (no card carried a printed ABV, so the ceiling chip never
+rendered), the camera on real hardware (the emulator's capture intent is the synthetic scene above),
+and a real phone.
 
 ---
 
