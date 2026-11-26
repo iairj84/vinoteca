@@ -265,6 +265,25 @@ built this, so only the Groq default is measured. And Groq's free tier allows 8,
 minute: one advice call (~2,000 prompt, up to ~5,800 completion with the reasoning reserve) can use
 the whole minute, with no room for a retry. Groq leading therefore suits one list per sitting.
 
+**Measured** (`LiveChatBudgetTest`, Groq `openai/gpt-oss-120b`, a 121-message conversation, sent
+through the real `chatPayload` and `chatHistory`):
+
+| history budget | digest | window | prompt | completion | outcome |
+|---|---|---|---|---|---|
+| 2,000 tokens | 55 bottles | 26 of 121 messages, 7,335 chars | **4,035** | 896 (747 reasoning) | 200, 3,613 tokens left in the minute |
+| 8,000 tokens | 140 bottles | 105 of 121 messages, 30,416 chars | — | — | **HTTP 413**: larger than the minute |
+
+The thin window is about 1,940 real tokens; chars/4 underestimates by roughly 6%, so a budget is
+slightly tighter than its name. One thin turn costs ~4,800 of the 8,000 and a second turn in the
+same minute cannot fit — and trimming the history further does not buy one, because the 55-bottle
+digest is ~1,800 of the 2,096-token system prompt. The wide window is for Gemini's 250,000-token
+minute only; on Groq it is refused outright.
+
+One consequence worth deciding on: the window is sized from the provider that leads the chat, so a
+user with both keys gets 8,000 tokens of history on Gemini and, if Gemini is rate limited and Groq
+answers, a 413 rather than an answer. Sizing from the thinnest configured provider would make the
+fallback work at the cost of context on the lead.
+
 **Follow-up** (`AiJob`, after `b138047`). The chat did not keep that order. A chat turn resends the
 brief, the cellar and every earlier message at 2,500 tokens of headroom, so two or three turns
 empty Groq's free minute — and a conversation is where the user keeps going. `AiClient.complete`
