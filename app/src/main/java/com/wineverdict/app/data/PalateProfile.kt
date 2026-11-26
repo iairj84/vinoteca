@@ -63,19 +63,26 @@ data class PalateProfile(
 
     fun completed(at: Long = System.currentTimeMillis()): PalateProfile = copy(completedAt = at)
 
-    /** Capped here rather than at every call site: the brief has a hard budget of its own. */
+    /**
+     * Capped here rather than at every call site: the brief has a hard budget of its own.
+     *
+     * Nothing is trimmed on the way in. This runs on every keystroke, and a trim ate the space
+     * the instant it was pressed — the field is redrawn from what is stored, so the space vanished
+     * and "2019 Ultreia" could only ever be typed as "2019Ultreia". Both places the text is used
+     * (`PalateFile.build` and `brief`) trim it themselves, so the file and the brief still read
+     * clean while the field keeps what was actually typed.
+     */
     fun withNotes(
         loved: String = lovedNote,
         disliked: String = dislikedNote,
         curious: String = curiousNote
     ): PalateProfile = copy(
-        lovedNote = loved.take(NOTE_MAX_CHARS).trim(),
-        dislikedNote = disliked.take(NOTE_MAX_CHARS).trim(),
-        curiousNote = curious.take(NOTE_MAX_CHARS).trim()
+        lovedNote = loved.take(NOTE_MAX_CHARS),
+        dislikedNote = disliked.take(NOTE_MAX_CHARS),
+        curiousNote = curious.take(NOTE_MAX_CHARS)
     )
 
-    fun withLinks(text: String): PalateProfile =
-        copy(links = text.take(NOTE_MAX_CHARS).trim())
+    fun withLinks(text: String): PalateProfile = copy(links = text.take(NOTE_MAX_CHARS))
 
     fun withAlcoholCeiling(value: Double?): PalateProfile =
         copy(alcoholCeiling = value?.takeIf { it in ALCOHOL_RANGE })

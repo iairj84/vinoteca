@@ -44,6 +44,21 @@ class TasteNotesTest {
     }
 
     @Test
+    fun anAnswerKeepsTheSpacesThatAreTyped() {
+        // The profile is rebuilt on every keystroke, so a trim here ate the space as it was
+        // pressed: "2019 Ultreia" came out as "2019Ultreia" and no note could hold two words.
+        assertEquals("2019 Ultreia ", profile().withNotes(loved = "2019 Ultreia ").lovedNote)
+        assertEquals("smooth reds ", profile().withLinks("smooth reds ").links)
+    }
+
+    @Test
+    fun theBriefStillTrimsWhatWasTyped() {
+        val text = brief(profile(loved = "2019 Ultreia  ", links = "smooth reds  "))
+        assertTrue(text.contains("Wines I loved, in my words: 2019 Ultreia\n"))
+        assertTrue(text.contains("What links them: smooth reds."))
+    }
+
+    @Test
     fun anAnswerIsCappedWhenItIsStored() {
         val stored = profile().withNotes(loved = "x".repeat(500))
         assertEquals(PalateProfile.NOTE_MAX_CHARS, stored.lovedNote.length)
