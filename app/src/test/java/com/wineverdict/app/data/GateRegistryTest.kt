@@ -232,6 +232,20 @@ class GateRegistryTest {
         assertTrue(derived, derived.contains("\$50–123"))
     }
 
+    @Test
+    fun theFileNamesTheAllowanceBesideTheCeiling() {
+        // A table that says "14.0% or under" and "a hard gate cannot be broken" reads as an absolute
+        // rule, so the model refused a 14.2% bottle the digest had marked conditional for the food.
+        val file = PalateFile.build(profile(ceiling = 14.0))
+        val row = file.lines().first { it.contains("G1 Alcohol") }
+        assertTrue(row, row.contains("up to 14.5% only with a cool site or food"))
+        assertTrue(row, row.contains("over 14.5% is out"))
+        assertFalse(
+            "the allowance is part of the rule, so the note cannot call the gate unbreakable",
+            file.contains("A **hard** gate cannot be broken.")
+        )
+    }
+
     // ---- D4: confidence is computed ----------------------------------------------------------
 
     @Test

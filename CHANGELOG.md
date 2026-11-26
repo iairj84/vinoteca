@@ -3,6 +3,19 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased: the dish carries through a conversation
+
+**A follow-up keeps the dinner.** Ask read the dish from the current question only, so "what about
+the second bottle" after a question about chicken tikka fell back to the stored food habit — or to
+no dish at all, which turned a 14.2% bottle from a conditional pass back into a failure between two
+messages. The dish now carries across the conversation: the question wins, then the most recent
+earlier question that named a dish, and the food answer is only the fallback.
+
+**The generated file refreshes itself.** `mytaste.md` is a projection of the stored answers and Ask
+sends that file, so an upgrade that changes what it renders needs it rewritten on disk; it is now
+rebuilt at startup from the answers already stored. Nothing has to be answered again, and a file
+saved by hand in the advanced editor is left untouched.
+
 ### 1.2.2: four gates, a rendered prompt, and the dish that reaches them
 
 **Two gates had gone missing, and the numbering kept the scars.** The generated profile ran G1

@@ -82,6 +82,19 @@ object PairingTable {
      * plate, and the gate may use that allowance. "On its own" and an unanswered question name no
      * dish, so they give none rather than inventing one.
      */
+    /**
+     * The dish an Ask turn is checked against.
+     *
+     * The question wins. Failing that, the most recent earlier question that named a dish — a
+     * conversation is one sitting, and "what about the second bottle" is still the chicken tikka
+     * dinner. The stored food answer is the last resort, never the first: it is a habit, not the
+     * dish in front of you.
+     */
+    fun askDish(question: String, earlierQuestions: List<String>, profile: PalateProfile): Dish? =
+        Dish.fromQuestion(question)
+            ?: earlierQuestions.asReversed().firstNotNullOfOrNull { Dish.fromQuestion(it) }
+            ?: dishFor(profile.choice(QuickStart.Q_CONTEXT))
+
     fun dishFor(contextId: String?): Dish? = when (contextId) {
         QuickStart.CTX_WEEKNIGHT -> Dish("weeknight dinner at home")
         QuickStart.CTX_WEEKEND -> Dish("weekend cooking")

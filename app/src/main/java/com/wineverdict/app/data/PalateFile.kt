@@ -966,8 +966,9 @@ object PalateFile {
     """.trimIndent()
 
     private val GATE_NOTE =
-        "A **hard** gate cannot be broken. A **soft** gate may be broken only with a stated reason, " +
-            "in one sentence, in the answer itself."
+        "A **hard** gate's ceiling is not crossed — an allowance written into its Test is part of the " +
+            "rule, and the answer must state it. A **soft** gate may be broken only with a stated " +
+            "reason, in one sentence, in the answer itself."
 
     private val PAIRING = """
         Pairing is worked out per dish **when I ask**, from what that dish demands: acid for fat, acid for tomato, salt, sweetness, heat, umami. It is not looked up.

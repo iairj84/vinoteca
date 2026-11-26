@@ -90,6 +90,59 @@ class DishGateTest {
     }
 
     @Test
+    fun aFollowUpKeepsTheDishFromTheTurnBefore() {
+        // A profile that would supply no dish of its own, so the fallback cannot be what passes.
+        val onItsOwn = PalateProfile(
+            answers = mapOf(QuickStart.Q_CONTEXT to listOf(QuickStart.CTX_ALONE))
+        )
+        val tikka = "What should I open with chicken tikka?"
+        val followUp = "what about the second bottle"
+
+        assertEquals(Dish("tikka", spicy = true), PairingTable.askDish(tikka, emptyList(), onItsOwn))
+        assertEquals(
+            "the earlier dish carries into the follow-up, not the food answer",
+            Dish("tikka", spicy = true),
+            PairingTable.askDish(followUp, listOf(tikka), onItsOwn)
+        )
+
+        // And the gate check on that second turn uses it: 14.2% is conditional, not a failure.
+        val second = PairingTable.askDish(followUp, listOf(tikka), onItsOwn)
+        val digest = rules.digestNote(wine(14.2), second)
+        assertTrue(digest, digest.contains("G1 Alcohol conditional"))
+
+        val system = Prompts.chat(
+            tasteMd = "taste",
+            cellar = CellarData(wines = listOf(wine(14.2))),
+            currency = "USD",
+            rules = rules,
+            dish = second
+        )
+        assertTrue(system, system.contains("G1 Alcohol conditional"))
+    }
+
+    @Test
+    fun aNewDishInTheFollowUpWinsAndTheNewestEarlierOneIsUsed() {
+        val takeout = PalateProfile(
+            answers = mapOf(QuickStart.Q_CONTEXT to listOf(QuickStart.CTX_TAKEOUT))
+        )
+        val roast = PairingTable.askDish(
+            "what about the roast chicken",
+            listOf("a red for chicken tikka"),
+            takeout
+        )
+        assertNotNull(roast)
+        assertFalse("the question's own dish wins over the earlier one", roast!!.spicy)
+
+        val newest = PairingTable.askDish(
+            "what about the second bottle",
+            listOf("a red for chicken tikka", "and with the roast chicken?"),
+            takeout
+        )
+        assertNotNull(newest)
+        assertFalse("the most recent earlier dish is the one kept", newest!!.spicy)
+    }
+
+    @Test
     fun theChatPromptCarriesTheDishAndTheConditionalLine() {
         val cellar = CellarData(wines = listOf(wine(14.2)))
         val system = Prompts.chat(

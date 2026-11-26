@@ -238,6 +238,10 @@ The file is seeded on first run and lives in the app's private files directory
 - **The brief is not a file.** It is rendered from the stored profile each time a request is made,
   capped at 2,000 characters, and printed verbatim on the Taste tab under *What the model reads*.
   There is nothing on disk to keep in sync and no way for it to drift from the answers.
+- **The dish carries through a conversation.** A question that names food — or heat — is checked
+  against it; a follow-up like "what about the second bottle" reuses the dish from the turn before,
+  and the food-context answer is only the fallback. That is what makes the 14.0–14.5% alcohol
+  allowance and the spice allowance for an off-dry wine real rather than theoretical.
 - **The prompt is rendered, not written.** `PalateFile.renderModelPrompt` is the only path, and it
   returns the text together with the id of the field behind every line; a line with no field throws
   before the prompt can leave the app, so a hand-added sentence cannot survive an edit. Whether the
@@ -318,6 +322,10 @@ that is missing rather than the generator's silence.
 
 Retaking the quick start rewrites a file the quick start wrote. A file saved in the advanced editor is
 kept, appended below the new one as *Notes from my previous file*.
+
+The generated file is also rewritten from the stored answers when the app starts, so a release that
+changes the shape of the file (a new gate table, an anchor line that survives) applies without
+answering the questions again. A file saved by hand in the advanced editor is left alone.
 
 ## Editing the file by hand
 

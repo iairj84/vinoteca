@@ -90,6 +90,14 @@ object AppGraph {
             scanQueue.load()
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
+            // mytaste.md is a projection of the stored answers, and Ask sends that file. An upgrade
+            // that changes the rendered shape must rewrite it rather than leave the old gate table
+            // on disk — the questions never have to be answered again. A file saved by hand in the
+            // advanced editor is the user's, and stays exactly as it is.
+            val profile = palate.profile.value
+            if (profile.isComplete && !palate.handEdited && taste.text.value.contains(PalateFile.MARKER)) {
+                savePalateProfile(profile)
+            }
         }
     }
 

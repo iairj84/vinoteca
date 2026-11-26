@@ -227,8 +227,12 @@ object GateRegistry {
             // Hard only where the user typed a ceiling and gave no allowance for it.
             severity = if (alcoholCeiling != null) Severity.HARD else Severity.SOFT,
             threshold = alcoholCeiling?.let { Threshold(it, "%", Confidence.YOURS) },
+            // The allowance is part of the rule, so it is part of the rendered test: a table that
+            // says only "14.0% or under" beside "a hard gate cannot be broken" is what made a
+            // model refuse a bottle the digest had just marked conditional.
             test = if (alcoholCeiling != null) {
-                "${fmt(alcoholCeiling)}% or under"
+                "${fmt(alcoholCeiling)}% or under; up to ${fmt(ABV_CEILING)}% only with a cool " +
+                    "site or food; over ${fmt(ABV_CEILING)}% is out"
             } else {
                 "No ceiling typed"
             },

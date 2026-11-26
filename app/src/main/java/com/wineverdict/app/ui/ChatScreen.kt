@@ -58,9 +58,7 @@ import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
-import com.wineverdict.app.data.Dish
 import com.wineverdict.app.data.PairingTable
-import com.wineverdict.app.data.QuickStart
 import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.util.ImageUtils
@@ -139,12 +137,17 @@ fun ChatScreen() {
                             budgetTokens = budget.historyTokens
                         )
                         // The dish decides whether a 14.2% bottle passes with the food, so it has
-                        // to reach the gate check and not only the prose. The question wins when
-                        // it names one; otherwise the standing food answer supplies the plate.
-                        val dish = Dish.fromQuestion(text)
-                            ?: PairingTable.dishFor(
-                                AppGraph.palate.profile.value.choice(QuickStart.Q_CONTEXT)
-                            )
+                        // to reach the gate check and not only the prose. The question wins, then
+                        // the dish named earlier in this conversation (a follow-up like "what
+                        // about the second bottle" is still the same dinner), then the food habit.
+                        val earlierQuestions = AppGraph.chat.messages.value
+                            .filter { it.role == "user" && it.id != userMessage.id }
+                            .map { it.text }
+                        val dish = PairingTable.askDish(
+                            text,
+                            earlierQuestions,
+                            AppGraph.palate.profile.value
+                        )
                         val system = Prompts.chat(
                             AppGraph.taste.snapshot(),
                             AppGraph.cellar.data.value,
