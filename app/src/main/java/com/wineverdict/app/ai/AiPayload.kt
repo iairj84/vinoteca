@@ -123,3 +123,30 @@ internal fun chatPayload(
     }
     return root.toString()
 }
+
+/**
+ * The body sent once after a provider rejects the request as too large.
+ *
+ * A 413 is not a field the model dislikes, it is the size of the body against the tier's minute,
+ * and the conversation is what makes it large. Dropping fields fixes nothing here; dropping the
+ * history does, so the retry keeps the question and the newest photo and nothing else. Without this
+ * a chat that outgrew the fallback's minute failed outright — which is exactly what the measured
+ * 8,000-token window did on Groq.
+ */
+internal fun leanPayload(
+    target: Target,
+    system: String,
+    turns: List<ChatMessage>,
+    images: List<String>,
+    temperature: Double,
+    maxTokens: Int
+): String = chatPayload(
+    target = target,
+    system = system,
+    turns = turns.takeLast(1),
+    images = images.take(1),
+    jsonMode = false,
+    thinking = null,
+    temperature = temperature,
+    maxTokens = maxTokens
+)

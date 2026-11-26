@@ -42,6 +42,13 @@ is gone from list cards (a shelf and a single bottle keep it); a ranked line kee
 line that breaks one of your limits still says why. When the advice answer did not come back, the
 older per-wine ranking says "Basic ranking" so the two cannot be mistaken for each other.
 
+**A request the provider calls too large gets one smaller attempt before it fails.** If a chat body
+still exceeds a provider's minute — the window is sized for the thinnest configured provider now,
+but a conversation can outgrow the estimate, or a key can be added after a long chat — the app used
+to give up and show the rate-limit message. It now retries once with the question and the newest
+photo and no history, which is what actually makes the body large. One retry, then it reports the
+failure as before.
+
 **A long chat answers when Groq takes over, instead of failing.** The history window was sized from
 the provider leading the chat, so with both keys configured a long conversation sent 8,000 tokens
 of history to Gemini — and when Gemini was rate limited and Groq answered, Groq refused the whole

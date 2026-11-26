@@ -448,6 +448,15 @@ class AiClient(
                 chatPayload(target, system, turns, images.take(1), false, null, temperature, maxTokens)
             )
         }
+        if (!response.isSuccessful && response.code == 413) {
+            // Larger than this tier's minute. A smaller field set does not help — the conversation
+            // is the size — so the one retry keeps the question and drops the history.
+            response.close()
+            response = post(
+                target,
+                leanPayload(target, system, turns, images, temperature, maxTokens)
+            )
+        }
         return response.use { res ->
             val body = res.body?.string().orEmpty()
             val headers = res.headers.toMap()
