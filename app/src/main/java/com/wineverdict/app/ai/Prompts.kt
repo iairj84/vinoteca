@@ -1,5 +1,6 @@
 package com.wineverdict.app.ai
 
+import com.wineverdict.app.data.Dish
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Wine
@@ -882,7 +883,9 @@ object Prompts {
         currency: String,
         rules: PalateRules? = null,
         /** How many bottles the digest may list. A provider with a small minute budget gets fewer. */
-        digestLimit: Int = 55
+        digestLimit: Int = 55,
+        /** The dish named by the question or the standing food answer; it changes the gate lines. */
+        dish: Dish? = null
     ): String = """
         You are Wine Verdict, the assistant inside my personal wine cellar app. You are a knowledgeable,
         plain-spoken sommelier who also keeps track of my inventory.
@@ -893,7 +896,7 @@ object Prompts {
         $tasteMd
 
         MY CELLAR RIGHT NOW (bottles I own; "qty 0" means it is gone):
-        ${cellarDigest(cellar, rules, digestLimit)}
+        ${cellarDigest(cellar, rules, digestLimit, dish)}
 
         How to answer:
         - When I ask what to drink or what to open, recommend only bottles that appear in MY CELLAR with qty above 0. Name the vintage and producer exactly as listed.
@@ -917,11 +920,24 @@ object Prompts {
         - My taste file is the contract, not background reading. Apply its gates and its scoring before you pick, and follow its rules about how to answer: how many bottles to name, why the runner-up loses, and what not to say. If it forbids a sign-off, do not write one.
         - If my taste file disagrees with a cellar record — a region, a grape, a drinking window — trust the file and say the record is wrong. Cellar records come from label scans and can be mistaken.
         - Never repeat the bottle or the grape of your previous answer unless this question makes the earlier logic inapplicable, and then say which part no longer applies.
-        - The app has already checked my taste file's numeric gates against each bottle record and appended "app gate check" where one fails or cannot be checked. A check marked unknown means the fact is missing: say it cannot be checked, and never call a gate passed unless the record shows the fact.
+        - The app has already checked my taste file's numeric gates against each bottle record and appended "app gate check" where one fails, passes only by an allowance, or cannot be checked. A check marked unknown means the fact is missing: say it cannot be checked, and never call a gate passed unless the record shows the fact. A check marked conditional is a pass for this dish: state the number and the reason out loud ("14.2%, over your 14.0, allowed because there is food") rather than quietly accepting it.
         - Do not assert that a bottle passes a gate ("cool site", "under 14%", "vineyard-specific") unless MY CELLAR above gives its alcohol or its place. When that is missing, say the gate cannot be checked from what I have.
-    """.trimIndent()
+    """.trimIndent() + dishNote(dish)
 
-    private fun cellarDigest(cellar: CellarData, rules: PalateRules? = null, limit: Int = 55): String {
+    /** The dish the gates were checked against, so the model knows why a line says conditional. */
+    private fun dishNote(dish: Dish?): String = if (dish == null) {
+        ""
+    } else {
+        "\n\nThe dish in this question: ${dish.name}${if (dish.spicy) ", spicy" else ""}. " +
+            "A gate line marked conditional is a pass only for this dish: name its number and the reason."
+    }
+
+    private fun cellarDigest(
+        cellar: CellarData,
+        rules: PalateRules? = null,
+        limit: Int = 55,
+        dish: Dish? = null
+    ): String {
         if (cellar.wines.isEmpty()) return "(my cellar is empty)"
         val stocked = cellar.wines.filter { it.quantity > 0 }
         if (stocked.isEmpty()) return "(every bottle in my cellar is marked as drunk or sold)"
@@ -962,7 +978,7 @@ object Prompts {
                     append(" | my note: ${wine.myNotes.replace("\n", " ").take(100)}")
                 }
                 if (rules != null) {
-                    val gateNote = rules.digestNote(wine)
+                    val gateNote = rules.digestNote(wine, dish)
                     if (gateNote.isNotBlank()) append(" | app gate check: $gateNote")
                 }
             }

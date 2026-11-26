@@ -58,6 +58,9 @@ import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
+import com.wineverdict.app.data.Dish
+import com.wineverdict.app.data.PairingTable
+import com.wineverdict.app.data.QuickStart
 import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.util.ImageUtils
@@ -135,6 +138,13 @@ fun ChatScreen() {
                                 .map { if (it.id == userMessage.id) it else it.copy(imageBase64 = null) },
                             budgetTokens = budget.historyTokens
                         )
+                        // The dish decides whether a 14.2% bottle passes with the food, so it has
+                        // to reach the gate check and not only the prose. The question wins when
+                        // it names one; otherwise the standing food answer supplies the plate.
+                        val dish = Dish.fromQuestion(text)
+                            ?: PairingTable.dishFor(
+                                AppGraph.palate.profile.value.choice(QuickStart.Q_CONTEXT)
+                            )
                         val system = Prompts.chat(
                             AppGraph.taste.snapshot(),
                             AppGraph.cellar.data.value,
@@ -142,7 +152,8 @@ fun ChatScreen() {
                             AppGraph.palate.rules,
                             // A hundred bottles is a long digest. Gemini's free tier carries it;
                             // Groq's 8k tokens a minute does not, so it keeps the shortlist.
-                            digestLimit = budget.digestLimit
+                            digestLimit = budget.digestLimit,
+                            dish = dish
                         )
                         val answer = AppGraph.ai.complete(
                             system = system,

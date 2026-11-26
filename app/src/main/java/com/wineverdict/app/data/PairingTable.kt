@@ -76,6 +76,20 @@ object PairingTable {
 
     fun byId(id: String): DishClass? = all.firstOrNull { it.id == id }
 
+    /**
+     * The dish a standing food-context answer implies. This is the fallback when the question
+     * itself names no food: the answer says what most wine goes with, so most nights there is a
+     * plate, and the gate may use that allowance. "On its own" and an unanswered question name no
+     * dish, so they give none rather than inventing one.
+     */
+    fun dishFor(contextId: String?): Dish? = when (contextId) {
+        QuickStart.CTX_WEEKNIGHT -> Dish("weeknight dinner at home")
+        QuickStart.CTX_WEEKEND -> Dish("weekend cooking")
+        QuickStart.CTX_TAKEOUT -> Dish("takeout or something spicy", spicy = true)
+        QuickStart.CTX_RESTAURANT -> Dish("eating out")
+        else -> null
+    }
+
     /** Which classes a quick-start context implies. Empty means "no dish data", never "everything". */
     fun forContext(contextId: String?): List<DishClass> {
         val ids = when (contextId) {

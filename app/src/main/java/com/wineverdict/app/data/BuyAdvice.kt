@@ -91,7 +91,9 @@ object BuyAdvice {
         rules: PalateRules,
         profile: PalateProfile,
         cellar: List<Wine>,
-        occasion: Occasion
+        occasion: Occasion,
+        /** The dish this bottle is for, when one is known: it is what makes a 14.2% bottle a pass. */
+        dish: Dish? = null
     ): Advice {
         // Four buckets, because they are four different claims and only one of them can turn into
         // Buy it. `hard` walks away from the bottle, `against` advises against this evening,
@@ -109,7 +111,7 @@ object BuyAdvice {
         // in the brief now and no longer a test the app runs.
         // All four authored gates, in order, before anything is scored. A conditional is a pass
         // whose basis is printed, so it belongs with what the bottle clears.
-        val gates = rules.verdicts(wine)
+        val gates = rules.verdicts(wine, dish)
         gates.forEach { check ->
             when (check.verdict) {
                 GateVerdict.FAIL -> hard += check.detail

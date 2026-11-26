@@ -143,8 +143,51 @@ data class GateRow(
     }
 }
 
-/** The dish on the table, when there is one. Only heat changes a gate's answer today. */
-data class Dish(val name: String, val spicy: Boolean = false)
+/**
+ * The dish on the table, when there is one. Only heat changes a gate's answer today.
+ *
+ * A dish has to reach the gate check, not just the prose: the 14.0–14.5% allowance and the spice
+ * allowance for an off-dry wine only exist when the app knows there is food. Two things can name
+ * one — the question the user just asked, and the standing food-context answer — and
+ * [fromQuestion] reads the first.
+ */
+data class Dish(val name: String, val spicy: Boolean = false) {
+    companion object {
+        /** Words that mean heat is on the plate: the spice allowance turns on these. */
+        private val HEAT = listOf(
+            "spicy", "spice", "curry", "tikka", "masala", "chilli", "chili", "hot sauce",
+            "sriracha", "kimchi", "harissa", "jerk", "buffalo", "mapo", "takeout", "takeaway"
+        )
+
+        /**
+         * Foods a question can name. Used only to know that a dish exists — the rule is about food
+         * being on the table, not about which food it is. Matched on word boundaries, so "price"
+         * does not read as "rice".
+         */
+        private val FOOD = listOf(
+            "chicken", "beef", "steak", "lamb", "pork", "fish", "salmon", "tuna", "prawn",
+            "shrimp", "pasta", "pizza", "rice", "noodle", "soup", "stew", "salad", "cheese",
+            "charcuterie", "mushroom", "burger", "taco", "roast", "grill", "barbecue", "bbq",
+            "casserole", "sandwich", "egg", "tofu", "lentil", "bean", "sausage", "duck",
+            "risotto", "paella", "dinner", "lunch", "supper", "meal"
+        )
+
+        private fun firstWord(text: String, words: List<String>): String? =
+            words.firstOrNull { word -> Regex("\\b" + Regex.escape(word)).containsMatchIn(text) }
+
+        /**
+         * The dish a question names, or null when it names none. A question about a bottle on its
+         * own ("what should I open tonight") has no food, and must not invent one.
+         */
+        fun fromQuestion(question: String): Dish? {
+            val text = question.lowercase()
+            val heat = firstWord(text, HEAT)
+            val food = firstWord(text, FOOD)
+            if (heat == null && food == null) return null
+            return Dish(heat ?: food.orEmpty(), spicy = heat != null)
+        }
+    }
+}
 
 object GateRegistry {
 

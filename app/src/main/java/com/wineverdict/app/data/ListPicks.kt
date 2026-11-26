@@ -137,7 +137,10 @@ object ListPicks {
                 rules = rules,
                 profile = profile,
                 cellar = cellar,
-                occasion = BuyAdvice.Occasion.RESTAURANT
+                occasion = BuyAdvice.Occasion.RESTAURANT,
+                // The standing food answer, so a 14.2% bottle with dinner is conditional rather
+                // than dropped from a list where nothing prints why.
+                dish = PairingTable.dishFor(profile.choice(QuickStart.Q_CONTEXT))
             )
         }
         val out = advice.map { it.verdict == BuyAdvice.Verdict.LEAVE }

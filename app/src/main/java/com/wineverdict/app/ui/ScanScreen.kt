@@ -68,6 +68,8 @@ import com.wineverdict.app.data.DebugScan
 import com.wineverdict.app.data.ImportRow
 import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
+import com.wineverdict.app.data.PairingTable
+import com.wineverdict.app.data.QuickStart
 import com.wineverdict.app.data.Scored
 import com.wineverdict.app.data.Service
 import com.wineverdict.app.data.assertUniformUnit
@@ -1867,7 +1869,10 @@ private fun VerdictBlock(
             rules = rules,
             profile = profile,
             cellar = cellar,
-            occasion = if (restaurant) BuyAdvice.Occasion.RESTAURANT else BuyAdvice.Occasion.SHOP
+            occasion = if (restaurant) BuyAdvice.Occasion.RESTAURANT else BuyAdvice.Occasion.SHOP,
+            // What most wine goes with is the only standing dish the app has; without it the
+            // 14.0–14.5 allowance would live only in tests.
+            dish = PairingTable.dishFor(profile.choice(QuickStart.Q_CONTEXT))
         )
     }
     val leaving = advice.verdict == BuyAdvice.Verdict.LEAVE

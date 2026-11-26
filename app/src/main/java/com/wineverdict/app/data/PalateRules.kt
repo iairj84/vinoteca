@@ -83,10 +83,12 @@ data class PalateRules(
      * One line for the cellar digest the chat prompt carries: the failures, plus an honest note when
      * the ceiling exists but the bottle cannot be checked.
      */
-    fun digestNote(wine: Wine): String {
+    fun digestNote(wine: Wine, dish: Dish? = null): String {
         val notes = mutableListOf<String>()
-        checks(wine)
-            .filter { it.verdict == GateVerdict.FAIL }
+        // A conditional pass is reported too: the model has to say the number and why, so the one
+        // line it reads must carry both. Without a dish this is the same failure list as before.
+        verdicts(wine, dish)
+            .filter { it.configured && it.verdict in setOf(GateVerdict.FAIL, GateVerdict.CONDITIONAL) }
             .forEach { notes += "${it.gate} ${it.flag}: ${it.detail}" }
         if (maxAlcohol != null && wine.alcohol == null) {
             notes += "alcohol unknown: the record has no ABV, so my ${fmt(maxAlcohol)}% ceiling cannot be checked"
