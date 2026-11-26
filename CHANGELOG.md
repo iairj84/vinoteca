@@ -5,6 +5,16 @@ Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
 ### Unreleased
 
+**What a scan costs, in numbers.** The Gemini card in Settings described only what the free tier
+allowed, which read as though a paid key changed nothing but the bill. It now says both: the paid
+tier allows far more requests a minute (raise the setting for batch testing), a label scan costs
+about a third of a cent and a wine list about half, so a dollar covers roughly 300 labels a month.
+`docs/COSTS.md` records where those numbers come from — the app's real prompt strings dumped and
+tokenised against the API, not estimated: about 4.0 characters per token, ~1,550 tokens for a 1600px
+photo, ~9,700 prompt and ~560 output tokens for a three-call label read. It also records why the app
+stays on 3.1 Flash-Lite rather than the cheaper 2.5 Flash-Lite, which is deprecated on 1 December
+2026 and would then bill as the more expensive 3.5.
+
 **One taste flow, twelve optional questions, and a brief you can read.** The Taste tab collected taste
 in six cards — answers, a typed ceiling, a links box, gates, pairing classes, the whole file — while
 the quick start collected some of the same facts in a second place, and the short brief a model

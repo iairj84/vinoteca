@@ -47,9 +47,10 @@ enum class AiProvider(
         tokenBudgetPerMinute = 250_000,
         reportsRateHeaders = false,
         notes = "Free tier is about 10 requests and 250,000 input tokens a minute on Flash-Lite, " +
-            "with a few hundred requests a day. Google uses free-tier content to improve its " +
-            "products; paid tiers do not. Photo tokens are cheap here: a 1536px frame is roughly " +
-            "1,000 tokens."
+            "with a few hundred requests a day; a paid key gets far more, so raise requests per " +
+            "minute for batch testing. On the paid tier a label scan is about a third of a cent " +
+            "and a wine list about half a cent, which is roughly 300 labels a month per dollar. " +
+            "Google uses free-tier content to improve its products; paid tiers do not."
     ),
     GROQ(
         id = "groq",
