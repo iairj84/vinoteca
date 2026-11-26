@@ -10,6 +10,30 @@ restaurant wine list for an ordering recommendation, and chat about the cellar. 
 backend of ours: the cellar, notes and `mytaste.md` live in app-private storage, and the only
 network calls go to the AI provider whose key the user stored on the device (Gemini or Groq).
 
+## How we work
+
+The user tests on a real phone and has no way to run a build. **A change they cannot install has not
+been delivered**, so every accepted change ends in a release.
+
+1. **They state the problem** — a bug, a question, a complaint about how something feels.
+2. **Answer with the diagnosis, not the code.** What you believe the problem is, the evidence for it
+   (the code path, a test, the emulator, research), the likely fix, and how far the change reaches.
+   Short: no file lists, no diffs, no implementation plan.
+3. **Stop and wait.** They confirm, correct it, or ask for more. A confirmation is the go-ahead for
+   the work *and* the release; do not ask again for either.
+4. **Then build it**, test it as far as the machine allows (`:app:testDebugUnitTest`, an attached
+   emulator, the UI flow that changed), commit with a why-message, bump `versionCode` and
+   `versionName`, tag, push, and wait for the release workflow to publish the APK.
+5. **Report what was verified and what was not**, with the release tag and the APK name. Never claim
+   a timing or a behaviour that was not measured.
+
+A wrong diagnosis costs one message; a release built on one costs the user a test cycle. When the
+evidence is thin, say which observation would settle it — and prefer shipping the instrumentation
+that answers it (an error card, a logged line, a diagnostics dump) over guessing at a fix.
+
+Exception: a request that already spells out the change ("add X", "make Y do Z") *is* the
+diagnosis. Do it, test it, release it.
+
 ## Build and test
 
 JDK 17 and the Android SDK (platform 34, build-tools 34.0.0). `local.properties` needs
