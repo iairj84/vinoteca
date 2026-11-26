@@ -3,6 +3,28 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased: one pass for the details, and a quieter Settings
+
+**One button, one pass.** The cellar had two jobs and two buttons — notes in one, ABV in the other —
+so a bottle missing both went through the queue twice, at about six seconds a bottle. One lookup
+already answers both questions, so there is now a single **Fill in the details** action: it walks
+each incomplete bottle once, asks the targeted ABV question only when the notes pages carried no
+figure, and runs three bottles at a time. Wall time for a fifty-bottle cellar went from minutes to
+about a minute. A lookup that does not answer still writes nothing, so the bottle is asked again
+instead of being recorded as having no ABV; **Look again at N bottles** re-asks the ones whose pages
+printed nothing, because a page published since can turn an unknown into a number.
+
+**Settings reads like a person's app.** It opened with spend, provider order, two API-key cards,
+base URLs, three model lists and a rate limit — the machinery, before anything the user came for.
+All of that now sits behind one **AI provider** card that says which service is answering and offers
+"Change the AI provider"; the keys, models, base URLs and spend only appear when that is opened. The
+cellar's own tools come first.
+
+**The Taste tab cannot take the app down.** Whatever the profile or a bottle record contains, that
+screen now renders what it can and shows the message from anything it could not read, instead of
+dying on the way in. A force close there was indistinguishable from a broken tab and said nothing
+about which fact caused it.
+
 ### 1.2.4: a bottle you own is drunk, not bought
 
 **The hard gate knows where it is standing.** A hard gate is a limit on the shelf: a 14.9% bottle at

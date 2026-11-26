@@ -136,13 +136,14 @@ class CellarRepository(context: Context) {
         }
 
     /**
-     * Saves what an ABV lookup found. A value already on the record always wins, a miss only stamps
-     * the check, and published notes that came with it are kept with their pages.
+     * Saves everything one lookup answered for a bottle: published notes with their pages, the
+     * flavour words, and the ABV a page printed.
      *
-     * [Wine.notesCheckedAt] is stamped only when notes really arrived: an ABV lookup must not stop
-     * the notes backfill from asking a bottle that is still unread.
+     * Both check stamps move together because the lookup answered both questions at once — that is
+     * what makes one pass enough. A figure already on the record always wins, and a null [alcohol]
+     * means pages were read that print none, not that nobody looked.
      */
-    suspend fun applyAlcoholLookup(id: String, alcohol: Double?, result: SourcedNotes) {
+    suspend fun applyDetails(id: String, alcohol: Double?, result: SourcedNotes) {
         val now = System.currentTimeMillis()
         val notes = result.notes.trim()
         mutate { current ->
@@ -158,7 +159,7 @@ class CellarRepository(context: Context) {
                             } else {
                                 result.sources.joinToString(" ").trim()
                             },
-                            notesCheckedAt = if (notes.isBlank()) it.notesCheckedAt else now,
+                            notesCheckedAt = now,
                             alcoholCheckedAt = now,
                             updatedAt = now
                         )

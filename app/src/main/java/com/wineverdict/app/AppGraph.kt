@@ -2,11 +2,10 @@ package com.wineverdict.app
 
 import android.content.Context
 import com.wineverdict.app.ai.AiClient
-import com.wineverdict.app.data.AlcoholBackfill
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
+import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
-import com.wineverdict.app.data.NotesBackfill
 import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.PalateRules
@@ -45,9 +44,7 @@ object AppGraph {
         private set
     lateinit var insights: InsightStore
         private set
-    lateinit var notes: NotesBackfill
-        private set
-    lateinit var alcohol: AlcoholBackfill
+    lateinit var details: DetailsBackfill
         private set
     lateinit var updater: Updater
         private set
@@ -83,20 +80,19 @@ object AppGraph {
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
         // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
         insights = InsightStore(app, ai, cellar) { taste.brief() }
-        notes = NotesBackfill(ai, cellar, scope)
-        // The alcohol gate needs a number on the record; most scanned bottles arrive without one.
-        // The job only fills what a published page prints, and never overwrites a figure already there.
-        alcohol = AlcoholBackfill(
+        // One job for everything a bottle is missing: published notes, flavour words and the ABV
+        // the alcohol gate needs. One lookup already answers both, so a bottle is asked about once.
+        details = DetailsBackfill(
             wines = { cellar.data.value.wines },
             lookup = { wine ->
                 val found = ai.sourcedNotes(wine)
                 // A producer's own page often skips the figure; a shop's listing almost always
-                // prints it. Ask that question only when the notes pages did not answer it.
-                // A failure here is thrown, not turned into "no ABV": the backfill leaves that
-                // bottle unstamped and asks it again next time.
+                // prints it. Ask that question only when the notes pages did not answer it. A
+                // failure here is thrown, not turned into "no ABV": the job leaves that bottle
+                // unstamped and asks it again next time.
                 if (found.alcohol != null) found else found.copy(alcohol = ai.abvOf(wine))
             },
-            save = { id, abv, result -> cellar.applyAlcoholLookup(id, abv, result) },
+            save = { id, abv, result -> cellar.applyDetails(id, abv, result) },
             scope = scope
         )
         updater = Updater(app)

@@ -19,7 +19,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +31,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
-import com.wineverdict.app.data.AlcoholBackfill
+import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.GateVerdict
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.data.PalateFile
@@ -67,9 +69,17 @@ fun TasteScreen(
     val passing = remember(cellar.wines, rules) {
         cellar.wines.count { wine -> rules.checks(wine).any { it.verdict.isPass } }
     }
-    val answers = remember(profile) { PalateFile.answers(profile) }
+    // A record that cannot be rendered must say so on this screen, not take the app down with it:
+    // a force close here reads as "the Taste tab is broken" and hides which fact caused it.
+    val answersResult = remember(profile) { runCatching { PalateFile.answers(profile) } }
+    val answers = answersResult.getOrDefault(emptyList())
     // The live brief, from the same lambda a scan uses: what is printed here is what a model reads.
-    val brief = remember(profile, cellar.wines, text) { AppGraph.taste.brief() }
+    val briefResult = remember(profile, cellar.wines, text) { runCatching { AppGraph.taste.brief() } }
+    val brief = briefResult.getOrDefault("")
+    val screenError = briefResult.exceptionOrNull() ?: answersResult.exceptionOrNull()
+    LaunchedEffect(screenError) {
+        screenError?.let { Log.e("TasteScreen", "could not build the taste profile", it) }
+    }
     var showAnswers by remember { mutableStateOf(false) }
     var showFile by remember { mutableStateOf(false) }
 
@@ -82,6 +92,18 @@ fun TasteScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            screenError?.let { error ->
+                SectionCard("This screen hit an error") {
+                    Text(
+                        "Something in the profile or the cellar could not be read, so the rest of " +
+                            "this page may be incomplete. The app stayed up; this is the message it " +
+                            "gave: ${error.javaClass.simpleName}: ${error.message.orEmpty()}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
             Text(
                 "A scan, a shelf and a restaurant list send the short brief below — your answers in " +
                     "first person, about a page. Ask sends the whole mytaste.md. The gates are " +
@@ -187,14 +209,14 @@ fun TasteScreen(
                                 "the record.",
                             style = MaterialTheme.typography.bodySmall
                         )
-                        val missingAbv = remember(cellar.wines) {
-                            AlcoholBackfill.pending(cellar.wines).size
+                        val incomplete = remember(cellar.wines) {
+                            DetailsBackfill.pending(cellar.wines).size
                         }
-                        if (missingAbv > 0) {
+                        if (incomplete > 0) {
                             Text(
-                                "$missingAbv of them have no ABV on record, so the alcohol gate " +
-                                    "cannot check them. Settings → Alcohol on the labels fills them " +
-                                    "from published pages.",
+                                "$incomplete of them are missing something the gates read — an ABV " +
+                                    "or published notes. Settings → Fill in the details collects " +
+                                    "them in one pass.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.outline
                             )

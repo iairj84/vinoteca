@@ -59,9 +59,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ai.AiProvider
-import com.wineverdict.app.data.AlcoholBackfill
 import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupFile
+import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.SpendMeter
@@ -81,8 +81,8 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
-    val backfill by AppGraph.notes.progress.collectAsStateWithLifecycle()
-    val abvBackfill by AppGraph.alcohol.progress.collectAsStateWithLifecycle()
+    val fill by AppGraph.details.progress.collectAsStateWithLifecycle()
+    var showAi by remember { mutableStateOf(false) }
 
     var currency by remember { mutableStateOf(AppGraph.settings.currency) }
     var primaryProvider by remember { mutableStateOf(AppGraph.settings.primaryProvider) }
@@ -284,6 +284,28 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            SectionCard("AI provider") {
+                val saved = AiProvider.entries.filter { AppGraph.settings.key(it).isNotBlank() }
+                Text(
+                    if (saved.isEmpty()) {
+                        "No key yet, so scanning, Ask and the lookups cannot run. This is the " +
+                            "account the app talks to on your behalf; the key is stored only on this " +
+                            "phone."
+                    } else {
+                        "${saved.joinToString(" and ") { it.label }} " +
+                            (if (saved.size == 1) "is" else "are") +
+                            " answering. Keys, models and this month's spend are below — you only " +
+                            "need them when something stops working, or to change the account."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                TextButton(onClick = { showAi = !showAi }) {
+                    Text(if (showAi) "Hide the AI details" else "Change the AI provider")
+                }
+            }
+
+            if (showAi) {
             SpendSection()
 
             SectionCard("Which provider runs first") {
@@ -353,6 +375,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     }
                 )
             }
+            }
 
             SectionCard("Currency") {
                 OutlinedTextField(
@@ -373,108 +396,64 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                 }
             }
 
-            SectionCard("Reference notes") {
-                val unchecked = data.wines.count {
-                    it.notesCheckedAt == 0L && (it.name.isNotBlank() || it.producer.isNotBlank())
-                }
-                val checked = data.wines.count { it.notesCheckedAt > 0L }
+            SectionCard("Fill in the details") {
+                val pending = DetailsBackfill.pending(data.wines).size
+                val withNotes = data.wines.count { it.notesCheckedAt > 0L }
+                val withAbv = data.wines.count { it.alcohol != null }
+                val missing = data.wines.count { it.alcohol == null || it.notesCheckedAt == 0L }
                 val rpm = AppGraph.settings.requestsPerMinute(primaryProvider).coerceAtLeast(1)
-                val minutes = (unchecked + rpm - 1) / rpm
+                val minutes = (pending * 2 + rpm - 1) / rpm
                 val hasKey = AiProvider.entries.any { AppGraph.settings.key(it).isNotBlank() }
                 Text(
-                    "$checked of ${data.wines.size} bottles carry a check against published notes. " +
-                        "A check searches the web itself and reads what writers published about that " +
-                        "producer, cuvée and vintage, then keeps the note with the pages it came from. " +
-                        "No extra service is needed — one API key is enough — and it is what lets Ask " +
-                        "say something about the wine instead of guessing from its grape.",
+                    "$withNotes of ${data.wines.size} bottles carry notes read from published pages, " +
+                        "and $withAbv record an ABV. One pass fills in whatever is missing — a " +
+                        "paragraph about the wine, its flavour words, and the alcohol figure the " +
+                        "gates cannot work without — from pages somebody published, never from " +
+                        "guesswork. Three bottles run at a time, and a lookup that does not answer " +
+                        "is asked again next time rather than being written off.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (unchecked > 0) {
+                if (pending > 0) {
                     Text(
-                        "$unchecked still unchecked — about $minutes minutes at $rpm a minute. " +
-                            "Keep the app open; it can be stopped and started again without repeating a bottle.",
+                        "$pending bottles still have something missing — about $minutes minutes. " +
+                            "Keep the app open; it can be stopped and carried on.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                } else if (missing > 0) {
+                    Text(
+                        "$missing bottles were looked up and a fact is still missing from the " +
+                            "pages. A page published since can turn an unknown into a number, so " +
+                            "they can be asked again.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
-                if (backfill.running) {
+                if (fill.running) {
                     Text(
-                        "${(backfill.done + 1).coerceAtMost(backfill.total)} of ${backfill.total} · ${backfill.current}",
+                        "${(fill.done + 1).coerceAtMost(fill.total)} of ${fill.total} · ${fill.current}",
                         style = MaterialTheme.typography.bodySmall
                     )
-                    TextButton(onClick = { AppGraph.notes.cancel() }) { Text("Stop") }
+                    TextButton(onClick = { AppGraph.details.cancel() }) { Text("Stop") }
                 } else {
                     OutlinedButton(
-                        onClick = { AppGraph.notes.start() },
-                        enabled = unchecked > 0 && hasKey
+                        // With nothing new to do, the button still has a job: the bottles whose
+                        // pages printed nothing can be asked again, once they have been looked at.
+                        onClick = { AppGraph.details.start(again = pending == 0) },
+                        enabled = (pending > 0 || missing > 0) && hasKey
                     ) {
                         Text(
                             when {
-                                unchecked == 0 -> "Every bottle checked"
                                 !hasKey -> "Add an API key first"
-                                else -> "Check $unchecked bottles"
+                                pending > 0 -> "Fill in $pending bottles"
+                                missing > 0 -> "Look again at $missing bottles"
+                                else -> "Every bottle is filled in"
                             }
                         )
                     }
                 }
-                backfill.message?.let { message ->
-                    Text(
-                        message,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            SectionCard("Alcohol on the labels") {
-                val missing = AlcoholBackfill.pending(data.wines).size
-                val known = data.wines.count { it.alcohol != null }
-                val lookedUp = data.wines.count { it.alcohol == null && it.alcoholCheckedAt > 0L }
-                val rpm = AppGraph.settings.requestsPerMinute(primaryProvider).coerceAtLeast(1)
-                val minutes = (missing + rpm - 1) / rpm
-                val hasKey = AiProvider.entries.any { AppGraph.settings.key(it).isNotBlank() }
-                Text(
-                    "$known of ${data.wines.size} bottles record an ABV. The alcohol gate cannot be " +
-                        "checked without one: a bottle whose number is missing is not a pass and not a " +
-                        "failure, it simply cannot be judged. Filling them reads the same published " +
-                        "pages the notes lookup uses and keeps what a page printed — never an estimate. " +
-                        "A lookup that does not answer is not counted against the bottle: it is " +
-                        "asked again next time.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (missing > 0) {
-                    val alreadyMissed = if (lookedUp > 0) " ($lookedUp already looked up, none found)" else ""
-                    Text(
-                        "$missing without a number$alreadyMissed — about $minutes minutes at " +
-                            "$rpm a minute. Keep the app open; it carries on where it stopped.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                if (abvBackfill.running) {
-                    Text(
-                        "${(abvBackfill.done + 1).coerceAtMost(abvBackfill.total)} of " +
-                            "${abvBackfill.total} · ${abvBackfill.current}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    TextButton(onClick = { AppGraph.alcohol.cancel() }) { Text("Stop") }
-                } else {
-                    OutlinedButton(
-                        onClick = { AppGraph.alcohol.start() },
-                        enabled = missing > 0 && hasKey
-                    ) {
-                        Text(
-                            when {
-                                missing == 0 -> "Every bottle has an ABV or a check"
-                                !hasKey -> "Add an API key first"
-                                else -> "Fill in $missing ABVs"
-                            }
-                        )
-                    }
-                }
-                abvBackfill.message?.let { message ->
+                fill.message?.let { message ->
                     Text(
                         message,
                         style = MaterialTheme.typography.bodySmall,
