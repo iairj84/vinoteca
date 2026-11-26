@@ -60,7 +60,9 @@ import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ai.AiProvider
 import com.wineverdict.app.data.Backup
+import androidx.compose.ui.text.font.FontFamily
 import com.wineverdict.app.data.BackupFile
+import com.wineverdict.app.data.CrashLog
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.SettingsStore
@@ -707,6 +709,41 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // A force close on a phone nobody can attach to used to leave nothing behind. This
+                // is the line that turns "it keeps stopping" into a stack trace that can be pasted.
+                var crash by remember { mutableStateOf(CrashLog.read(context)) }
+                Text(
+                    "Last crash",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                val report = crash
+                if (report == null) {
+                    Text(
+                        "Nothing recorded since this version was installed.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        report.take(900),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace)
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                context.getSystemService(ClipboardManager::class.java)
+                                    ?.setPrimaryClip(ClipData.newPlainText("Wine Verdict crash", report))
+                                scope.launch { snackbarHostState.showSnackbar("Crash copied") }
+                            }
+                        ) { Text("Copy") }
+                        TextButton(
+                            onClick = {
+                                CrashLog.clear(context)
+                                crash = null
+                            }
+                        ) { Text("Forget it") }
+                    }
+                }
             }
         }
     }

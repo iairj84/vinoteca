@@ -3,7 +3,7 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased: one pass for the details, and a quieter Settings
+### 1.2.5: one pass for the details, a quieter Settings, and a crash that reports itself
 
 **One button, one pass.** The cellar had two jobs and two buttons — notes in one, ABV in the other —
 so a bottle missing both went through the queue twice, at about six seconds a bottle. One lookup
@@ -19,6 +19,13 @@ base URLs, three model lists and a rate limit — the machinery, before anything
 All of that now sits behind one **AI provider** card that says which service is answering and offers
 "Change the AI provider"; the keys, models, base URLs and spend only appear when that is opened. The
 cellar's own tools come first.
+
+**A force close leaves an explanation.** "Wine Verdict keeps stopping" was all a crash on a phone
+could say, and the screens it happened on reproduced fine elsewhere. The app now wraps the process's
+uncaught-exception handler, writes the stack trace to a file on the phone, and then dies exactly as
+before — and Settings → About shows it under **Last crash** with Copy and Forget it. Nothing leaves
+the device; the report is read only when that row is looked at. It is the difference between a bug
+report and a guess.
 
 **The Taste tab cannot take the app down.** Whatever the profile or a bottle record contains, that
 screen now renders what it can and shows the message from anything it could not read, instead of

@@ -3,6 +3,7 @@ package com.wineverdict.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import com.wineverdict.app.data.CrashLog
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
@@ -40,6 +41,8 @@ import com.wineverdict.app.ui.theme.WineVerdictTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Before anything else: an error during start-up is exactly the kind nobody can reproduce.
+        CrashLog.install(applicationContext)
         AppGraph.init(applicationContext)
         setContent {
             WineVerdictTheme {
