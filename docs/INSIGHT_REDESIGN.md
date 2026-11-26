@@ -639,9 +639,14 @@ a plain caption, "Basic ranking — the advice answer did not come back, so this
 the wines it could judge", then "Worth ordering, best first" rendered from the read
 (`ListPicks.Basis.READ`, 5,279 characters) with the pour toggle and no half-drawn cards. Setting the
 advice model back to `gemini-3.1-flash-lite` and scanning the same photo returned `What to order`
-again, so the failure was the setting and the quota, not the code. One blemish the run exposed: both
-failed rows read `no provider`, because the client reports who answered only when one does — noted,
-not fixed here (the failure text on the same row does name Gemini).
+again, so the failure was the setting and the quota, not the code.
+
+The run also exposed a blemish, since fixed in its own commit: failed rows read `no provider`, because
+the client reported who answered only when one did. `complete()` now reports each request as it goes
+out (`onTry`), so a failed row names the provider and model it asked, which is the difference between
+"quota" and "bad key". The same answer exposed a second one: its `SKIP | 11, 25, 26 | …` row was
+dropped as "no such line on the page" because the digits were glued into 112526 — a skip tag now takes
+every number on it.
 
 Still not verified: a *503* rather than a 429 (both take the same `retryable` branch); the phone-read
 path on hardware with working OCR; and Groq as the advice provider.

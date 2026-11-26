@@ -95,7 +95,13 @@ class AiClient(
         model: String? = null,
         onBudgetWait: ((Long) -> Unit)? = null,
         /** Reports who actually answered, after the fallback walk has settled. */
-        onAnswer: ((AiProvider, String) -> Unit)? = null
+        onAnswer: ((AiProvider, String) -> Unit)? = null,
+        /**
+         * Reports each provider and model as its request goes out, so a call that fails everywhere
+         * can still be shown as "asked Gemini · …" instead of "no provider": who was asked is a
+         * fact about the request, and the panel should not lose it just because nobody answered.
+         */
+        onTry: ((AiProvider, String) -> Unit)? = null
     ): String = withContext(Dispatchers.IO) {
         val images = buildList {
             imageBase64?.takeIf { it.isNotBlank() }?.let { add(it) }
@@ -116,6 +122,7 @@ class AiClient(
         var allRetryable = true
         targets.forEach { target ->
             try {
+                onTry?.invoke(target.provider, target.model)
                 val answer = attempt(
                     target = target,
                     system = system,

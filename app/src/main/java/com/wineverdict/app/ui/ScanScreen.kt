@@ -475,7 +475,10 @@ fun ScanScreen(onReview: () -> Unit) {
                                 temperature = 0.4,
                                 maxTokens = 4_000,
                                 onBudgetWait = hold,
-                                onAnswer = { p, m -> who = p.shortLabel; model = m }
+                                onAnswer = { p, m -> who = p.shortLabel; model = m },
+                                // A failed row still names who was asked: the panel used to say
+                                // "no provider" for every 429, which hid the one fact it had.
+                                onTry = { p, m -> who = p.shortLabel; model = m }
                             )
                         } ?: run {
                             adviceTimedOut = true
