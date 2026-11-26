@@ -29,7 +29,8 @@ profile, which is right for the answers — but it also replaced the seeded *Not
 the brief sends those lines, so completing the flow silently changed what every request read. A
 rewrite now carries that section over from the file it replaces, still under its 900-character cap.
 A file whose notes were deleted stays deleted, and a new file that already has the section does not
-get a second copy.
+get a second copy. The review screen's preview goes through the same carry-over, so "This is your
+mytaste.md" now shows the file that actually gets saved rather than one without them.
 
 **A legible list gets advice even when the phone cannot read it.** The advice was reached only
 through the on-device OCR pass, so a device without the ML Kit text module — an emulator, or any

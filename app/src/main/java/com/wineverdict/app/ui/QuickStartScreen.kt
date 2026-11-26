@@ -52,6 +52,7 @@ import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.QuickStart
 import com.wineverdict.app.data.QuickStartQuestion
 import com.wineverdict.app.data.Shortlist
+import com.wineverdict.app.data.TasteText
 import kotlinx.coroutines.launch
 
 /**
@@ -488,7 +489,14 @@ private fun NotesField(label: String, hint: String, value: String, onValue: (Str
 private fun ReviewStep(profile: PalateProfile, onSave: () -> Unit) {
     val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val ratings = cellar.wines.count { it.rating != null }
-    val body = remember(profile, ratings) { PalateFile.build(profile, ratings = ratings) }
+    // The preview has to be the file that will be saved, so it goes through the same carry-over:
+    // the seeded assistant notes are added on the way to disk, not by the builder.
+    val body = remember(profile, ratings) {
+        TasteText.keepAssistantNotes(
+            PalateFile.build(profile, ratings = ratings),
+            AppGraph.taste.text.value
+        )
+    }
     val missing = QuickStart.baseline.count { !profile.answered(it.id) }
     val extras = QuickStart.extras.size
     val answeredExtras = profile.extrasAnswered
