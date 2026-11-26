@@ -3,6 +3,16 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.6: a note with a line break no longer takes the Taste tab down
+
+**The crash 1.2.5's report was built for.** "This screen hit an error: IllegalStateException: prompt
+has 29 lines but 24 field ids" — a note field is a multi-line box, so a note with line breaks in it
+arrived as one field covering several lines, and the prompt's line count stopped matching its field
+count. The renderer now flattens whitespace inside a field to a space, so a paragraph becomes one
+sentence on one line, and a stray carriage return from a hand-edited file is trimmed. The guard stays
+where it was; the data can no longer reach it. Reported by the app itself from the phone, which is
+the whole reason 1.2.5 wrote crashes down.
+
 ### 1.2.5: one pass for the details, a quieter Settings, and a crash that reports itself
 
 **One button, one pass.** The cellar had two jobs and two buttons — notes in one, ABV in the other —

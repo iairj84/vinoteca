@@ -211,6 +211,23 @@ class GateRegistryTest {
     }
 
     @Test
+    fun aNoteWithLineBreaksStaysOneFieldAndOneLine() {
+        // The note fields are multi-line boxes, so pressing Enter is ordinary use. A newline left
+        // inside a field made one field cover several lines and the count refused the prompt: the
+        // Taste tab died with "prompt has 29 lines but 24 field ids".
+        val p = profile(links = "Pinot's lift.\nMore grip.")
+            .withNotes(
+                loved = "2019 Ultreia\nforest floor\nand dark fruit",
+                disliked = "jammy red\nno acid",
+                curious = "white Rhône"
+            )
+        val prompt = PalateFile.renderModelPrompt(p)
+        assertEquals("one line per field", prompt.text.split("\n").size, prompt.lineFields.size)
+        assertTrue(prompt.text, prompt.text.contains("2019 Ultreia forest floor and dark fruit"))
+        assertTrue(prompt.text, prompt.text.contains("Pinot's lift. More grip."))
+    }
+
+    @Test
     fun aHardGateIsNeverCalledAPreference() {
         val hard = PalateFile.renderModelPrompt(profile(ceiling = 14.0)).text
         assertTrue(hard, hard.contains("Gates: hard. A bottle that fails one is not offered."))

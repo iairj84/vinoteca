@@ -525,6 +525,14 @@ object PalateFile {
 
     private fun fmt(value: Double): String = String.format(java.util.Locale.US, "%.1f", value)
 
+    /**
+     * One field, one line. The note boxes are multi-line on purpose, so a note can arrive holding
+     * line breaks — and a break inside a field used to make the prompt's line count disagree with
+     * its field count, which took the Taste tab down with "prompt has 29 lines but 24 field ids".
+     * A run of whitespace inside prose is a space; the sentence is what the reader needs.
+     */
+    private fun oneLine(text: String): String = text.trim().replace(Regex("\\s+"), " ")
+
     // ---- The prompt -------------------------------------------------------------------------
 
     /**
@@ -600,7 +608,7 @@ object PalateFile {
     ): RenderedPrompt {
         val lines = mutableListOf<PromptLine>()
         fun emit(text: String, field: String) {
-            val clean = text.trim()
+            val clean = oneLine(text)
             if (clean.isNotEmpty()) lines += PromptLine(clean, field)
         }
 
@@ -762,7 +770,7 @@ object PalateFile {
         if (notesText.isNotBlank()) {
             lines += PromptLine("", null)
             if (!notesText.startsWith("## ")) lines += PromptLine("## Notes", null)
-            notesText.split("\n").forEach { lines += PromptLine(it, "notes.assistant") }
+            notesText.split("\n").forEach { lines += PromptLine(it.trimEnd('\r'), "notes.assistant") }
         }
 
         val text = lines.joinToString("\n") { it.text }
