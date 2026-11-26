@@ -3,6 +3,16 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### Unreleased
+
+**A legible list gets advice even when the phone cannot read it.** The advice was reached only
+through the on-device OCR pass, so a device without the ML Kit text module — an emulator, or any
+phone whose Play services OCR is missing — read a wine list perfectly with the model and then showed
+it ranked and unexplained. The advice now runs on the model's own read too, with the same single
+retry for a 503, the same 60-second cap and the same deadline extension. Only the advice call is
+spent there: a list the model read already carries its own order, so the per-wine judgement fallback
+stays with the phone path, which has nothing else to fall back to.
+
 ### 1.1.0: the list explains itself
 
 This is the insight redesign. A restaurant wine list and a shop shelf are answered with two or three

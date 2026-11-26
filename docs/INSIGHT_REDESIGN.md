@@ -578,8 +578,8 @@ list nobody shot.
 README: the advice model's job now reads "answers a wine list, explains a bottle and runs the chat";
 "How mytaste.md works" records that the list, the shelf and the insight read the short brief rather
 than the file; and "Known limits" gains the two things a reader would otherwise find the hard way —
-the scene is the model's call and it wobbles (4-bottle shelf read as a list on 1 of 3 attempts), and a
-list the *model* read gets no advice at all, because the advice branch runs only on the phone's OCR.
+the scene is the model's call and it wobbles (4-bottle shelf read as a list on 1 of 3 attempts), and
+the advice branch's OCR gate — which the section below removes.
 
 CHANGELOG: the three Unreleased entries become `### 1.1.0: the list explains itself`, with a lead
 paragraph describing the redesign, and `versionCode` 14 / `versionName` 1.1.0. The release workflow
@@ -590,6 +590,35 @@ check) — only `assembleDebug` and the JVM tests ran; the fixture test is a JVM
 a device; and the three manual acceptance items above still want a phone and a Groq key, since every
 live run in this document went to Gemini (Groq's free minute has not been available in these
 sessions).
+
+---
+
+## After Step 11 — the list advice no longer waits for the phone's OCR
+
+**Why.** The advice was reached only when the phone's own OCR produced the page. A device without the
+ML Kit text module gets no advice at all, however legible the list: every list scan in this document
+shows `on-device OCR · 0 chars · failed` and then a ranking from the read's own order, unexplained.
+That is the app's best answer withheld from the page it is best at, because a different component was
+missing.
+
+**What changed.** `judgeList(read, fallback)` runs for a list the model read as well, under the same
+budget rules — `remainingMs() > 15_000` before the call, the `ADVICE_DEADLINE_MS` extension, the 60 s
+cap — and the same single retry for a 503 inside `adviceAnswer`. What is deliberately not copied is the
+fallback: a model-read list already carries its own order from the read, so a second 4,000-token
+`listJudge` call would buy a ranking that is already on screen. The phone path keeps it, because a
+failed answer there leaves no ranking at all.
+
+**Measured, 2026-11-26** (emulator, real Gemini key, the 26-wine `wine-list.png` picked from the
+gallery): `on-device OCR · ML Kit · 0 chars · failed` → `read the page · Gemini · 5,673 chars ·
+9.9 s` → `advice · Gemini · gemini-3.1-flash-lite · 1,696 chars · 5.3 s`. The block rendered
+`Order this` (Vall Llach 'Embruix'), `Second`, `Third` ('Stimatum' Akoi…), a `By the glass` card
+(Olabarri Reserva, `USD 58.00 bottle · USD 15.00 glass`), `Skip` with its reason, and the note about
+the Tondonia magnum. No retry row: the first attempt answered. The same photo previously produced
+"Basic ranking" and no picks at all.
+
+Not verified: the advice *failing* on the model path — no 503 arrived in this run, so the retry and
+the no-fallback branch are code paths only; the phone-read path on hardware with working OCR; and Groq
+as the advice provider.
 
 ---
 

@@ -436,11 +436,11 @@ fun ScanScreen(onReview: () -> Unit) {
                     return fineRaw?.let { runCatching { ScanParsing.parseLabel(it, currency) }.getOrNull() }
                 }
 
-                // The advice on a list the phone read: text in, a few explained picks out, no
-                // image. This replaced a rank for every line, which a small model answered by
-                // keeping the page's own order — the first three sparkling lines came back as
-                // "best first". The per-wine judgement is kept below for one release, and is only
-                // reached when the advice answer carries no usable pick.
+                // The advice on a list: text in, a few explained picks out, no image. This replaced
+                // a rank for every line, which a small model answered by keeping the page's own
+                // order — the first three sparkling lines came back as "best first". The per-wine
+                // judgement is kept below for one release, and is only reached for a list the phone
+                // read, where a failed answer would otherwise leave no ranking at all.
                 //
                 // A shelf asks the same question with the money taken literally (a shop price is
                 // retail, not a markup), so both go through the two helpers below. Everything that
@@ -512,7 +512,21 @@ fun ScanScreen(onReview: () -> Unit) {
                         adviceAttempt("$label (retry)", system, turn)
                     }
 
-                suspend fun judgeList(read: SceneScan): SceneScan? {
+                /**
+                 * The list answer, for a list the phone read *and* for one the model read.
+                 *
+                 * The advice used to be reached only through the on-device OCR pass. That pass needs
+                 * the ML Kit text module, which some devices (and this project's emulator) do not
+                 * have, so a legible list could come back ranked and unexplained — the app's best
+                 * answer for exactly the page it is best at, withheld because a different component
+                 * was missing.
+                 *
+                 * [fallback] is the per-wine ranking call. The phone path has no ranking of its own,
+                 * so a failed answer leaves it with nothing and the fallback earns its 4,000 tokens.
+                 * A list the model read already carries the model's own order from the read, so a
+                 * second call there would buy a ranking that is already on screen.
+                 */
+                suspend fun judgeList(read: SceneScan, fallback: Boolean = true): SceneScan? {
                     var judgeWho = ""
                     var judgeModel = ""
                     val owned = if (known.isEmpty()) "" else known.take(25).joinToString("; ")
@@ -538,7 +552,7 @@ fun ScanScreen(onReview: () -> Unit) {
                             adviceTimedOut || (failure as? AiException)?.let {
                                 it.retryable || it.retryAfterMs != null
                             } == true
-                        if (budget) return null
+                        if (budget || !fallback) return null
                     }
 
                     val fallbackStart = System.currentTimeMillis()
@@ -827,6 +841,19 @@ fun ScanScreen(onReview: () -> Unit) {
                     stage = "Picking from the shelf…"
                     deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
                     judgeShelf(shelf)?.let { parsed = it }
+                }
+
+                // A list the model read gets the same answer the phone path gets. Without this the
+                // advice was gated on the phone's OCR: no module, no advice, however legible the
+                // page. Its own read order stands in for the fallback, so only the advice call —
+                // with its one retry for a 503 and its own deadline — is spent here.
+                val list = parsed
+                if (list != null && list.scene == Scene.LIST && list.bottles.size > 1 &&
+                    onPhone == null && remainingMs() > 15_000L
+                ) {
+                    stage = "Thinking about the list…"
+                    deadlineMs = maxOf(deadlineMs, ADVICE_DEADLINE_MS)
+                    judgeList(list, fallback = false)?.let { parsed = it }
                 }
 
                 if (parsed == null) {

@@ -355,9 +355,9 @@ this avoids a database and its migration surface entirely.
   phone run is recorded here, and the emulator's camera is a synthetic scene, so camera capture and
   the photo picker have not been exercised on hardware.
 - A shop shelf and a restaurant list are told apart by the model rather than by the app, and it is
-  not perfectly steady: the same four-bottle shelf photo was read as a list on one of three tries,
-  and a list the *model* read (rather than the phone's OCR) gets no advice at all — the ranking
-  fallback stands in for it.
+  not perfectly steady: the same four-bottle shelf photo was read as a list on one of three tries.
+  Both readings get the advice now — the list answer runs on the model's own read, not only on the
+  phone's OCR, so a device without that module is no longer a device without answers.
 - "Why it tastes this way" needs the advice model. Without a key the bottle page offers the request
   and shows what failed; nothing is invented in its place.
 - The scan result's advice block needs a provider key to reach. For layout work, a debug build reads
