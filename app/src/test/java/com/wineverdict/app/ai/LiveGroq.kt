@@ -72,7 +72,8 @@ internal object LiveGroq {
         model = model
     )
 
-    fun post(payload: String, key: String): LiveReply {
+    /** One POST to [endpoint]; a caller with another provider passes its own URL. */
+    fun post(payload: String, key: String, endpoint: String = this.endpoint): LiveReply {
         val client = OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(180, TimeUnit.SECONDS)
