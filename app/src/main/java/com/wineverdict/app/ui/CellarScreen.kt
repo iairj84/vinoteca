@@ -1,5 +1,7 @@
 package com.wineverdict.app.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -28,6 +31,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -47,7 +51,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.BottleCandidate
@@ -176,7 +182,11 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { addOpen = true }) {
+            FloatingActionButton(
+                onClick = { addOpen = true },
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
                 Icon(Icons.Filled.Add, contentDescription = "Add a bottle")
             }
         }
@@ -421,7 +431,7 @@ private fun CandidateCard(
                         "In your cellar, none left. Adding brings it back."
                     },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.tertiary
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             val facts = listOf(
@@ -461,26 +471,60 @@ private fun CandidateCard(
     }
 }
 
+/*
+ * The cellar's label: the one solid claret object on the page, ruled in brass. A wine label is
+ * printed on the bottle rather than on a card, and so is this, so the numbers read as a stamp on
+ * the cellar instead of as another tile beside the bottles.
+ */
 @Composable
 private fun StatsCard(bottles: Int, wines: Int, ready: Int, value: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f)),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
+            // At night the bright claret would become a pink slab, so the label goes to its deep
+            // container colour and keeps the ivory serif it has in daylight.
+            containerColor = if (isSystemInDarkTheme()) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+            contentColor = if (isSystemInDarkTheme()) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onPrimary
+            }
         )
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 16.dp, horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            StatCell("$bottles", "bottles")
-            StatCell("$wines", "wines")
-            StatCell("$ready", "drink now")
-            StatCell(value, "paid")
+        // Four capital labels do not fit across one row once the system font grows: at 1.3x
+        // "READY NOW" ran into "PAID" and the labels ran together. Past that point the plaque is a
+        // small ledger instead, one stat per line, so the text always has the whole width.
+        if (LocalDensity.current.fontScale > 1.15f) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                StatRow("$bottles", "BOTTLES")
+                StatRow("$wines", "WINES")
+                StatRow("$ready", "READY NOW")
+                StatRow(value, "PAID")
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 18.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StatCell("$bottles", "BOTTLES")
+                StatCell("$wines", "WINES")
+                StatCell("$ready", "READY NOW")
+                StatCell(value, "PAID")
+            }
         }
     }
 }
@@ -491,12 +535,41 @@ private fun StatCell(value: String, label: String) {
         Text(
             text = value,
             style = MaterialTheme.typography.titleLarge,
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+            color = LocalContentColor.current.copy(alpha = 0.72f),
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}
+
+/*
+ * The large-text shape of a stat: the label keeps the left edge, the number keeps the right one, so
+ * the line is as wide as the plaque and nothing has to collide or shrink.
+ */
+@Composable
+private fun StatRow(value: String, label: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+            color = LocalContentColor.current.copy(alpha = 0.72f),
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = TextAlign.End,
+            maxLines = 1
         )
     }
 }

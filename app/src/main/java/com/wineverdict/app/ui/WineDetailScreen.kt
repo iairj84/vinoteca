@@ -2,6 +2,8 @@ package com.wineverdict.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,7 +69,7 @@ private fun sourceHosts(sources: String): String =
         .distinct()
         .joinToString(" \u00b7 ")
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Unit) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
@@ -137,9 +139,11 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 )
             }
 
-            Row(
+            // Wraps rather than pushing the last badge off the edge, which is what happened to
+            // the rating at double text.
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 DrinkBadge(wine.drinkStatus())
                 Pill(if (wine.quantity > 0) "${wine.quantity} in cellar" else "none left")

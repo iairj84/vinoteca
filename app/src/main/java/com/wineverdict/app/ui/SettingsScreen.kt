@@ -643,7 +643,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     UpdateUi.UpToDate -> Text(
                         "This is the newest release.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary
+                        color = MaterialTheme.colorScheme.primary
                     )
 
                     is UpdateUi.Available -> {
@@ -1105,7 +1105,7 @@ private fun ProviderCard(
                 test.message,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (test.ok) {
-                    MaterialTheme.colorScheme.tertiary
+                    MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.error
                 }

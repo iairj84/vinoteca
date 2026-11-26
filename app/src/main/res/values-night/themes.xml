@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The dark theme is the same ledger at night: black paper, the same claret label. -->
+    <style name="Theme.WineVerdict" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#12100F</item>
+        <item name="android:statusBarColor">#12100F</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#12100F</item>
+    </style>
+</resources>

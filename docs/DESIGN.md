@@ -152,3 +152,44 @@ bottle photographed is the ordinary shop case, so its card carries the same verd
 price band only enters when a price tag was actually read. A reply that says "other" while listing a
 bottle is treated as what it read.
 
+## The look: a cellar ledger
+
+The theme is paper, ink and one claret label. Claret used to be the background — a maroon status
+bar and a maroon stats block — so the colour read as app chrome rather than as the thing you paid
+for. It now appears only where the app states something: the cellar's numbers, the open tab, the
+primary action, the scan's **Camera** button. Everything else is warm paper (#F7F2E9) on near-white
+cards held by a 1dp hairline instead of a shadow, because shadows turned the cellar page into eleven
+separate objects where hairlines leave one page.
+
+Typography is Noto Serif at book weight for names, headings and numbers — bold serif reads as a
+masthead, regular reads as a bottle label — with the sans kept for facts and 11sp letterspaced
+capitals for the four labels on the cellar plaque.
+
+The mark is the glass a verdict is poured into: a goblet whose bowl tapers to a point, so the
+silhouette is a V as well as a glass, with the wine drawn as one brass level inside a claret rim.
+It ships as the adaptive launcher icon with a monochrome layer for themed icons.
+
+At night the same ledger is read by lamplight: black paper, ivory text, and the cellar plaque moves
+to the deep claret container rather than the bright pink `primary`, which at that size reads as a
+warning rather than a label. The status bar follows the scheme in `values-night/themes.xml`; a static
+light status bar over a dark app was the first thing the night pass got wrong.
+
+Two things the first pass got wrong, and now does differently. The plaque's four capital labels ran
+into each other once the system font grew: at 1.3x `READY NOW` touched `PAID` and the gaps closed up,
+because four letterspaced capitals do not fit four equal columns. Above 1.15x the plaque is now a
+small ledger instead — one stat per line, label on the left edge and number on the right — which is
+as wide as the card at any font scale. And the muted tier (`outline`) sat at 3.6:1 on paper, under AA
+for the `Paid USD 45.00` and disclaimer lines that use it; it is `#75655A` now (5.0:1 on paper, 5.5:1 on a card), still a
+step lighter than `onSurfaceVariant`. There is no third hue: brass is the only second accent, so the
+olive that carried "quiet" and "went well" text is gone — quiet lines are ink and confirmations are
+claret. Amounts also gained thousands separators (`USD 4,421.00`), which is what had been crowding
+the plaque.
+
+Large text is where a fixed-height bar and a single row of badges break, so the app gives ground in
+four places. The bottom bar keeps its five icons and drops the labels above 1.45x — the name moves
+into the icon's description, so TalkBack still reads it. The Ask header keeps its title and drops the
+count line above 1.6x rather than slicing it, because a `TopAppBar` has a fixed height and the line
+under the title wrapped. The button pair on Taste and the badge row on Bottle wrap instead of
+squeezing a word (`Reta/ke`) or pushing the rating off the edge. Single-line text fields still
+truncate their own text at rest; that is the field, not the layout, and the text scrolls when it has
+focus.

@@ -201,5 +201,5 @@ fun defaultLocations(): List<StorageLocation> = listOf(
 
 fun formatMoney(value: Double?, currency: String): String {
     if (value == null) return "—"
-    return String.format(java.util.Locale.US, "%s %.2f", currency, value)
+    return String.format(java.util.Locale.US, "%s %,.2f", currency, value)
 }

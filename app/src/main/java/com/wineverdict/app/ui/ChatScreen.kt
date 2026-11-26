@@ -45,11 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -195,11 +197,18 @@ fun ChatScreen() {
                 title = {
                     Column {
                         Text("Ask", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "${cellar.wines.sumOf { it.quantity }} bottles and your taste file in context",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // The bar is a fixed height, so this line never wraps: at 1.3x it spilled a
+                        // sliced second line, and at 2.0x even one line does not fit. The count is
+                        // on the cellar page anyway.
+                        if (LocalDensity.current.fontScale <= 1.6f) {
+                            Text(
+                                "${cellar.wines.sumOf { it.quantity }} bottles and your taste file in context",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             )

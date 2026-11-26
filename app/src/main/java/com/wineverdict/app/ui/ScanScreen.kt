@@ -2168,7 +2168,7 @@ private fun Countdown(until: Long) {
         Text(
             "Waiting ${seconds}s for the free-tier token budget — nothing to do.",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.tertiary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

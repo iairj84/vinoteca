@@ -3,6 +3,39 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.12: the cellar reads as a ledger, and the layout holds when the text grows
+
+**Claret used to be the chrome.** A maroon status bar and a maroon stats block put the brand colour
+behind everything, so the page read as one solid app rather than as a cellar with a label on it. The
+colour is now kept for what the app actually states — the cellar's numbers, the open tab, the primary
+action, the scan's **Camera** — and everything else is warm paper on near-white cards held by a 1dp
+hairline instead of a shadow, which turned eleven floating tiles back into one page. Names, headings
+and numbers are Noto Serif at book weight, bold serif reading as a masthead where regular reads as a
+bottle label, with the sans kept for facts. The launcher icon is the verdict poured into a glass: a
+goblet whose bowl tapers to a point, so the silhouette is a V as well as a glass, with one brass
+level of wine, and a monochrome layer so Android's themed icons keep the shape.
+
+**Night mode was the first thing the pass got wrong.** A static light status bar over the dark app
+left white icons on near-black, so the bar now follows the scheme in `values-night/themes.xml`, and
+the cellar plaque moves to the deep claret container — the bright pink `primary` at that size read as
+a warning rather than as a label.
+
+**A review of the finished pass found four things worth fixing, and they are all in here.** The
+plaque's four capital labels collided once the system font grew — at 1.3x `READY NOW` touched `PAID`
+— so above 1.15x it becomes a small ledger, one stat per line, label on the left edge and number on
+the right. The muted tier sat at 3.6:1 on paper, under AA for the `Paid USD 45.00` and disclaimer
+lines that use it, so it is `#75655A` now (5.0:1). Amounts carry thousands separators, which is what
+had been crowding the plaque (`USD 4,421.00`). And there is no third accent any more: brass is the
+only second colour, the olive that carried "quiet" and "went well" text is gone, quiet lines are ink
+and confirmations are claret.
+
+**At large text the chrome gives way instead of clipping.** The bottom bar keeps its five icons and
+drops the labels above 1.45x rather than breaking them mid-word (`Cella/r`), with each name moved into
+the icon's description for TalkBack. The Ask header holds one line — it used to wrap and get sliced by
+the fixed-height bar — and drops the count above 1.6x. The button pair on Taste and the badge row on
+Bottle wrap instead of squeezing `Retake` into `Reta/ke` or pushing the rating badge off the edge.
+Settings, Scan, Ask, Taste, Bottle and the editor were each walked at 1.3x and 2.0x.
+
 ### 1.2.11: the card says when the bottle is already yours
 
 **A candidate you already own looked new.** The add-by-name search matches a bottle on its

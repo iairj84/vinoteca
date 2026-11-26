@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="wine_dark">#FF5B1622</color>
-    <color name="wine">#FF7B2233</color>
-    <color name="cream">#FFFBF8F3</color>
-    <color name="ic_launcher_background">#FF5B1622</color>
+    <color name="wine_dark">#FF47101A</color>
+    <color name="wine">#FF6E1A2A</color>
+    <color name="cream">#FFF7F2E9</color>
+    <color name="ic_launcher_background">#FFF7F2E9</color>
 </resources>

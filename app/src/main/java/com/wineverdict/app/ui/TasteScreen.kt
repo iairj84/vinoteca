@@ -2,6 +2,8 @@ package com.wineverdict.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,7 +48,7 @@ import com.wineverdict.app.data.QuickStart
  * answer now lives in the interview; this screen shows the result. The brief is printed verbatim
  * because it is the thing that actually reaches a model, and until now it could not be seen anywhere.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TasteScreen(
     onStartQuickStart: () -> Unit = {},
@@ -129,7 +131,12 @@ fun TasteScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Two buttons on one line squeeze "Retake" into "Reta/ke" at double text,
+                    // so they wrap onto their own lines instead.
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Button(
                             onClick = {
                                 // The interview is the point of this button, so it opens at the
