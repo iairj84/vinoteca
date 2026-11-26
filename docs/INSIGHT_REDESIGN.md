@@ -627,9 +627,24 @@ the Tondonia magnum. No retry row: the first attempt answered. The same photo pr
 5,726 chars · 8.4 s` → one `advice` row, `1,721 chars · 5.2 s`, block rendered — the refactor is
 behaviour-neutral, and the panel showed a single advice row (no retry) both times.
 
-Not verified: the advice *failing* on the model path — no 503 arrived in this run, so the retry and
-the no-fallback branch are code paths only; the phone-read path on hardware with working OCR; and Groq
-as the advice provider.
+**Failure path, forced** (same day). The advice was made to fail without touching code: the Gemini
+card's *Advice model* was set to `gemini-2.5-flash` — reads keep `gemini-3.1-flash-lite`, and free-tier
+minutes are counted per model — and that model's minute was then spent from the host, so every advice
+call answered 429: a real retryable failure from the real provider. Panel: `advice · 0 chars · 115 ms ·
+failed: Google Gemini rate limit hit (429)`, then `advice (retry) · 0 chars · 20,139 ms · failed: …
+(429)` — the 20 s is the rate limiter's penalty wait before the second attempt, which `budgetMs`
+allowed and `adviceTimedOut` did not block. **No `judge (fallback)` row**: `rankIfUnanswered = false`
+returned null without spending a second 4,000-token call. On screen, no `What to order` block at all —
+a plain caption, "Basic ranking — the advice answer did not come back, so this is the model's order for
+the wines it could judge", then "Worth ordering, best first" rendered from the read
+(`ListPicks.Basis.READ`, 5,279 characters) with the pour toggle and no half-drawn cards. Setting the
+advice model back to `gemini-3.1-flash-lite` and scanning the same photo returned `What to order`
+again, so the failure was the setting and the quota, not the code. One blemish the run exposed: both
+failed rows read `no provider`, because the client reports who answered only when one does — noted,
+not fixed here (the failure text on the same row does name Gemini).
+
+Still not verified: a *503* rather than a 429 (both take the same `retryable` branch); the phone-read
+path on hardware with working OCR; and Groq as the advice provider.
 
 ---
 
