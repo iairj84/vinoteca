@@ -3,7 +3,7 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
-### Unreleased
+### 1.2.0: the month says what it cost, and the cap holds
 
 **A spend cap, counted from real usage.** A paid key bills by the token, and the app had no idea what
 it had spent: the only place to find out was the provider's console, after the fact. Every answer
