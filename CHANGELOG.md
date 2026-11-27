@@ -3,6 +3,18 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.18: Drank one, on the bottle's own page too
+
+**The action was only where the list is.** 1.2.14 put **Drank one** on the cellar's cards, but the
+bottle page — the one opened from a card, and the only screen with the notes, the window and the
+rules on it — still offered just the minus button. A bottle opened there had no way to be recorded
+as drunk without opening its card in the list, which is backwards: the page is where it is read.
+
+**One dialog, two places.** The action now sits under **Bottles** in “Where it lives”, disabled when
+there is none left, and it is the same sheet the list opens: one bottle out on the tap, then the
+four words and one line, with **Skip** leaving it recorded as drunk and nothing said. The shared
+dialog moved out of the cellar screen so both callers ask the identical question.
+
 ### 1.2.17: the list is kept, and the reminder reopens it
 
 **The list was the one thing the scan did not keep.** A restaurant's menu was read, the picks were

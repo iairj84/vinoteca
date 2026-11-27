@@ -355,57 +355,6 @@ fun CellarScreen(
 }
 
 /**
- * The second half of the list's quick action.
- *
- * The bottle has already left the inventory by the time this opens, so the two questions here are
- * the ones only the drinker can answer: the four-word verdict and one line about it. Closing it
- * says nothing about the bottle, which is an answer too — it was drunk, and that is recorded.
- */
-@Composable
-private fun DrankDialog(wine: Wine, onSave: (Int?, String) -> Unit, onClose: () -> Unit) {
-    var rating by remember(wine.id) { mutableStateOf(wine.rating) }
-    var note by remember(wine.id) { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text("How was it?") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(wine.title, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        when {
-                            wine.quantity <= 0 -> "The last bottle is out of the cellar."
-                            wine.quantity == 1 -> "One bottle left in the cellar."
-                            else -> "${wine.quantity} bottles left in the cellar."
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                // The same four words the bottle page and the editor offer, so the answer given
-                // here is the answer every filter, sort and brief already reads.
-                VerdictChips(rating) { rating = it }
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("One line about it") },
-                    placeholder = { Text("Strawberry, cold, worth it") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(rating, note) }) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onClose) { Text("Skip") }
-        }
-    )
-}
-
-/**
  * The way a bottle gets in when it is not in the cellar yet.
  *
  * It starts as one question with a text field, because the bottle is in the user's hand and the

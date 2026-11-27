@@ -19,26 +19,33 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import com.wineverdict.app.model.DrinkStatus
@@ -167,6 +174,59 @@ fun VerdictChips(rating: Int?, modifier: Modifier = Modifier, onRating: (Int?) -
             )
         }
     }
+}
+
+/**
+ * What was it like — the shared second half of **Drank one**.
+ *
+ * The bottle has already left the inventory by the time this opens, on the cellar's card and on the
+ * bottle's own page alike: that tap is the fact, and the count must not wait on a dialog nobody may
+ * finish. What is asked here is the part only the drinker knows — the four words and one line — and
+ * closing it says nothing about the bottle, which is an answer too: it was drunk, and that is
+ * recorded.
+ */
+@Composable
+fun DrankDialog(wine: Wine, onSave: (Int?, String) -> Unit, onClose: () -> Unit) {
+    var rating by remember(wine.id) { mutableStateOf(wine.rating) }
+    var note by remember(wine.id) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("How was it?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(wine.title, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        when {
+                            wine.quantity <= 0 -> "The last bottle is out of the cellar."
+                            wine.quantity == 1 -> "One bottle left in the cellar."
+                            else -> "${wine.quantity} bottles left in the cellar."
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // The same four words the bottle page and the editor offer, so the answer given
+                // here is the answer every filter, sort and brief already reads.
+                VerdictChips(rating) { rating = it }
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("One line about it") },
+                    placeholder = { Text("Strawberry, cold, worth it") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(rating, note) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text("Skip") }
+        }
+    )
 }
 
 @Composable

@@ -79,6 +79,7 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     val profile by AppGraph.palate.profile.collectAsStateWithLifecycle()
     val rules = remember(profile) { AppGraph.palate.rules }
     var showNoteDialog by remember { mutableStateOf(false) }
+    var drankOpen by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var looking by remember { mutableStateOf(false) }
     var lookupMessage by remember { mutableStateOf<String?>(null) }
@@ -217,6 +218,19 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "One more")
                     }
+                }
+                // The list's quick action, on the page the bottle is actually read on: one bottle
+                // out on the tap, then the question. Disabled at nothing left, because the count
+                // is what this page is already showing.
+                OutlinedButton(
+                    onClick = {
+                        scope.launch { AppGraph.cellar.adjustQuantity(wine.id, -1) }
+                        drankOpen = true
+                    },
+                    enabled = wine.quantity > 0,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Drank one")
                 }
             }
 
@@ -401,6 +415,23 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 }
             }
         }
+    }
+
+    if (drankOpen && wine != null) {
+        // Read from the flow rather than from the copy the click captured, so the sheet says how
+        // many are left after the decrement this tap just made.
+        val after = data.wines.firstOrNull { it.id == wine.id } ?: wine
+        DrankDialog(
+            wine = after,
+            onSave = { rating, note ->
+                drankOpen = false
+                scope.launch {
+                    if (rating != wine.rating) AppGraph.cellar.setRating(wine.id, rating)
+                    if (note.isNotBlank()) AppGraph.cellar.addTastingNote(wine.id, note)
+                }
+            },
+            onClose = { drankOpen = false }
+        )
     }
 
     if (showNoteDialog && wine != null) {
