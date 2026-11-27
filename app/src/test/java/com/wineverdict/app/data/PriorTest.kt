@@ -67,6 +67,27 @@ class PriorTest {
     }
 
     @Test
+    fun aWineAlreadyRuledOutIsSpelledOutAndDated() {
+        // The strongest thing the app holds, and the one a menu must not argue with: the flag says
+        // the word, the sentence says when it was said.
+        val own = wine("own", quantity = 0, rating = Verdict.NOT_FOR_ME.rating)
+            .copy(updatedAt = yesterday())
+        val prior = priorFor(wine("scan"), listOf(own), emptyList())
+
+        assertTrue(prior!!.notForMe)
+        assertEquals("You called this Not for me yesterday.", prior.objection)
+    }
+
+    @Test
+    fun aFineVerdictIsNotAFlag() {
+        val own = wine("own", rating = Verdict.FINE.rating)
+        val prior = priorFor(wine("scan"), listOf(own), emptyList())
+
+        assertTrue(!prior!!.notForMe)
+        assertEquals("Fine", prior.verdict)
+    }
+
+    @Test
     fun aWineNeverSeenStaysSilent() {
         assertNull(priorFor(wine("scan"), listOf(wine("own", name = "Chablis")), emptyList()))
     }

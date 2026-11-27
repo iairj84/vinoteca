@@ -22,10 +22,28 @@ data class Prior(
     /** When it was last opened, from the drink log. 0 means never recorded as drunk. */
     val drankAt: Long = 0,
     /** The word on record for it, from the bottle or from the night it was drunk. */
-    val rating: Int? = null
+    val rating: Int? = null,
+    /** When that word was given: the bottle's last edit, or the night the drink was logged. */
+    val ratedAt: Long = 0
 ) {
     /** The verdict word, when one was ever given. */
     val verdict: String? get() = Verdict.label(rating)
+
+    /**
+     * The one answer a menu must not argue with.
+     *
+     * Fine and Good are opinions about a bottle, and a second glass can change them. Not for me is
+     * the strongest thing the app holds, and it is the reason a menu card stops being a suggestion.
+     */
+    val notForMe: Boolean get() = Verdict.of(rating) == Verdict.NOT_FOR_ME
+
+    /** The sentence under the flag: the verdict, and the day it was given when there is one. */
+    val objection: String
+        get() = if (ratedAt <= 0) {
+            "You have called this Not for me."
+        } else {
+            "You called this Not for me ${dayPhrase(ratedAt)}."
+        }
 
     /** What the card says, in the fewest words that are still true. */
     val summary: String
@@ -60,7 +78,14 @@ fun priorFor(wine: Wine, cellar: List<Wine>, drinks: List<Drink>): Prior? {
         onRecord = record != null,
         drankAt = lastDrink?.at ?: 0,
         // The bottle's own word first: a verdict edited on the bottle page is the latest answer.
-        rating = record?.rating ?: lastDrink?.rating
+        rating = record?.rating ?: lastDrink?.rating,
+        // Dated by whichever record gave the word, so "you called this Not for me yesterday" is
+        // about the bottle's own edit when there is one.
+        ratedAt = when {
+            record?.rating != null -> record.updatedAt
+            lastDrink?.rating != null -> lastDrink.at
+            else -> 0
+        }
     )
 }
 

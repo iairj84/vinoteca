@@ -7,6 +7,7 @@ import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -1302,7 +1303,24 @@ fun ScanScreen(onReview: () -> Unit) {
                 // The advice answer, when it came back, is the result: two or three bottles
                 // explained. The ranking below it is the fallback, and the rest of the page is the
                 // list of what was read, without ranks.
-                val advice = result.advice
+                // A pick the reader has already ruled out is not advice. Dropped before anything is
+                // shown, so "what should I order" cannot name a wine they said no to — and said out
+                // loud, because a missing second pick with no explanation is a mystery.
+                val rejectedPicks = if (restaurant) {
+                    result.advice?.picks.orEmpty().filter { pick ->
+                        val wine = result.bottles.getOrNull(pick.index)?.wine ?: return@filter false
+                        priorFor(wine, cellarNow.wines, drankNow)?.notForMe == true
+                    }
+                } else {
+                    emptyList()
+                }
+                val advice = result.advice?.let { full ->
+                    if (rejectedPicks.isEmpty()) {
+                        full
+                    } else {
+                        full.copy(picks = full.picks.filterNot { it in rejectedPicks })
+                    }
+                }
                 val ranking = if (restaurant && result.bottles.size > 1 && advice == null) {
                     ListPicks.rank(
                         candidates = result.bottles.map {
@@ -1323,6 +1341,19 @@ fun ScanScreen(onReview: () -> Unit) {
                     (restaurant || result.scene == Scene.SHELF)
                 ) {
                     AdviceBlock(advice = advice, bottles = result.bottles, shop = !restaurant)
+                    if (rejectedPicks.isNotEmpty()) {
+                        Text(
+                            rejectedPicks.joinToString(", ") { pick ->
+                                result.bottles.getOrNull(pick.index)?.wine?.title.orEmpty()
+                            }.let { names ->
+                                "Left out of the answer: $names — " +
+                                    (if (rejectedPicks.size == 1) "you have called this" else "you have called these") +
+                                    " Not for me."
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 if (restaurant && result.bottles.isNotEmpty()) {
                     // Said plainly, because a list that quietly keeps itself is a list nobody looks
@@ -2129,12 +2160,39 @@ private fun BottleVerdictCard(
             val cellarNow by AppGraph.cellar.data.collectAsStateWithLifecycle()
             val drankNow by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
             priorFor(result.wine, cellarNow.wines, drankNow)?.let { known ->
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Pill(known.summary, color = MaterialTheme.colorScheme.primaryContainer)
-                    known.verdict?.let { Pill(it) }
+                if (known.notForMe) {
+                    // Louder than a verdict badge on purpose. A menu exists to tempt, and the one
+                    // thing the app already knows for certain — you said no to this — has to
+                    // interrupt rather than sit in the same grey as "Fine".
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                MaterialTheme.colorScheme.errorContainer,
+                                RoundedCornerShape(10.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            "Not for me",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            known.objection,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                } else {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Pill(known.summary, color = MaterialTheme.colorScheme.primaryContainer)
+                        known.verdict?.let { Pill(it) }
+                    }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {

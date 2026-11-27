@@ -3,6 +3,22 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.29: a wine you said no to is not a suggestion
+
+**"Not for me" sat in the same grey as "Fine".** On a menu it was one badge among several on a
+card whose whole purpose is to tempt, and the advice could happily recommend the same bottle a
+second time — the one answer the app holds for certain, argued with by a menu.
+
+- **The flag interrupts.** A wine on record as Not for me gets a filled block instead of a badge: the
+  word in the error colour, and the sentence that dates it — "You called this Not for me yesterday."
+  Fine and Good remain ordinary badges, because a second glass can change an opinion and only a
+  refusal is a refusal.
+- **It is dropped from the advice's picks**, before anything is rendered or kept, so the top pick
+  becomes the next wine the answer wanted rather than one you have refused. The missing pick is
+  named rather than silently vanished: "Left out of the answer: X — you have called this Not for me."
+- **Dated properly.** The verdict's own edit time is used when the bottle carries the word, and the
+  night's entry when the word was given in a glass, so the flag is never a bare opinion.
+
 ### 1.2.28: a menu now says which wines you have had
 
 **Scanning a menu could not tell you that you already knew three of its wines.** The reader matched
