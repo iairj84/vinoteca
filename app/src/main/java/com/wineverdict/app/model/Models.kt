@@ -237,7 +237,15 @@ data class ChatMessage(
     val role: String = "user",
     val text: String = "",
     @Transient val imageBase64: String? = null,
-    val at: Long = System.currentTimeMillis()
+    val at: Long = System.currentTimeMillis(),
+    /**
+     * The move this answer asked for, as a query the app resolves against the whole cellar. Null on
+     * every answer that asked for nothing, which is most of them. The marker line is not kept in
+     * [text], so the card is the only place the request is shown.
+     */
+    val moveRequest: MoveRequest? = null,
+    /** How many bottles the confirmed move wrote. 0 means nothing has moved yet. */
+    val movedCount: Int = 0
 )
 
 fun defaultLocations(): List<StorageLocation> = listOf(

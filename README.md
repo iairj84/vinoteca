@@ -115,6 +115,12 @@ Gemini or Groq — with your own key.
   your saved wine menus — the place, the day, the wines you picked there and the ones you refused — so
   “what did I order at that place” is answerable, and a wine you turned down at that table is never
   offered again.
+- **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
+  Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
+  bottle in the cellar (not the shortlist the model was shown), lists the matches with where each one
+  lives now, and writes nothing until you tap **Move**. A place you name that the cellar does not have
+  yet is offered for creation on the same card. The chat itself has no write access, so it cannot
+  claim a change it did not make.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.

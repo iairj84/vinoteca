@@ -3,6 +3,31 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.32: Ask can move bottles, once you confirm
+
+**Ask answered "I have updated the location for the following bottles" and nothing had moved.** The
+chat is prose in and prose out — it has no write path at all — but its opening line called it a
+sommelier "who also keeps track of my inventory", and no rule said otherwise. So a request to move
+every Cabernet Sauvignon to the Bar Fridge came back as a tidy list of bottles and a confirmation of
+an edit that never happened: the bottle page still said Unassigned.
+
+- **The app does the matching, not the model.** A move request now arrives as a query — grape, type,
+  producer, region, country, appellation, a vintage range, a place — and the app resolves it against
+  every bottle in the cellar. That is the point of a query: the prompt only carries a digest of the
+  shelf (55 bottles on the thin budget, 140 on the wide one), so a list of names the model wrote would
+  have been short without saying so.
+- **The card shows what will move.** The matched bottles each with where they live now, the target
+  location and the count. A place the cellar does not have yet is offered for creation on the same card
+  rather than refused or quietly invented. Bottles already there, and bottles with no stock, are not in
+  the list to move.
+- **Nothing moves until you tap Move.** Confirming writes through the same repository call the bottle
+  page's location picker uses, as one write for the whole set; Cancel discards the offer. The marker
+  line is stripped from the answer before it is stored, so the JSON never reaches the screen or the
+  next question's history.
+- **The chat is told it has no write access.** It may propose a move, and must say the app will show
+  the bottles and move them on confirmation; it must not claim to have moved, added, renamed, deleted
+  or drunk a bottle.
+
 ### 1.2.31: the reminder stops once the evening is recorded
 
 **The nudge fired an hour after the page was read, whatever had happened since.** Rate every wine on

@@ -28,6 +28,17 @@ class ChatRepository(context: Context) {
         runCatching { file.writeText(json.encodeToString(next)) }
     }
 
+    /**
+     * Rewrites one message in place. A confirmed move and a dismissed one both change the card the
+     * answer produced, and the card is drawn from the message, so the change is a message edit.
+     */
+    fun update(id: String, transform: (ChatMessage) -> ChatMessage) {
+        if (_messages.value.none { it.id == id }) return
+        val next = _messages.value.map { if (it.id == id) transform(it) else it }
+        _messages.value = next
+        runCatching { file.writeText(json.encodeToString(next)) }
+    }
+
     fun clear() {
         _messages.value = emptyList()
         runCatching { file.delete() }

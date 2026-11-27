@@ -272,20 +272,33 @@ class CellarRepository(context: Context) {
         )
     }
 
-    suspend fun moveTo(id: String, locationId: String?, slot: String) = mutate { current ->
-        current.copy(
-            wines = current.wines.map {
-                if (it.id == id) {
-                    it.copy(
-                        locationId = locationId,
-                        slot = slot,
-                        updatedAt = System.currentTimeMillis()
-                    )
-                } else {
-                    it
+    suspend fun moveTo(id: String, locationId: String?, slot: String) =
+        moveMany(listOf(id), locationId, slot)
+
+    /**
+     * Moves a set of bottles in one write. The bottle page moves one at a time; a move the chat
+     * proposed can be a dozen, and a dozen rewrites of the whole cellar file is a dozen chances to
+     * land on a half-written file for no gain.
+     */
+    suspend fun moveMany(ids: Collection<String>, locationId: String?, slot: String) = mutate { current ->
+        val targets = ids.toSet()
+        if (targets.isEmpty()) {
+            current
+        } else {
+            current.copy(
+                wines = current.wines.map {
+                    if (it.id in targets) {
+                        it.copy(
+                            locationId = locationId,
+                            slot = slot,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    } else {
+                        it
+                    }
                 }
-            }
-        )
+            )
+        }
     }
 
     suspend fun addLocation(name: String): StorageLocation? {

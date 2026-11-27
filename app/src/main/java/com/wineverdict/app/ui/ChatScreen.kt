@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -33,6 +34,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -57,12 +59,16 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.AiJob
+import com.wineverdict.app.ai.MoveParsing
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.ChatMessage
+import com.wineverdict.app.model.MoveRequest
+import com.wineverdict.app.data.describe
+import com.wineverdict.app.data.plan
 import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -187,7 +193,18 @@ fun ChatScreen() {
                             temperature = 0.5,
                             maxTokens = 1_600
                         )
-                        AppGraph.chat.append(ChatMessage(role = "assistant", text = answer.trim()))
+                        // The move, if the answer asked for one, is a marker line rather than prose:
+                        // it is stripped here so the transcript never carries the JSON and the next
+                        // question's history does not teach the model to write it twice. Nothing is
+                        // written to the cellar — the card proposes, and the user confirms.
+                        val reply = MoveParsing.split(answer)
+                        AppGraph.chat.append(
+                            ChatMessage(
+                                role = "assistant",
+                                text = reply.text,
+                                moveRequest = reply.request
+                            )
+                        )
                     } catch (e: Exception) {
                         error = e.message ?: "The assistant did not answer. Try again."
                     } finally {
@@ -196,6 +213,27 @@ fun ChatScreen() {
                 }
             }
         }
+    }
+
+    // The only place a chat move is written, and through the same repository call the bottle page
+    // uses. A location the cellar does not have yet is created first, because the card said so.
+    val applyMove: suspend (ChatMessage) -> Unit = { message ->
+        val request = message.moveRequest
+        val plan = request?.plan(AppGraph.cellar.data.value)
+        if (request != null && plan != null && plan.wines.isNotEmpty()) {
+            val targetId = plan.location?.id
+                ?: AppGraph.cellar.addLocation(plan.locationName)?.id
+            if (targetId != null) {
+                AppGraph.cellar.moveMany(plan.wines.map { it.id }, targetId, request.slot.trim())
+                AppGraph.chat.update(message.id) { it.copy(movedCount = plan.wines.size) }
+            } else {
+                error = "The location \"${plan.locationName}\" could not be created."
+            }
+        }
+    }
+
+    val dismissMove: (ChatMessage) -> Unit = { message ->
+        AppGraph.chat.update(message.id) { it.copy(moveRequest = null) }
     }
 
     LaunchedEffect(messages.size, sending) {
@@ -264,7 +302,7 @@ fun ChatScreen() {
                 }
 
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(message, onApply = applyMove, onDismiss = dismissMove)
                 }
 
                 if (sending) {
@@ -388,7 +426,11 @@ private fun emphasis(text: String): AnnotatedString = buildAnnotatedString {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    onApply: suspend (ChatMessage) -> Unit,
+    onDismiss: (ChatMessage) -> Unit
+) {
     val isUser = message.role == "user"
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -437,7 +479,129 @@ private fun MessageBubble(message: ChatMessage) {
                         }
                     )
                 }
+                message.moveRequest?.let { request ->
+                    MoveCard(message, request, onApply, onDismiss)
+                }
             }
         }
     }
 }
+
+/**
+ * The move an answer proposed, resolved against the cellar as it stands now.
+ *
+ * The card is drawn from the stored query, not from a list the model wrote, so it names every bottle
+ * the app would actually move and the place it would put them — including a place that does not
+ * exist yet, which confirming creates. Nothing is written until the button is tapped.
+ */
+@Composable
+private fun MoveCard(
+    message: ChatMessage,
+    request: MoveRequest,
+    onApply: suspend (ChatMessage) -> Unit,
+    onDismiss: (ChatMessage) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val plan = remember(request, cellar) { request.plan(cellar) }
+    var applying by remember(message.id) { mutableStateOf(false) }
+    val place = request.location.trim()
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            when {
+                message.movedCount > 0 -> Text(
+                    text = "Moved ${message.movedCount} " +
+                        "${if (message.movedCount == 1) "bottle" else "bottles"} to $place.",
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                plan == null -> Text(
+                    text = "That move could not be read. Ask again, naming the place and the bottles.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                plan.wines.isEmpty() -> {
+                    Text("Nothing to move", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = if (plan.alreadyThere.isEmpty()) {
+                            "No bottle in your cellar matches that."
+                        } else {
+                            "All ${plan.alreadyThere.size} matching " +
+                                "${if (plan.alreadyThere.size == 1) "bottle" else "bottles"} " +
+                                "already live at $place."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = "Move ${plan.wines.size} " +
+                            "${if (plan.wines.size == 1) "bottle" else "bottles"} to $place",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    if (plan.createsLocation) {
+                        Text(
+                            text = "No location is called \"$place\" yet — confirming creates it.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // Every match, because this is the list the user is being asked to approve. The
+                    // cap only stops a hundred-bottle query from filling the screen.
+                    plan.wines.take(MAX_SHOWN).forEach { wine ->
+                        Text(
+                            text = "\u00b7  ${wine.title} — ${plan.describe(wine, cellar)}",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    if (plan.wines.size > MAX_SHOWN) {
+                        Text(
+                            text = "and ${plan.wines.size - MAX_SHOWN} more",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (plan.alreadyThere.isNotEmpty()) {
+                        Text(
+                            text = "${plan.alreadyThere.size} more already " +
+                                "${if (plan.alreadyThere.size == 1) "lives" else "live"} there.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    applying = true
+                                    onApply(message)
+                                    applying = false
+                                }
+                            },
+                            enabled = !applying
+                        ) {
+                            Text(if (applying) "Moving…" else "Move ${plan.wines.size}")
+                        }
+                        TextButton(onClick = { onDismiss(message) }, enabled = !applying) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** How many matched bottles the card names before it starts counting. */
+private const val MAX_SHOWN = 12
