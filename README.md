@@ -112,7 +112,11 @@ Gemini or Groq — with your own key.
   **No bottles** filter and reaches the taste brief the way a rated bottle does. Ask reads the same
   record: “what did I drink yesterday”, “what did I have last week”, “what have I loved this month”.
   A bottle's page says when it was last drunk. **Undo** takes an inventory entry back with the
-  bottle, since an undone tap never happened. The whole book is in the JSON backup.
+  bottle, since an undone tap never happened. A bottle rated or noted before the book existed is
+  offered under **From your bottles**, and one tap writes those tastings in — dated by their note,
+  or by when the bottle last changed, and marked as coming from the bottle rather than as a night
+  the app saw. The seven- and thirty-day lines count nights, and the page says how many entries
+  came from bottles. The whole book is in the JSON backup.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop. It is also given
   your saved wine menus — the place, the day, the wines you picked there and the ones you refused — so
@@ -452,7 +456,7 @@ them are written into the file.
 | --- | --- |
 | Cellar, locations | `files/cellar.json` |
 | Chat transcript (text only, no photos) | `files/chat.json` |
-| Cellar book (every night recorded) | `files/drinks.json` |
+| Cellar book (nights and tastings from bottles) | `files/drinks.json` |
 | Taste profile | `files/mytaste.md` |
 | Quick-start answers | private `SharedPreferences` (`vinoteca_palate`) |
 | Pending batch scans + their photos | `files/scan-queue.json`, `files/scan-queue/` |

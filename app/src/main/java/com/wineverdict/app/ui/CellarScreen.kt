@@ -321,7 +321,7 @@ fun CellarScreen(
                             Column(Modifier.weight(1f)) {
                                 Text("Cellar book", style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    (if (drinks.size == 1) "1 bottle · " else "${drinks.size} bottles · ") +
+                                    (if (drinks.size == 1) "1 entry · " else "${drinks.size} entries · ") +
                                         dayWords(drinks.first().at) + ": " + drinks.first().title,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -184,7 +184,7 @@ fun SettingsScreen(
                     )
                 )
                 dataMessage = "Backup written: ${cellar.wines.size} wines, " +
-                    "${cellar.wines.sumOf { it.quantity }} bottles, ${drinks.size} nights in the " +
+                    "${cellar.wines.sumOf { it.quantity }} bottles, ${drinks.size} entries in the " +
                     "cellar book, plus your mytaste.md."
             } catch (e: Exception) {
                 dataMessage = e.message ?: "Could not write the backup."
@@ -893,7 +893,7 @@ fun SettingsScreen(
                     Text(
                         "${candidate.cellar.wines.size} wines · ${candidate.bottles} bottles · " +
                             "${candidate.cellar.locations.size} storage locations · " +
-                            "${candidate.drinks.size} nights in the cellar book"
+                            "${candidate.drinks.size} entries in the cellar book"
                     )
                     if (candidate.taste.isNotBlank()) Text("Includes the mytaste.md from that phone.")
                     Text("Merge keeps what is on this phone and matches duplicates. Replace deletes it first.")

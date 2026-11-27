@@ -11,6 +11,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -51,7 +52,8 @@ data class Drink(
     val again: Boolean? = null,
     /**
      * How the bottle left the shelf: [DRANK] for **Drank one**, [COUNT] for the minus button,
-     * [MANUAL] for a night written into the book by hand.
+     * [MANUAL] for a night written into the book by hand, [BOTTLE] for a tasting the bottle
+     * already carried and the book caught up with later.
      *
      * Kept because the two are not the same claim. One says a bottle was opened and what it was
      * like; the other says the number was wrong by one. Both belong in the record — a bottle taken
@@ -64,6 +66,7 @@ data class Drink(
         const val DRANK = "drank"
         const val COUNT = "count"
         const val MANUAL = "manual"
+        const val BOTTLE = "bottle"
     }
 }
 
@@ -105,6 +108,36 @@ class DrinkLog(context: Context) {
      */
     fun logCount(wine: Wine): Drink? =
         if (wine.quantity <= 0) null else record(wine, null, "", Drink.COUNT)
+
+    /**
+     * The book catches up with what the bottles already know.
+     *
+     * A verdict or a note written before the book existed is a tasting the user gave, but not a
+     * night the app watched: the entry is [Drink.BOTTLE], dated by its note, or by the bottle's
+     * last change when it has none. Never counted as a bottle that left the shelf.
+     */
+    fun bringAcross(tastings: List<BottleTasting>): Int {
+        val logged = _drinks.value.mapTo(HashSet()) { it.wineId }
+        val fresh = tastings.filterNot { it.wine.id in logged }
+        if (fresh.isEmpty()) return 0
+        val entries = fresh.map { tasting ->
+            val wine = tasting.wine
+            Drink(
+                wineId = wine.id,
+                title = wine.title,
+                type = wine.type.label,
+                region = wine.region.ifBlank { wine.country },
+                price = wine.price,
+                currency = wine.currency,
+                rating = wine.rating,
+                note = tasting.note,
+                at = tasting.at,
+                via = Drink.BOTTLE
+            )
+        }
+        write((_drinks.value + entries).sortedByDescending { it.at }.take(MAX_DRINKS))
+        return entries.size
+    }
 
     /**
      * A night written into the book by hand: a bottle drunk somewhere else, or one from before the
@@ -203,6 +236,51 @@ class DrinkLog(context: Context) {
     }
 }
 
+/** A bottle's own tasting, waiting to be brought into the book. */
+data class BottleTasting(val wine: Wine, val at: Long, val note: String)
+
+/**
+ * The bottles the book has never seen a night for, but which already carry a verdict or a note.
+ *
+ * The date is the newest dated note line — the app writes them as `2026-11-12 — words` — and when
+ * there is none, the bottle's last change. That is the closest true fact, which is why the entry is
+ * marked as coming from the bottle: the night itself was never recorded.
+ */
+fun bottleTastings(
+    wines: List<Wine>,
+    drinks: List<Drink>,
+    zone: ZoneId = ZoneId.systemDefault()
+): List<BottleTasting> {
+    val logged = drinks.mapTo(HashSet()) { it.wineId }
+    return wines.asSequence()
+        .filterNot { it.id in logged }
+        .mapNotNull { wine ->
+            val note = newestDatedNote(wine.myNotes)
+            if (wine.rating == null && note == null) return@mapNotNull null
+            BottleTasting(
+                wine = wine,
+                at = note?.first?.atTime(12, 0)?.atZone(zone)?.toInstant()?.toEpochMilli()
+                    ?: wine.updatedAt,
+                note = note?.second.orEmpty()
+            )
+        }
+        .sortedBy { it.at }
+        .toList()
+}
+
+private val DATED_NOTE = Regex("""^(\d{4}-\d{2}-\d{2})\s*[—–-]\s*(.+)$""")
+
+/** The last line of [notes] the app itself dated, with the words that followed the date. */
+private fun newestDatedNote(notes: String): Pair<LocalDate, String>? =
+    notes.lineSequence()
+        .mapNotNull { line ->
+            val match = DATED_NOTE.find(line.trim()) ?: return@mapNotNull null
+            val day = runCatching { LocalDate.parse(match.groupValues[1]) }.getOrNull()
+                ?: return@mapNotNull null
+            day to match.groupValues[2].trim()
+        }
+        .lastOrNull()
+
 /**
  * The log as a prompt section: the day each bottle was opened, in words the question will use, and
  * the totals that answer "last week" without the model doing arithmetic on dates.
@@ -242,17 +320,27 @@ internal fun drinkDigest(drinks: List<Drink>, now: Long, limit: Int = 20): Strin
                 // A night written in late is a memory, and the note should say so rather than
                 // read as something observed across the table.
                 if (drink.via == Drink.MANUAL) append(" (recorded by hand)")
+                // A tasting that lived on the bottle has a date, but not a night anybody watched.
+                if (drink.via == Drink.BOTTLE) append(" (from the bottle, not a recorded night)")
             }
             if (drink.note.isNotBlank()) append(", \"").append(drink.note.trim()).append("\"")
         }
     }
-    val week = ordered.filter { it.at >= now - 7 * DAY_MS }
-    val month = ordered.filter { it.at >= now - 30 * DAY_MS }
+    // A tasting brought across from a bottle is a record but not a night: counting it as a bottle
+    // would turn "what did I drink last week" into a list of bottles that may never have been opened.
+    val nights = ordered.filter { it.via != Drink.BOTTLE }
+    val fromBottles = ordered.size - nights.size
+    val week = nights.filter { it.at >= now - 7 * DAY_MS }
+    val month = nights.filter { it.at >= now - 30 * DAY_MS }
     val loved = week.filter { Verdict.of(it.rating) == Verdict.LOVED }.map { it.title }
     val rejected = week.filter { Verdict.of(it.rating) == Verdict.NOT_FOR_ME }.map { it.title }
     val summary = buildString {
         append("Totals: ${week.size} bottle(s) in the last 7 days, ")
-        append("${month.size} in the last 30, ${ordered.size} recorded altogether.")
+        append("${month.size} in the last 30, ${nights.size} recorded altogether.")
+        if (fromBottles > 0) {
+            append(" Plus $fromBottles tasting(s) brought across from bottles, which are not nights ")
+            append("the app saw.")
+        }
         if (loved.isNotEmpty()) append(" Loved this week: ${loved.joinToString("; ")}.")
         if (rejected.isNotEmpty()) append(" Not for me this week: ${rejected.joinToString("; ")}.")
     }

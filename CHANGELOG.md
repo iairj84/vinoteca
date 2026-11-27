@@ -3,6 +3,24 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.42: the book catches up with your bottles
+
+**A verdict given before the book existed had nowhere to show.** The record only starts when a bottle
+is opened through the app, so bottles rated and noted in older versions — and the nights they were
+drunk on — were invisible in the Journal, which read as entries having been lost. An upgrade from
+1.2.40 was tested with the published APKs: the entry survived and appeared in 1.2.41 untouched, so
+the update is not dropping anything.
+
+- **From your bottles.** When the cellar holds bottles with a verdict or a dated tasting note and no
+  entry in the book, the Journal offers to bring them across in one tap. Each is dated by its newest
+  note, or by when the bottle last changed when it has no note, and is marked **from the bottle**
+  rather than as a night the app saw. A bottle the book already has an entry for is left alone, so
+  nothing is duplicated, and a second tap cannot write the same tasting twice.
+- **The counts keep the two apart.** The seven- and thirty-day lines count nights, not tastings, and
+  the page says how many entries came from bottles. Ask's digest says the same, so a tasting is never
+  reported as a bottle that left the shelf.
+- **The Cellar book card and the backup wording say entries**, because the record now holds both.
+
 ### 1.2.41: a cellar book you can write in
 
 **The drink log could only be read.** Every bottle that left the shelf was recorded, but a night the

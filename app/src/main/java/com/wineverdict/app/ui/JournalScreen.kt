@@ -56,6 +56,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.Drink
+import com.wineverdict.app.data.bottleTastings
 import com.wineverdict.app.data.dayWords
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
@@ -146,6 +147,21 @@ fun JournalScreen() {
         }
     }
 
+    // What the bottles already know and the book was never told: a verdict or a note from before
+    // there was a record. Derived, so the offer disappears as soon as it has been taken.
+    val tastedBottles = remember(data.wines, drinks) { bottleTastings(data.wines, drinks) }
+    fun bringAcross() {
+        val count = AppGraph.drinks.bringAcross(tastedBottles)
+        if (count > 0) {
+            scope.launch {
+                snackbarState.showSnackbar(
+                    if (count == 1) "One tasting brought across from its bottle."
+                    else "$count tastings brought across from their bottles."
+                )
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(title = { Text("Cellar book", style = MaterialTheme.typography.headlineSmall) })
@@ -162,7 +178,15 @@ fun JournalScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .verticalScroll(rememberScrollState())
             ) {
+                if (tastedBottles.isNotEmpty()) {
+                    BringAcrossCard(
+                        count = tastedBottles.size,
+                        onBring = { bringAcross() },
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)
+                    )
+                }
                 EmptyState(
                     title = "Nothing drunk yet",
                     body = "Every bottle that leaves the cellar is written here — Drank one, and the " +
@@ -174,8 +198,11 @@ fun JournalScreen() {
             return@Scaffold
         }
 
-        val week = drinks.count { it.at >= now - 7 * DAY_MS }
-        val month = drinks.count { it.at >= now - 30 * DAY_MS }
+        // Tastings brought across from bottles are entries in the record but not nights the app
+        // watched, so the seven- and thirty-day lines count bottles only.
+        val fromBottles = drinks.count { it.via == Drink.BOTTLE }
+        val week = drinks.count { it.via != Drink.BOTTLE && it.at >= now - 7 * DAY_MS }
+        val month = drinks.count { it.via != Drink.BOTTLE && it.at >= now - 30 * DAY_MS }
         // Already newest first, and groupBy keeps that order, so the nights come out in the order
         // they happened without a second sort.
         val nights: Map<LocalDate, List<Drink>> = drinks.groupBy { drink ->
@@ -189,11 +216,17 @@ fun JournalScreen() {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (tastedBottles.isNotEmpty()) {
+                item(key = "bring-across") {
+                    BringAcrossCard(count = tastedBottles.size, onBring = { bringAcross() })
+                }
+            }
             item {
                 SectionCard("On record") {
                     Text(
                         text = "$week in the last 7 days · $month in the last 30 · " +
-                            "${drinks.size} altogether",
+                            "${drinks.size - fromBottles} recorded" +
+                            if (fromBottles > 0) " · $fromBottles from bottles" else "",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -206,8 +239,14 @@ fun JournalScreen() {
                             dayWords(list.first().at, now, zone),
                             style = MaterialTheme.typography.titleSmall
                         )
+                        val drank = list.count { it.via != Drink.BOTTLE }
+                        val tasted = list.size - drank
+                        val label = buildList {
+                            if (drank > 0) add(if (drank == 1) "1 bottle" else "$drank bottles")
+                            if (tasted > 0) add(if (tasted == 1) "1 tasting" else "$tasted tastings")
+                        }.joinToString(" · ")
                         Text(
-                            " · " + (if (list.size == 1) "1 bottle" else "${list.size} bottles"),
+                            " · " + label,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -289,14 +328,51 @@ private fun DrinkRow(drink: Drink, zone: ZoneId) {
                 )
             }
             // A night written in later has no clock time that anybody observed, so none is printed:
-            // the day above the card is the whole of what is known.
-            if (drink.via != Drink.MANUAL) {
-                Text(
+            // the day above the card is the whole of what is known. A tasting from a bottle is the
+            // same, and says where it came from instead of pretending to be a night.
+            when (drink.via) {
+                Drink.MANUAL -> Unit
+                Drink.BOTTLE -> Text(
+                    "from the bottle",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                else -> Text(
                     timeOf(drink.at, zone),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
             }
+        }
+    }
+}
+
+/**
+ * The bottles that were tasted before the book existed.
+ *
+ * One tap, because the alternative is retyping a verdict the app already holds. The date is the
+ * note's when it has one, the bottle's last change when it does not, and every entry says it came
+ * from the bottle: a tasting, not a night the app saw.
+ */
+@Composable
+private fun BringAcrossCard(count: Int, onBring: () -> Unit, modifier: Modifier = Modifier) {
+    SectionCard(title = "From your bottles", modifier = modifier) {
+        Text(
+            text = if (count == 1) {
+                "One bottle carries a verdict or a tasting note from before the book."
+            } else {
+                "$count bottles carry a verdict or a tasting note from before the book."
+            },
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            text = "Dated by the note, or by when the bottle last changed. They are marked as " +
+                "from the bottle, not as a night the app saw.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        OutlinedButton(onClick = onBring) {
+            Text(if (count == 1) "Bring it across" else "Bring them across")
         }
     }
 }

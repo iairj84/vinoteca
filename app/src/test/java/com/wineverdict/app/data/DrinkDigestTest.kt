@@ -87,6 +87,30 @@ class DrinkDigestTest {
     }
 
     @Test
+    fun aTastingFromTheBottleIsNotCountedAsANight() {
+        // The bottle's verdict predates the book, so the entry says where it came from and the
+        // seven-day count does not pretend a bottle left the shelf this week.
+        val digest = drinkDigest(
+            listOf(
+                Drink(id = "n", title = "2020 Rioja", at = at(1), rating = Verdict.GOOD.rating),
+                Drink(
+                    id = "b",
+                    title = "2019 Barolo",
+                    at = at(40),
+                    rating = Verdict.LOVED.rating,
+                    via = Drink.BOTTLE
+                )
+            ),
+            System.currentTimeMillis()
+        )
+
+        assertTrue(digest, digest.contains("(from the bottle, not a recorded night)"))
+        assertTrue(digest, digest.contains("1 bottle(s) in the last 7 days"))
+        assertTrue(digest, digest.contains("1 recorded altogether"))
+        assertTrue(digest, digest.contains("Plus 1 tasting(s) brought across"))
+    }
+
+    @Test
     fun anEmptyRecordSaysNothingAtAll() {
         // Blank, not "nothing yet": the prompt supplies that sentence, and it has to be able to tell
         // an install that never drank from one whose record happens to be empty.
