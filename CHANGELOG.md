@@ -3,6 +3,15 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.26: the fallback reader knows the place too
+
+**A page only the line reader could follow was still saved under its date.** 1.2.25 taught the
+structured read and the phone's own pass to return the restaurant's name, but the line-format reader
+— the one that answers when the structured reply fails, which on a long menu is regularly — was
+still told to skip the letterhead. It now returns it on its own line, `VENUE: Osteria Francescana`,
+with `VENUE: -` when the page names no place and never a name guessed from the wines. So all three
+readers agree, and a menu keeps its name whichever one happened to read it.
+
 ### 1.2.25: the restaurant's name, and picks that survive an upgrade
 
 **The page's letterhead was being thrown away.** The reader was told to skip the restaurant's name

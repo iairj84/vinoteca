@@ -199,6 +199,23 @@ object ScanParsing {
             ?.get(1)
             ?.let { Scene.from(it) }
 
+    /**
+     * The `VENUE: name` line the line reader may print above the wines.
+     *
+     * Blank when the model wrote `-` or left it out: a page that names no place is kept under its
+     * date, which is the honest fallback and is what the screen already says.
+     */
+    fun venueLine(raw: String): String =
+        Regex("(?im)^[\\s*>-]*VENUE\\s*[:\\-]\\s*(.+)$")
+            .find(raw)
+            ?.groupValues
+            ?.get(1)
+            ?.trim()
+            ?.trimEnd('.', ',', ';')
+            ?.takeUnless { it.isBlank() || it == "-" || it.equals("unknown", true) }
+            ?.takeIf { it.length in 2..80 }
+            .orEmpty()
+
     fun parseListLines(raw: String, currencyFallback: String): List<ScannedLabel> =
         raw.lines()
             .map { it.trim().removePrefix("- ").removePrefix("* ").removePrefix("\u2022 ").trim() }

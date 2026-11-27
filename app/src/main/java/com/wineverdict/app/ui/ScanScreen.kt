@@ -884,7 +884,10 @@ fun ScanScreen(onReview: () -> Unit) {
                         else SceneScan(
                             scene = scene ?: if (labels.size == 1) Scene.BOTTLE else Scene.SHELF,
                             bottles = labels,
-                            notes = ""
+                            notes = "",
+                            // A page only this reader could follow is still a named evening: the
+                            // letterhead is what keeps it from being saved under its date.
+                            venue = ScanParsing.venueLine(raw)
                         )
                     }.onFailure { lastProblem = it.message }.getOrNull()
                 }

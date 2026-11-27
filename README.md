@@ -65,7 +65,8 @@ Gemini or Groq — with your own key.
   scrolling.
 - **Saved wine menus** — a restaurant wine list is kept when it is read: the wines as the page
   printed them, the day, the answer's picks and its closing note. The restaurant's own name is read
-  from the page's letterhead when it prints one, so a menu is titled "Osteria Francescana" rather
+  from the page's letterhead when it prints one — by the phone's own reader, by the structured read
+  and by the line reader that answers when those fail — so a menu is titled "Osteria Francescana" rather
   than its date; **Name it** overrides that. Each menu says how many wines **you**
   picked that night — the ones you ordered or later gave a verdict to — not how many the answer
   suggested, so three recommendations never read as three glasses. Open one from Cellar and give any wine on it a

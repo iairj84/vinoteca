@@ -669,6 +669,12 @@ object Prompts {
         bottles standing together. "bottle" is one bottle's label filling the frame. "other" is no
         wine in the photo at all.
 
+        Next, when the page prints one, the place it comes from — the restaurant's or bar's name at
+        the top — on its own line, copied exactly as printed:
+        VENUE: Osteria Francescana
+
+        Write "VENUE: -" when the page names no place, and never guess one from the wines.
+
         Then one line per wine, in the order printed: down the left column, then the right. Separate
         the fields with " | " in this exact order:
 
@@ -702,7 +708,8 @@ object Prompts {
           no "broader", no "cloying", no "on this list"). For rank 1 it says why it beats the
           rest, and if it costs several times what the cheaper lines do, that price is part of
           the answer. Never "good wine", never "nice", never blank.
-        - Skip the restaurant's name, section headings, page numbers and anything that is not a wine.
+        - The restaurant's name belongs on the VENUE line, never inside a wine's name or producer.
+          Skip section headings, page numbers and anything else that is not a wine.
         - Copy the spelling and the accents exactly as printed. If a line cannot be read at all, skip
           it rather than inventing it.
         - At most 24 lines. If the page holds more, stop at 24.
