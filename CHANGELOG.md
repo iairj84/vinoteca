@@ -3,6 +3,23 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.25: the restaurant's name, and picks that survive an upgrade
+
+**The page's letterhead was being thrown away.** The reader was told to skip the restaurant's name
+with the section headings, so every menu was titled by its date and had to be named by hand. The
+scan now returns the place in "venue" — copied as printed, empty when the page names nowhere, never
+guessed from the wines — and the phone's own offline reader takes the line above the first section
+heading as the same answer. A kept menu takes it as its name, "Wine menu · 26 Nov 2026" remains the
+fallback for a page that names nowhere, and a menu already kept under a date picks up the name the
+next time the same page is read.
+
+**"1 picked that night" was missing on menus recorded before 1.2.24.** The count only knew what the
+new pick record held, which is empty for anything ordered or judged under an earlier build. It now
+reads three signals — wines marked as picked, wines judged on the menu itself, and wines that exist
+in the cellar under the menu's own id, which is what order and keep created — and a verdict given
+from a reopened menu is written as a pick from now on. The answer's three suggestions are still not
+one of the signals.
+
 ### 1.2.24: what *you* picked, and a better name for the menus
 
 **"3 picked that night" counted the answer's suggestions, not the evening.** The three bottles the

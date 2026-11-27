@@ -64,8 +64,9 @@ Gemini or Groq — with your own key.
   which of the two it found. Kept wines are found under Cellar's **No bottles** filter, not by
   scrolling.
 - **Saved wine menus** — a restaurant wine list is kept when it is read: the wines as the page
-  printed them, the day, the answer's picks and its closing note, under a name you give it (the
-  restaurant, usually; until then it is titled by its date). Each menu says how many wines **you**
+  printed them, the day, the answer's picks and its closing note. The restaurant's own name is read
+  from the page's letterhead when it prints one, so a menu is titled "Osteria Francescana" rather
+  than its date; **Name it** overrides that. Each menu says how many wines **you**
   picked that night — the ones you ordered or later gave a verdict to — not how many the answer
   suggested, so three recommendations never read as three glasses. Open one from Cellar and give any wine on it a
   verdict — the answer is written on the cellar record when you have kept that wine, and on the

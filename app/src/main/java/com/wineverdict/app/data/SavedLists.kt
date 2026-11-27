@@ -57,19 +57,27 @@ data class SavedList(
      */
     val photo: String = ""
 ) {
-    /**
-     * What the user actually had that night: the wines they marked, and the ones they later gave a
-     * verdict to — an answer about a wine is the strongest sign there is that it was poured.
-     */
-    val picked: List<String>
-        get() = (chosen + wines.filter { it.rating != null }.map { it.id }).distinct()
-
-    /** What the rows and the reminder call it: the name the user gave it, or the day it was read. */
+    /** What the rows and the reminder call it: the place the page named, the user's name, or the day. */
     val title: String
         get() = name.trim().ifBlank {
-            "Wine list · " + SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(savedAt))
+            "Wine menu · " + SimpleDateFormat("d MMM yyyy", Locale.getDefault()).format(Date(savedAt))
         }
 }
+
+/**
+ * The wines the user actually had off a menu.
+ *
+ * Three signals, because the record only starts where the app started watching: the wines marked as
+ * ordered, the wines judged on the menu itself, and the wines that exist in the cellar under the
+ * same id — which is what the order and the keep actions created, and the only trace left by menus
+ * kept before picks were recorded. A suggestion the answer made is not one of them.
+ */
+fun pickedWines(list: SavedList, cellarIds: Set<String>): List<String> =
+    (
+        list.chosen +
+            list.wines.filter { it.rating != null }.map { it.id } +
+            list.wines.filter { it.id in cellarIds }.map { it.id }
+        ).distinct()
 
 /**
  * Every list that has been read, newest first.
@@ -143,12 +151,27 @@ class SavedListStore(private val context: Context) {
             } else {
                 merged
             }
-            if (withPage != existing) {
-                write(_lists.value.map { if (it.id == existing.id) withPage else it })
+            // The second read of the same page is the one that carries the letterhead, so a menu
+            // already kept under its date takes the name the next read found.
+            val withPlace = if (withPage.name.isBlank() && scan.venue.isNotBlank()) {
+                withPage.copy(name = scan.venue.trim())
+            } else {
+                withPage
             }
-            return withPage
+            if (withPlace != existing) {
+                write(_lists.value.map { if (it.id == existing.id) withPlace else it })
+            }
+            return withPlace
         }
-        val kept = SavedList(signature = signature, note = note, picks = picks, wines = wines)
+        val kept = SavedList(
+            // The place, when the page printed one: "Wine list · 26 Nov 2026" is a fallback for a
+            // page that named nowhere, not the name every menu should start with.
+            name = scan.venue.trim(),
+            signature = signature,
+            note = note,
+            picks = picks,
+            wines = wines
+        )
         val withPage = if (page != null) kept.copy(photo = writePage(kept.id, page)) else kept
         val next = (_lists.value + withPage).sortedByDescending { it.savedAt }.take(MAX_LISTS)
         write(next)

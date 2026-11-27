@@ -63,9 +63,11 @@ object Prompts {
         - scene "list": one entry in "bottles" per wine printed on the list, read in order down the
           left column and then the right. Leave "label_text" empty. This is not optional and it is
           not a transcription task in the usual sense: a legible list with an empty "bottles" array
-          is a failed reading. Skip only the letterhead, section headings ("WHITE", "RED",
-          "ORANGE", "GLASS"), page numbers and any line with no wine on it, and say in "notes" how
-          many lines you skipped.
+          is a failed reading. The page's letterhead — the restaurant's or bar's name, usually at
+          the top — goes in "venue", copied as printed ("OSTERIA FRANCESCANA" stays as it reads).
+          Leave "venue" "" when the page names no place; never guess one from the wines. Skip the
+          section headings ("WHITE", "RED", "ORANGE", "GLASS"), page numbers and any line with no
+          wine on it, and say in "notes" how many lines you skipped.
           For each list line: the wine's name is what is printed — producer, cuvée and region in
           that order, with the year taken out into "vintage". Text in brackets after the name is the
           grape or the blend: put those in "grapes" ("Xarel·lo, Macabeu, Parellada" → three grapes).
@@ -106,6 +108,7 @@ object Prompts {
         Reply with ONLY this JSON:
         {
           "scene": "bottle"|"shelf"|"list"|"other",
+          "venue": string,
           "bottles": [
             {
               "producer": string,

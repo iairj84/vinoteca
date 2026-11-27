@@ -109,7 +109,12 @@ data class SceneScan(
     val bottles: List<ScannedLabel>,
     val notes: String,
     /** The validated advice answer, when one came back. Null means a ranking is the fallback. */
-    val advice: ListAdvice? = null
+    val advice: ListAdvice? = null,
+    /**
+     * The restaurant or bar named on the page's letterhead, as printed. Blank when the page names
+     * no place — which is the honest answer, and why a kept menu falls back to its date.
+     */
+    val venue: String = ""
 )
 
 /** One bottle the advice points at, by its position on the page. */
@@ -679,7 +684,7 @@ object ScanParsing {
             declared == Scene.LIST && bottles.size == 1 -> Scene.LIST
             else -> declared
         }
-        return SceneScan(scene, bottles, root.str("notes"))
+        return SceneScan(scene, bottles, root.str("notes"), venue = root.str("venue").trim())
     }
 
     private fun labelFrom(root: JsonObject, currencyFallback: String): ScannedLabel {

@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.SavedList
+import com.wineverdict.app.data.pickedWines
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.formatMoney
@@ -72,6 +73,10 @@ private fun listDate(at: Long): String =
 @Composable
 fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
     val lists by AppGraph.lists.lists.collectAsStateWithLifecycle()
+    // The cellar, for the one pick signal that survives a menu kept before picks were recorded:
+    // a wine that exists there under the menu's own id was ordered or kept off that page.
+    val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val cellarIds = remember(cellar) { cellar.wines.map { it.id }.toSet() }
     var renaming by remember { mutableStateOf<SavedList?>(null) }
     var deleting by remember { mutableStateOf<SavedList?>(null) }
 
@@ -146,9 +151,10 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
                         }
                         // What the user had, not what the answer suggested: three picks the model
                         // would order is not three bottles on the table.
-                        if (list.picked.isNotEmpty()) {
+                        val picked = pickedWines(list, cellarIds)
+                        if (picked.isNotEmpty()) {
                             Text(
-                                "${list.picked.size} picked that night",
+                                "${picked.size} picked that night",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -272,6 +278,7 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
             )
             return@Scaffold
         }
+        val picked = pickedWines(list, cellar.wines.map { it.id }.toSet())
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -339,7 +346,7 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                 }
                 val verdict = Verdict.labelFor(kept ?: wine)
                 val rank = list.picks.indexOf(wine.id)
-                val mine = wine.id in list.picked
+                val mine = wine.id in picked
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -441,6 +448,10 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                 TextButton(
                     onClick = {
                         ratingWine = null
+                        // An answer about a wine is the strongest sign there is that it was poured:
+                        // it is the pick, whether the verdict is kept on the cellar record or on
+                        // the menu's own copy.
+                        list?.let { open -> AppGraph.lists.choose(open.id, wine.id) }
                         scope.launch {
                             if (kept != null) {
                                 if (rating != kept.rating) {

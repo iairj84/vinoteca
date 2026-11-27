@@ -79,6 +79,9 @@ object LocalListRead {
         val found = mutableListOf<ScannedLabel>()
         var section: WineType? = null
         val buffer = mutableListOf<String>()
+        // The name above the first heading, when the page prints one: it is what makes a menu
+        // findable months later, so it is captured rather than thrown away with the headings.
+        var venue = ""
 
         lines.forEach { raw ->
             val line = raw.replace(Regex("\\s+"), " ").trim()
@@ -97,6 +100,10 @@ object LocalListRead {
             if (heading != null) {
                 // A heading closes whatever came before it: the restaurant's name at the top of
                 // the page is exactly this case, and it must not become the first wine's producer.
+                // Taken as the venue instead, before the buffer is dropped.
+                if (found.isEmpty() && venue.isBlank() && buffer.isNotEmpty()) {
+                    venue = buffer.joinToString(" ").trim()
+                }
                 buffer.clear()
                 heading.type?.let { section = it }
                 return@forEach
@@ -118,7 +125,7 @@ object LocalListRead {
             .take(30)
         if (distinct.size < 2) return null
 
-        return SceneScan(scene = Scene.LIST, bottles = distinct, notes = ON_PHONE)
+        return SceneScan(scene = Scene.LIST, bottles = distinct, notes = ON_PHONE, venue = venue)
     }
 
     /** (bottle, glass) — either may be null, and a price with no wine above it is just a price. */
