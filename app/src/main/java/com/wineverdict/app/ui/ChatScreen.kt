@@ -531,6 +531,13 @@ private fun MoveCard(
 
                 plan.wines.isEmpty() -> {
                     Text("Nothing to move", style = MaterialTheme.typography.titleSmall)
+                    if (plan.filterLabel.isNotBlank()) {
+                        Text(
+                            text = plan.filterLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Text(
                         text = if (plan.alreadyThere.isEmpty()) {
                             "No bottle in your cellar matches that."
@@ -553,6 +560,15 @@ private fun MoveCard(
                     if (plan.createsLocation) {
                         Text(
                             text = "No location is called \"$place\" yet — confirming creates it.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // The narrowing the ask asked for, said out loud: "the ones with no location"
+                    // has to be visibly applied, or the card looks like it ignored half the sentence.
+                    if (plan.filterLabel.isNotBlank()) {
+                        Text(
+                            text = plan.filterLabel,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

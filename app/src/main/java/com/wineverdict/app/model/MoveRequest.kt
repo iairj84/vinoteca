@@ -22,6 +22,16 @@ import kotlinx.serialization.Serializable
 data class MoveRequest(
     val location: String = "",
     val slot: String = "",
+    /**
+     * Where the bottle lives now, when the ask narrows by that. The word "unassigned" (or "none",
+     * "nowhere", "no location") means the bottles with no place at all; any other value is a place
+     * name and matches only bottles that are there.
+     *
+     * This key exists because a move is written as a place and a slot, and "the ones not in a
+     * location yet" is the commonest way to pick them — a query without it silently widened to every
+     * bottle of the grape or producer, which is how 39 bottles were offered when 27 were asked for.
+     */
+    val fromLocation: String = "",
     val grape: String = "",
     val type: String = "",
     val producer: String = "",

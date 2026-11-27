@@ -3,6 +3,26 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.33: a move can say where the bottles are now
+
+**"Move all Prospice bottles not with a location to garage fridge" offered 39 bottles.** The move
+query could name a grape, a producer, a region and the place to move to, and nothing about where a
+bottle lives now — so the model sent what it could («Prospice») and dropped the rest of the sentence
+without saying so. The card was honest about the wider set, which is how the gap showed.
+
+- **`fromLocation` is a key of the query.** A place name means only bottles currently there; the
+  words *unassigned*, *none*, *nowhere* and *no location* mean the bottles with no location at all —
+  including bottles whose location was deleted, which the app already shows as Unassigned. A place
+  name the cellar does not have matches nothing, so a typo fails loudly instead of widening to the
+  shelf.
+- **The model is given the record, not just the target.** The prompt now lists every field a bottle
+  record holds and says plainly that those are the facts the app can match on, that a digest line
+  prints only the fields that are set, and that a line with no place after it is an unplaced bottle.
+- **A clause that cannot be expressed is refused, not widened.** The rule is now explicit: say which
+  part cannot be filtered on and send no move line, rather than sending a broader match than the one
+  asked for. The card also names the narrowing it applied — "Only bottles with no location" — so an
+  ignored half-sentence is visible before anything is moved.
+
 ### 1.2.32: Ask can move bottles, once you confirm
 
 **Ask answered "I have updated the location for the following bottles" and nothing had moved.** The

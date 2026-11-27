@@ -25,11 +25,20 @@ data class MovePlan(
 ) {
     val locationName: String get() = request.location.trim()
     val createsLocation: Boolean get() = location == null
+
+    /** What the "from" filter means, or blank when the query does not have one. */
+    val filterLabel: String
+        get() = when {
+            request.fromLocation.isBlank() -> ""
+            unplaced(request.fromLocation) -> "Only bottles with no location"
+            else -> "Only bottles now at ${request.fromLocation.trim()}"
+        }
 }
 
 /** Whether the query says anything about which bottles it means. */
 fun MoveRequest.namesBottles(): Boolean =
-    listOf(grape, type, producer, name, region, country, appellation).any { it.isNotBlank() } ||
+    listOf(grape, type, producer, name, region, country, appellation, fromLocation)
+        .any { it.isNotBlank() } ||
         vintageFrom != null || vintageTo != null
 
 /**
@@ -44,7 +53,9 @@ fun MoveRequest.plan(cellar: CellarData): MovePlan? {
     if (place.isBlank() || !namesBottles()) return null
     val found = cellar.locations.firstOrNull { sameName(it.name, place) }
     val slot = this.slot.trim()
-    val matched = cellar.wines.filter { wine -> wine.quantity > 0 && matches(wine) }
+    val matched = cellar.wines.filter { wine ->
+        wine.quantity > 0 && matches(wine) && livesIn(cellar, wine)
+    }
     val (there, elsewhere) = matched.partition { wine -> wine.livesAt(found, slot) }
     return MovePlan(request = this, wines = elsewhere, alreadyThere = there, location = found)
 }
@@ -54,6 +65,22 @@ fun MovePlan.describe(wine: Wine, cellar: CellarData): String {
     val place = cellar.locationName(wine.locationId)
     return if (wine.slot.isBlank()) place else "$place / ${wine.slot}"
 }
+
+/**
+ * Whether the bottle is where the ask says to look. A place name the cellar does not have matches
+ * nothing, on purpose: a typo must fail loudly rather than widen to the whole shelf.
+ */
+private fun MoveRequest.livesIn(cellar: CellarData, wine: Wine): Boolean {
+    val asked = fromLocation.trim()
+    if (asked.isBlank()) return true
+    val current = cellar.locations.firstOrNull { it.id == wine.locationId }?.name
+    return if (unplaced(asked)) current == null else current != null && sameName(current, asked)
+}
+
+/** The words for "these bottles are in no location yet". */
+private fun unplaced(word: String): Boolean =
+    listOf("unassigned", "none", "nowhere", "no location", "without a location", "unplaced")
+        .any { sameName(it, word) }
 
 private fun String.matchesWord(word: String): Boolean {
     val needle = fold(word)

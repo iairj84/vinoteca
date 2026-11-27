@@ -117,8 +117,10 @@ Gemini or Groq — with your own key.
   offered again.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
-  bottle in the cellar (not the shortlist the model was shown), lists the matches with where each one
-  lives now, and writes nothing until you tap **Move**. A place you name that the cellar does not have
+  bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,
+  region, country, appellation, a vintage range and where a bottle lives now — *only the ones with no
+  location* included — lists the matches with where each one lives now, and writes nothing until you
+  tap **Move**. A place you name that the cellar does not have
   yet is offered for creation on the same card. The chat itself has no write access, so it cannot
   claim a change it did not make.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

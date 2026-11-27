@@ -60,8 +60,9 @@ object MoveParsing {
     }
 
     private fun JsonObject.toRequest(): MoveRequest = MoveRequest(
-        location = words("location", "place"),
+        location = words("location", "place", "to"),
         slot = words("slot", "shelf"),
+        fromLocation = words("fromLocation", "from_location", "from", "currentlyIn", "current"),
         grape = words("grape", "grapes"),
         type = words("type"),
         producer = words("producer"),

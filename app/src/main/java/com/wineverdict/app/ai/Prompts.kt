@@ -960,10 +960,21 @@ object Prompts {
           move them when I confirm, then put the request on the last line of your answer.
         - The move line is exactly one line, the last one, with nothing after it:
           MOVE {"grape":"Cabernet Sauvignon","location":"Bar Fridge"}
-          Its keys are location (the place I named; required), slot, grape, type, producer, name,
-          region, country, appellation, vintageFrom and vintageTo. Include only the keys I actually
-          asked about and leave the rest out. type is one of Red, White, Rosé, Sparkling, Dessert,
-          Fortified, Orange. Never put a list of bottles in the line, and never write more than one.
+          Its keys are location (the place to move to; required), slot (the shelf inside it),
+          fromLocation (only bottles that live there now — the word "unassigned" means the bottles
+          with no location at all), grape, type, producer, name, region, country, appellation,
+          vintageFrom and vintageTo. Include only the keys I actually asked about and leave the rest
+          out. type is one of Red, White, Rosé, Sparkling, Dessert, Fortified, Orange.
+        - A bottle record holds exactly these fields, and they are all the app can match on: producer,
+          name (the cuvée), vintage, type, country, region, appellation, grapes, alcohol, quantity,
+          price, drinking window, my note, my verdict, the flavour words, slot and location. A line in
+          MY CELLAR prints only the fields that are set, so a line with no place after it has no
+          location — that is what "unassigned", "not with a location" and "nowhere" mean. Read the
+          field you need off the line instead of guessing at it.
+        - Never put a list of bottles in the line, and never write more than one. A clause you cannot
+          express with those keys is a clause the app cannot apply: say plainly which part you cannot
+          filter on and send no move line at all, rather than sending a wider match than the one I
+          asked for.
         - A move line is an offer, not a record. Its prose is one short sentence: the app will show the
           bottles it matched and move them to the place once I confirm. Do not list them, do not say it
           is done, and do not thank me for it.

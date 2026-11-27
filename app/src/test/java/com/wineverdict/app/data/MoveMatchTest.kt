@@ -148,4 +148,48 @@ class MoveMatchTest {
         val elsewhere = MoveRequest(grape = "Cabernet Sauvignon", location = "Bar Fridge", slot = "Bottom")
         assertEquals(1, elsewhere.plan(cellar(wines))?.wines?.size)
     }
+
+    @Test
+    fun unassignedMeansTheBottlesWithNoPlaceYet() {
+        // "gone" is a location that no longer exists; the app shows that bottle as Unassigned, so it
+        // is one of the ones with no place.
+        val wines = listOf(bottle(locationId = null), bottle(locationId = "bar"), bottle(locationId = "gone"))
+        val plan = MoveRequest(producer = "Prospice", fromLocation = "unassigned", location = "Garage Fridge")
+            .plan(cellar(wines))
+        assertEquals(2, plan?.wines?.size)
+        assertEquals("Only bottles with no location", plan?.filterLabel)
+    }
+
+    @Test
+    fun aPlaceInFromLocationSelectsOnlyBottlesThere() {
+        val wines = listOf(bottle(locationId = "bar"), bottle(locationId = null), bottle(locationId = "rack"))
+        val plan = MoveRequest(producer = "Prospice", fromLocation = "bar fridge", location = "Garage Fridge")
+            .plan(cellar(wines))
+        assertEquals(1, plan?.wines?.size)
+        assertEquals("bar", plan?.wines?.single()?.locationId)
+        assertEquals("Only bottles now at bar fridge", plan?.filterLabel)
+    }
+
+    @Test
+    fun aFromPlaceTheCellarDoesNotHaveMatchesNothingRatherThanEverything() {
+        val wines = listOf(bottle(locationId = null), bottle(locationId = "bar"))
+        val plan = MoveRequest(producer = "Prospice", fromLocation = "Cellar door", location = "Garage Fridge")
+            .plan(cellar(wines))
+        assertTrue(plan?.wines?.isEmpty() == true)
+    }
+
+    @Test
+    fun aQueryThatOnlyNamesWhereBottlesAreNowIsEnough() {
+        val wines = listOf(bottle(locationId = null), bottle(locationId = "bar"))
+        val plan = MoveRequest(fromLocation = "unassigned", location = "Garage Fridge").plan(cellar(wines))
+        assertEquals(1, plan?.wines?.size)
+    }
+
+    @Test
+    fun theTargetIsStillOfferedForCreationWhenTheAskFiltersOnTheCurrentPlace() {
+        val wines = listOf(bottle(locationId = null))
+        val plan = MoveRequest(fromLocation = "unassigned", location = "Garage Fridge").plan(cellar(wines))
+        assertEquals(1, plan?.wines?.size)
+        assertEquals(true, plan?.createsLocation)
+    }
 }

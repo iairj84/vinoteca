@@ -98,4 +98,24 @@ class MoveParsingTest {
         val answer = "MOVE: move the bottles yourself.\n\nOr the app can."
         assertEquals(answer, MoveParsing.split(answer).text)
     }
+
+    @Test
+    fun whereTheBottlesLiveNowIsRead() {
+        val reply = MoveParsing.split(
+            "The app will match them.\n" +
+                "MOVE {\"producer\":\"Prospice\",\"fromLocation\":\"unassigned\",\"location\":\"Garage Fridge\"}"
+        )
+        assertEquals("unassigned", reply.request?.fromLocation)
+        assertEquals("Garage Fridge", reply.request?.location)
+    }
+
+    @Test
+    fun fromIsReadAsWhereTheBottlesLiveNow() {
+        val reply = MoveParsing.split(
+            "The app will match them.\n" +
+                "MOVE {\"producer\":\"Prospice\",\"from\":\"Main rack\",\"to\":\"Garage Fridge\"}"
+        )
+        assertEquals("Main rack", reply.request?.fromLocation)
+        assertEquals("Garage Fridge", reply.request?.location)
+    }
 }
