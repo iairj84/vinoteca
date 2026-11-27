@@ -3,6 +3,30 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.43: the book you can search, a calendar, and a quieter cellar
+
+**Five small things that made the app ask for taps it should not.** The cellar value was printed on
+the label whether or not it was wanted; the Cellar tab repeated the Cellar book as a card beside the
+tab that already opens it; an update was only found by opening Settings; the cellar book could be
+read but not searched; and a bottle could only be found by remembering its name, never the evening.
+
+- **The cellar value can be hidden.** Settings → Currency has **Show the cellar value**. Turning it
+  off takes the PAID total off the cellar label and leaves every bottle's own price alone, so the
+  number is there when it is wanted and not on the table when it is not.
+- **The Cellar book card is gone from the Cellar tab.** The book has its own tab; the cellar is the
+  shelf again, and the saved menus card stays because a list is not a tab.
+- **An update is checked for at start-up.** One quiet GET when the app opens; when a newer release
+  exists it is offered at the top of the cellar with its first lines of notes, **Update**, and
+  **Not now**. Downloading is still a tap and Android's installer still asks its own question. A
+  failed check is silent, because a phone with no signal still has a cellar to open, and Settings
+  opens on the same answer instead of asking GitHub again.
+- **The cellar book can be searched.** The box matches every word against the label, the colour, the
+  region, the note and the taste words, so two words narrow the record rather than widen it. The
+  counts above stay about the whole book and the record itself is never filtered — only what is shown.
+- **The cellar book has a calendar.** A month at a time, with a mark and a dot on every night that
+  carries an entry; tapping a day narrows the list to that evening, tapping it again lets go, and
+  **Show all** clears it. Weeks start on the locale's first day.
+
 ### 1.2.42: the book catches up with your bottles
 
 **A verdict given before the book existed had nowhere to show.** The record only starts when a bottle

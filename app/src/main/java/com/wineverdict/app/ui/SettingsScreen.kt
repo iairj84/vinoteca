@@ -93,6 +93,7 @@ fun SettingsScreen(
     var showAi by remember { mutableStateOf(false) }
 
     var currency by remember { mutableStateOf(AppGraph.settings.currency) }
+    var showValue by remember { mutableStateOf(AppGraph.settings.showCellarValue) }
     var primaryProvider by remember { mutableStateOf(AppGraph.settings.primaryProvider) }
     var drafts by remember {
         mutableStateOf(AiProvider.entries.associateWith { draftOf(AppGraph.settings, it) })
@@ -111,7 +112,12 @@ fun SettingsScreen(
     var restoreCandidate by remember { mutableStateOf<BackupFile?>(null) }
     var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
 
-    var update by remember { mutableStateOf<UpdateUi>(UpdateUi.Idle) }
+    // The start-up check has already asked GitHub, so opening Settings does not ask twice.
+    var update by remember {
+        mutableStateOf<UpdateUi>(
+            AppGraph.pendingUpdate.value?.let { UpdateUi.Available(it) } ?: UpdateUi.Idle
+        )
+    }
     var updateProgress by remember { mutableStateOf(0f) }
     var installCandidate by remember { mutableStateOf<File?>(null) }
     var updateApk by remember { mutableStateOf<File?>(null) }
@@ -418,6 +424,27 @@ fun SettingsScreen(
                 ) {
                     Text("Save")
                 }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Show the cellar value", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "The PAID figure on the cellar label. Turning it off hides the total, " +
+                                "not the price of each bottle.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showValue,
+                        onCheckedChange = {
+                            showValue = it
+                            AppGraph.settings.showCellarValue = it
+                        }
+                    )
+                }
             }
 
             SectionCard("Fill in the details") {
@@ -701,10 +728,11 @@ fun SettingsScreen(
 
             SectionCard("Updates") {
                 Text(
-                    "Wine Verdict updates itself from this project's GitHub releases. Opening Settings asks " +
-                        "GitHub once whether a newer one exists; the APK is downloaded only when you tap, " +
-                        "and Android's own installer does the rest. Your cellar, keys and mytaste.md stay " +
-                        "where they are.",
+                    "Wine Verdict updates itself from this project's GitHub releases. The app asks " +
+                        "GitHub once at start-up, and again when Settings opens; a newer release is " +
+                        "offered at the top of the cellar. The APK is downloaded only when you tap, " +
+                        "and Android's own installer does the rest. Your cellar, keys and mytaste.md " +
+                        "stay where they are.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

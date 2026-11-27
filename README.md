@@ -104,8 +104,10 @@ Gemini or Groq — with your own key.
 - **The cellar book** — every bottle that leaves the cellar is written down: **Drank one** with the
   verdict you gave at the time, and the minus button as a count adjustment with no verdict
   attributed to you. The **Journal** tab opens it — the nights newest first, each bottle with its
-  word, its survey words and the time — so your own record is readable without a model in between;
-  Cellar carries a **Cellar book** card to the same page. **Add** writes a night the app could not
+  word, its survey words and the time — so your own record is readable without a model in between.
+  A search box finds a bottle by its words, and a calendar marks every night that has an entry, so
+  an evening can be found by its date when the name is the part that is forgotten. **Add** writes a
+  night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the
   verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it
   again. A wine you do not own becomes a record with no bottles, so the answer lives under Cellar's
@@ -146,6 +148,11 @@ Gemini or Groq — with your own key.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.
+- **Updates, and a cellar value you can put away** — the app asks GitHub once at start-up whether a
+  newer release exists, and offers it at the top of the cellar with **Update** and **Not now**;
+  nothing downloads or installs without a tap, and a failed check is silent. Settings → Currency has
+  **Show the cellar value**, which takes the PAID total off the cellar label without touching the
+  price of a single bottle.
 - **Crash report** — a fatal error is written to a file on the phone and shown in Settings → About
   under **Last crash**, with Copy and Forget it. Nothing leaves the device.
 - **Gates stand where you are standing** — a hard gate is a limit when buying, so a bottle over the

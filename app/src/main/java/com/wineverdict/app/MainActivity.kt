@@ -179,8 +179,7 @@ private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
                             restoreState = true
                         }
                     },
-                    onOpenLists = { navController.navigate("lists") },
-                    onOpenJournal = { navController.navigate("journal") }
+                    onOpenLists = { navController.navigate("lists") }
                 )
             }
             composable("journal") {

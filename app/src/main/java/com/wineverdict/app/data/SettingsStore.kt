@@ -129,6 +129,15 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SHOW_SCAN_DETAILS, false)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_SCAN_DETAILS, value).apply()
 
+    /**
+     * Whether the cellar label prints what the bottles cost. The total is useful when it is asked
+     * for and sometimes exactly what somebody does not want on a kitchen table, so it can come off
+     * the label without losing a single price: only the sum is hidden, never the bottle's own.
+     */
+    var showCellarValue: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_VALUE, true)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_VALUE, value).apply()
+
     var currency: String
         get() = prefs.getString(KEY_CURRENCY, "").orEmpty().ifBlank { DEFAULT_CURRENCY }
         set(value) = prefs.edit()
@@ -156,6 +165,7 @@ class SettingsStore(context: Context) {
         private const val KEY_PRIMARY = "primary.provider"
         private const val KEY_CURRENCY = "currency"
         private const val KEY_SHOW_SCAN_DETAILS = "scan.details"
+        private const val KEY_SHOW_VALUE = "cellar.value"
 
         private const val LEGACY_API_KEY = "groq_api_key"
         private const val LEGACY_VISION_MODEL = "vision_model"

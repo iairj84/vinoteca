@@ -1,13 +1,19 @@
 package com.wineverdict.app.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -19,7 +25,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,10 +57,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -57,6 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.Drink
 import com.wineverdict.app.data.bottleTastings
+import com.wineverdict.app.data.matchesWords
 import com.wineverdict.app.data.dayWords
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
@@ -64,9 +81,12 @@ import com.wineverdict.app.model.WineType
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.time.temporal.WeekFields
 import java.util.Locale
 
 private const val DAY_MS = 24L * 60 * 60 * 1000
@@ -100,6 +120,19 @@ fun JournalScreen() {
     val zone = remember { ZoneId.systemDefault() }
     val now = remember(drinks) { System.currentTimeMillis() }
     var adding by remember { mutableStateOf(false) }
+    // The book is a record of years, so it can be read two ways: by the words on a label, or by the
+    // evening. Neither changes a single entry — they only choose what is shown.
+    var query by rememberSaveable { mutableStateOf("") }
+    var calendar by rememberSaveable { mutableStateOf(false) }
+    // A YearMonth cannot be held by saved screen state, so the month travels as its ISO string.
+    var monthKey by rememberSaveable { mutableStateOf(YearMonth.now(zone).toString()) }
+    var pickedKey by rememberSaveable { mutableStateOf<String?>(null) }
+    val calendarMonth = remember(monthKey) {
+        runCatching { YearMonth.parse(monthKey) }.getOrNull() ?: YearMonth.now(zone)
+    }
+    val picked = remember(pickedKey) {
+        pickedKey?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+    }
 
     /**
      * A night written by hand becomes two things: the entry, and the bottle behind it.
@@ -162,9 +195,41 @@ fun JournalScreen() {
         }
     }
 
+    // Every word a row shows is a word to search by. A day picked in the calendar then narrows
+    // what is left, and the record itself is never touched.
+    val matched = remember(drinks, query) { drinks.filter { matchesWords(it, query) } }
+    val shown = remember(matched, picked, zone) {
+        val day = picked ?: return@remember matched
+        matched.filter { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() == day }
+    }
+    // Which nights carry an entry, for the calendar's marks.
+    val byDay = remember(drinks, zone) {
+        drinks.groupBy { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }
+            .mapValues { it.value.size }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Cellar book", style = MaterialTheme.typography.headlineSmall) })
+            TopAppBar(
+                title = { Text("Cellar book", style = MaterialTheme.typography.headlineSmall) },
+                actions = {
+                    // Two ways of reading the same record; the icon says what the tap will show.
+                    IconButton(onClick = { calendar = !calendar }) {
+                        Icon(
+                            imageVector = if (calendar) {
+                                Icons.Filled.ViewList
+                            } else {
+                                Icons.Filled.CalendarMonth
+                            },
+                            contentDescription = if (calendar) {
+                                "Show the list of nights"
+                            } else {
+                                "Show the calendar"
+                            }
+                        )
+                    }
+                }
+            )
         },
         snackbarHost = { SnackbarHost(snackbarState) },
         floatingActionButton = {
@@ -205,7 +270,7 @@ fun JournalScreen() {
         val month = drinks.count { it.via != Drink.BOTTLE && it.at >= now - 30 * DAY_MS }
         // Already newest first, and groupBy keeps that order, so the nights come out in the order
         // they happened without a second sort.
-        val nights: Map<LocalDate, List<Drink>> = drinks.groupBy { drink ->
+        val nights: Map<LocalDate, List<Drink>> = shown.groupBy { drink ->
             Instant.ofEpochMilli(drink.at).atZone(zone).toLocalDate()
         }
 
@@ -221,6 +286,51 @@ fun JournalScreen() {
                     BringAcrossCard(count = tastedBottles.size, onBring = { bringAcross() })
                 }
             }
+            item(key = "search") {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Search a bottle, region, note…") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = if (query.isBlank()) {
+                        null
+                    } else {
+                        {
+                            IconButton(onClick = { query = "" }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Clear the search")
+                            }
+                        }
+                    }
+                )
+            }
+            if (calendar) {
+                item(key = "calendar") {
+                    CalendarCard(
+                        month = calendarMonth,
+                        counts = byDay,
+                        picked = picked,
+                        onMonth = { monthKey = it.toString() },
+                        onPick = { pickedKey = it?.toString() }
+                    )
+                }
+            }
+            val selectedDay = picked
+            if (selectedDay != null) {
+                item(key = "picked-day") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            selectedDay.format(
+                                DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", Locale.getDefault())
+                            ),
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { pickedKey = null }) { Text("Show all") }
+                    }
+                }
+            }
             item {
                 SectionCard("On record") {
                     Text(
@@ -232,8 +342,26 @@ fun JournalScreen() {
                     )
                 }
             }
-            nights.forEach { (day, list) ->
-                item(key = "night-$day") {
+            val pickedDay = picked
+            if (shown.isEmpty()) {
+                item(key = "no-match") {
+                    EmptyState(
+                        title = "Nothing in the book matches",
+                        body = when {
+                            pickedDay != null && query.isNotBlank() ->
+                                "No bottle on that day matches those words. The record itself is " +
+                                    "unchanged."
+                            pickedDay != null ->
+                                "Nothing was written in the book on that day."
+                            else ->
+                                "No bottle in the book matches those words. The record itself is " +
+                                    "unchanged — clear the search to see it all."
+                        }
+                    )
+                }
+            }
+            nights.forEach { (date, list) ->
+                item(key = "night-$date") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             dayWords(list.first().at, now, zone),
@@ -266,6 +394,136 @@ fun JournalScreen() {
                 record(entry)
             }
         )
+    }
+}
+
+/**
+ * A month of the book, so a bottle can be found by the evening rather than by the words.
+ *
+ * Days that carry an entry are marked and can be tapped; tapping one narrows the list below to that
+ * night, and tapping it again lets go. Weeks start on the locale's first day, because a calendar
+ * that begins on the wrong day is read wrongly before it is read at all.
+ */
+@Composable
+private fun CalendarCard(
+    month: YearMonth,
+    counts: Map<LocalDate, Int>,
+    picked: LocalDate?,
+    onMonth: (YearMonth) -> Unit,
+    onPick: (LocalDate?) -> Unit
+) {
+    val weekStart = remember { WeekFields.of(Locale.getDefault()).firstDayOfWeek }
+    val today = LocalDate.now()
+    SectionCard(title = null) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                month.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = { onMonth(month.minusMonths(1)) }) {
+                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous month")
+            }
+            IconButton(onClick = { onMonth(month.plusMonths(1)) }) {
+                Icon(Icons.Filled.ChevronRight, contentDescription = "Next month")
+            }
+        }
+        val nights = counts.keys.count { YearMonth.from(it) == month }
+        Text(
+            when (nights) {
+                0 -> "Nothing written this month."
+                1 -> "1 night written this month."
+                else -> "$nights nights written this month."
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(Modifier.fillMaxWidth()) {
+            repeat(7) { index ->
+                Text(
+                    weekStart.plus(index.toLong())
+                        .getDisplayName(TextStyle.NARROW, Locale.getDefault()),
+                    style = MaterialTheme.typography.labelSmall,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        val leading = (month.atDay(1).dayOfWeek.value - weekStart.value + 7) % 7
+        val cells: List<LocalDate?> = buildList {
+            repeat(leading) { add(null) }
+            for (day in 1..month.lengthOfMonth()) add(month.atDay(day))
+        }
+        cells.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth()) {
+                week.forEach { date ->
+                    if (date == null) {
+                        Spacer(Modifier.weight(1f))
+                    } else {
+                        DayCell(
+                            date = date,
+                            count = counts[date] ?: 0,
+                            selected = date == picked,
+                            today = date == today,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onPick(if (date == picked) null else date) }
+                        )
+                    }
+                }
+                repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+/** One day of the calendar: its number, whether anything was written, and whether it is chosen. */
+@Composable
+private fun DayCell(
+    date: LocalDate,
+    count: Int,
+    selected: Boolean,
+    today: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = modifier
+            .padding(2.dp)
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                when {
+                    selected -> scheme.primaryContainer
+                    count > 0 -> scheme.surfaceVariant
+                    else -> Color.Transparent
+                }
+            )
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            "${date.dayOfMonth}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
+            color = when {
+                selected -> scheme.onPrimaryContainer
+                count > 0 -> scheme.onSurface
+                else -> scheme.outline
+            },
+            maxLines = 1
+        )
+        if (count > 0) {
+            Spacer(
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(4.dp)
+                    .clip(CircleShape)
+                    .background(if (selected) scheme.onPrimaryContainer else scheme.primary)
+            )
+        }
     }
 }
 

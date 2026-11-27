@@ -32,8 +32,10 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
@@ -61,11 +63,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ai.BottleCandidate
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
-import com.wineverdict.app.data.dayWords
+import com.wineverdict.app.data.Updater
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
@@ -75,6 +80,7 @@ import com.wineverdict.app.model.locationName
 import com.wineverdict.app.model.stats
 import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.launch
+import java.io.File
 
 private enum class CellarFilter(val label: String) {
     ALL("All"),
@@ -95,12 +101,15 @@ fun CellarScreen(
     onOpenWine: (String) -> Unit,
     onAddWine: () -> Unit,
     onScan: () -> Unit,
-    onOpenLists: () -> Unit,
-    onOpenJournal: () -> Unit
+    onOpenLists: () -> Unit
 ) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
-    val drinks by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
+    // The start-up check's answer, shown once at the top of the list rather than buried in Settings.
+    val update by AppGraph.pendingUpdate.collectAsStateWithLifecycle()
+    var updateHidden by remember { mutableStateOf(false) }
+    // Whether the label prints what the cellar cost. Read here, set in Settings.
+    val showValue by remember { mutableStateOf(AppGraph.settings.showCellarValue) }
     // A candidate the cellar already holds is a second bottle, not a twin: the same identity the
     // add matches on, so a card can say what the tap will do before it is tapped.
     val owned = remember(data) {
@@ -248,12 +257,18 @@ fun CellarScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            val available = update
+            if (available != null && !updateHidden) {
+                item(key = "update") {
+                    UpdateAvailableCard(available, onDismiss = { updateHidden = true })
+                }
+            }
             item {
                 StatsCard(
                     bottles = stats.bottles,
                     wines = stats.distinctWines,
                     ready = stats.readyToDrink,
-                    value = formatMoney(stats.invested, stats.currency)
+                    value = if (showValue) formatMoney(stats.invested, stats.currency) else null
                 )
             }
             if (savedLists.isNotEmpty()) {
@@ -285,47 +300,6 @@ fun CellarScreen(
                                         savedLists.first().title,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Icon(
-                                Icons.Filled.ChevronRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-                }
-            }
-            if (drinks.isNotEmpty()) {
-                item {
-                    // The record of what has been drunk is a place, not only something to ask
-                    // about: the answer should not need a model to be readable.
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(onClick = onOpenJournal),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(
-                                start = 14.dp,
-                                end = 6.dp,
-                                top = 8.dp,
-                                bottom = 8.dp
-                            ),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("Cellar book", style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    (if (drinks.size == 1) "1 entry · " else "${drinks.size} entries · ") +
-                                        dayWords(drinks.first().at) + ": " + drinks.first().title,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1
                                 )
                             }
                             Icon(
@@ -668,7 +642,7 @@ private fun CandidateCard(
  * the cellar instead of as another tile beside the bottles.
  */
 @Composable
-private fun StatsCard(bottles: Int, wines: Int, ready: Int, value: String) {
+private fun StatsCard(bottles: Int, wines: Int, ready: Int, value: String?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(6.dp),
@@ -701,7 +675,7 @@ private fun StatsCard(bottles: Int, wines: Int, ready: Int, value: String) {
                 StatRow("$bottles", "BOTTLES")
                 StatRow("$wines", "WINES")
                 StatRow("$ready", "READY NOW")
-                StatRow(value, "PAID")
+                value?.let { StatRow(it, "PAID") }
             }
         } else {
             Row(
@@ -714,7 +688,7 @@ private fun StatsCard(bottles: Int, wines: Int, ready: Int, value: String) {
                 StatCell("$bottles", "BOTTLES")
                 StatCell("$wines", "WINES")
                 StatCell("$ready", "READY NOW")
-                StatCell(value, "PAID")
+                value?.let { StatCell(it, "PAID") }
             }
         }
     }
@@ -794,4 +768,116 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
         wine.myNotes
     ).joinToString(" ").lowercase()
     return query.trim().lowercase().split(' ').all { haystack.contains(it) }
+}
+
+/**
+ * The update a start-up check found.
+ *
+ * The check is one quiet GET in [AppGraph]; this is where its answer becomes something to act on
+ * without hunting through Settings. Downloading is still a separate tap and Android's installer
+ * still asks its own question, so nothing installs behind the user's back.
+ */
+@Composable
+private fun UpdateAvailableCard(release: Updater.Release, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var progress by remember { mutableStateOf<Float?>(null) }
+    var apk by remember { mutableStateOf<File?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+
+    // Back from "install unknown apps": carry on with the APK that was already downloaded.
+    val installer = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        apk?.let { file ->
+            if (AppGraph.updater.canInstall()) {
+                runCatching { AppGraph.updater.install(file) }
+                    .onFailure { message = "Android would not open its installer." }
+            }
+        }
+    }
+
+    fun install(file: File) {
+        if (AppGraph.updater.canInstall()) {
+            runCatching { AppGraph.updater.install(file) }
+                .onFailure { message = "Android would not open its installer." }
+        } else {
+            runCatching { installer.launch(AppGraph.updater.installSettingsIntent()) }
+                .onFailure { message = "This phone has no install-settings page for apps." }
+        }
+    }
+
+    fun download() {
+        if (progress != null) return
+        progress = 0f
+        message = null
+        scope.launch {
+            try {
+                val file = AppGraph.updater.download(release) { progress = it }
+                apk = file
+                progress = null
+                install(file)
+            } catch (e: Exception) {
+                progress = null
+                message = e.message ?: "The download did not finish."
+            }
+        }
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("Update available", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "Wine Verdict ${release.version} is out — you have ${BuildConfig.VERSION_NAME}. " +
+                    "Your cellar, keys and cellar book stay where they are.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val notes = release.notes
+                .lines()
+                .filter { it.isNotBlank() }
+                .take(3)
+                .joinToString("\n")
+                .take(240)
+            if (notes.isNotBlank()) {
+                Text(
+                    notes,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            val running = progress
+            if (running != null) {
+                Text(
+                    "Downloading ${release.fileName} — ${(running * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall
+                )
+                LinearProgressIndicator(
+                    progress = { running },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(onClick = { download() }) { Text("Update") }
+                    apk?.let { file ->
+                        OutlinedButton(onClick = { install(file) }) { Text("Install again") }
+                    }
+                    TextButton(onClick = onDismiss) { Text("Not now") }
+                }
+            }
+            message?.let { text ->
+                Text(
+                    text,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
 }

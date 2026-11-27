@@ -25,6 +25,7 @@ import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -61,6 +62,14 @@ object AppGraph {
         private set
     lateinit var updater: Updater
         private set
+
+    /**
+     * The newer release the start-up check found, if any.
+     *
+     * Null until the check answers, and null when this build is current. The cellar shows it once
+     * so an update is known before the first note is typed; installing is still the user's tap.
+     */
+    val pendingUpdate = MutableStateFlow<Updater.Release?>(null)
 
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -134,6 +143,11 @@ object AppGraph {
             drop = { id -> cellar.clearPhoto(id) }
         )
         updater = Updater(app)
+        // One small GET for the whole start-up, and never in the way: a failed check is the same
+        // as no check, because a phone without a network still has a cellar to open.
+        scope.launch {
+            pendingUpdate.value = runCatching { updater.check() }.getOrNull()
+        }
         scope.launch {
             cellar.load()
             chat.load()
