@@ -257,19 +257,56 @@ class CellarRepository(context: Context) {
     suspend fun addTastingNote(id: String, note: String) = mutate { current ->
         val stamp = LocalDate.now().toString()
         current.copy(
-            wines = current.wines.map {
-                if (it.id == id) {
-                    val appended = if (it.myNotes.isBlank()) {
-                        "$stamp — ${note.trim()}"
-                    } else {
-                        it.myNotes.trimEnd() + "\n" + "$stamp — ${note.trim()}"
-                    }
-                    it.copy(myNotes = appended, updatedAt = System.currentTimeMillis())
-                } else {
-                    it
-                }
-            }
+            wines = current.wines.map { if (it.id == id) it.withNote(note, stamp) else it }
         )
+    }
+
+    /**
+     * A page of field edits in one write.
+     *
+     * The bottle page changes one bottle at a time; a change the chat proposed can be a dozen, and a
+     * dozen rewrites of the cellar file is a dozen chances to land on a half-written one for no gain.
+     *
+     * A null argument leaves that field alone — a field the ask did not name is not this call's to
+     * touch — and the note is appended exactly as the detail page appends it, never overwriting what
+     * is already written there.
+     */
+    suspend fun applyFields(
+        ids: Collection<String>,
+        slot: String? = null,
+        price: Double? = null,
+        quantity: Int? = null,
+        vintage: Int? = null,
+        note: String? = null,
+        stamp: String = LocalDate.now().toString()
+    ) = mutate { current ->
+        val targets = ids.toSet()
+        if (targets.isEmpty()) {
+            current
+        } else {
+            current.copy(
+                wines = current.wines.map { wine ->
+                    if (wine.id !in targets) {
+                        wine
+                    } else {
+                        var next = wine
+                        if (slot != null) next = next.copy(slot = slot)
+                        if (price != null) next = next.copy(price = price)
+                        if (quantity != null) next = next.copy(quantity = quantity.coerceAtLeast(0))
+                        if (vintage != null) next = next.copy(vintage = vintage)
+                        if (note != null) next = next.withNote(note, stamp)
+                        next.copy(updatedAt = System.currentTimeMillis())
+                    }
+                }
+            )
+        }
+    }
+
+    /** Appends one dated line, the shape a tasting note has always had on the bottle page. */
+    private fun Wine.withNote(note: String, stamp: String): Wine {
+        val line = "$stamp — ${note.trim()}"
+        val appended = if (myNotes.isBlank()) line else myNotes.trimEnd() + "\n" + line
+        return copy(myNotes = appended, updatedAt = System.currentTimeMillis())
     }
 
     suspend fun moveTo(id: String, locationId: String?, slot: String) =

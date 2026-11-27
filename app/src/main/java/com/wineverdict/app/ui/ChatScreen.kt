@@ -59,12 +59,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.AiJob
-import com.wineverdict.app.ai.MoveParsing
+import com.wineverdict.app.ai.ProposalParsing
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.ai.chatHistory
+import com.wineverdict.app.model.BottleUpdate
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.model.MoveRequest
 import com.wineverdict.app.data.describe
@@ -197,12 +198,13 @@ fun ChatScreen() {
                         // it is stripped here so the transcript never carries the JSON and the next
                         // question's history does not teach the model to write it twice. Nothing is
                         // written to the cellar — the card proposes, and the user confirms.
-                        val reply = MoveParsing.split(answer)
+                        val reply = ProposalParsing.split(answer)
                         AppGraph.chat.append(
                             ChatMessage(
                                 role = "assistant",
                                 text = reply.text,
-                                moveRequest = reply.request
+                                moveRequest = reply.move,
+                                update = reply.update
                             )
                         )
                     } catch (e: Exception) {
@@ -234,6 +236,24 @@ fun ChatScreen() {
 
     val dismissMove: (ChatMessage) -> Unit = { message ->
         AppGraph.chat.update(message.id) { it.copy(moveRequest = null) }
+    }
+
+    // A field change, written the way the bottle page writes one: price and count as values, the note
+    // appended as a dated line rather than replacing what is already there.
+    val applyUpdate: suspend (ChatMessage) -> Unit = { message ->
+        val update = message.update
+        val plan = update?.plan(AppGraph.cellar.data.value)
+        if (update != null && plan != null && plan.wines.isNotEmpty()) {
+            AppGraph.cellar.applyFields(
+                ids = plan.wines.map { it.id },
+                slot = update.slot?.trim(),
+                price = update.price,
+                quantity = update.quantity,
+                vintage = update.vintage,
+                note = update.note
+            )
+            AppGraph.chat.update(message.id) { it.copy(movedCount = plan.wines.size) }
+        }
     }
 
     LaunchedEffect(messages.size, sending) {
@@ -302,7 +322,12 @@ fun ChatScreen() {
                 }
 
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(message, onApply = applyMove, onDismiss = dismissMove)
+                    MessageBubble(
+                        message,
+                        onApplyMove = applyMove,
+                        onApplyUpdate = applyUpdate,
+                        onDismiss = dismissMove
+                    )
                 }
 
                 if (sending) {
@@ -428,7 +453,8 @@ private fun emphasis(text: String): AnnotatedString = buildAnnotatedString {
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
-    onApply: suspend (ChatMessage) -> Unit,
+    onApplyMove: suspend (ChatMessage) -> Unit,
+    onApplyUpdate: suspend (ChatMessage) -> Unit,
     onDismiss: (ChatMessage) -> Unit
 ) {
     val isUser = message.role == "user"
@@ -480,7 +506,10 @@ private fun MessageBubble(
                     )
                 }
                 message.moveRequest?.let { request ->
-                    MoveCard(message, request, onApply, onDismiss)
+                    MoveCard(message, request, onApplyMove, onDismiss)
+                }
+                message.update?.let { update ->
+                    UpdateCard(message, update, onApplyUpdate, onDismiss)
                 }
             }
         }
@@ -608,6 +637,117 @@ private fun MoveCard(
                             enabled = !applying
                         ) {
                             Text(if (applying) "Moving…" else "Move ${plan.wines.size}")
+                        }
+                        TextButton(onClick = { onDismiss(message) }, enabled = !applying) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The field change an answer proposed, resolved against the cellar as it stands now.
+ *
+ * Drawn from the stored query and the new values, so it names every bottle it would edit and every
+ * field it would touch — with the old value, when the bottles agree on it. A field the model did not
+ * mention is not shown, because nothing will be written to it.
+ */
+@Composable
+private fun UpdateCard(
+    message: ChatMessage,
+    update: BottleUpdate,
+    onApply: suspend (ChatMessage) -> Unit,
+    onDismiss: (ChatMessage) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val plan = remember(update, cellar) { update.plan(cellar) }
+    var applying by remember(message.id) { mutableStateOf(false) }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            when {
+                message.movedCount > 0 -> Text(
+                    text = "Changed ${message.movedCount} " +
+                        "${if (message.movedCount == 1) "bottle" else "bottles"}.",
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                plan == null -> Text(
+                    text = "That change could not be read. Ask again, naming the value and the bottles.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                plan.wines.isEmpty() -> {
+                    Text("Nothing to change", style = MaterialTheme.typography.titleSmall)
+                    if (plan.filterLabel.isNotBlank()) {
+                        Text(
+                            text = plan.filterLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = "No bottle in your cellar matches that.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = "Change ${plan.wines.size} " +
+                            "${if (plan.wines.size == 1) "bottle" else "bottles"}",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    if (plan.filterLabel.isNotBlank()) {
+                        Text(
+                            text = plan.filterLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // The values first: what will be written matters more than which rows take it.
+                    plan.lines.forEach { line ->
+                        Text(text = "\u00b7  $line", style = MaterialTheme.typography.bodySmall)
+                    }
+                    plan.wines.take(MAX_SHOWN).forEach { wine ->
+                        Text(
+                            text = "\u00b7  ${wine.title} — ${wine.subtitle}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (plan.wines.size > MAX_SHOWN) {
+                        Text(
+                            text = "and ${plan.wines.size - MAX_SHOWN} more",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    applying = true
+                                    onApply(message)
+                                    applying = false
+                                }
+                            },
+                            enabled = !applying
+                        ) {
+                            Text(if (applying) "Applying…" else "Apply")
                         }
                         TextButton(onClick = { onDismiss(message) }, enabled = !applying) {
                             Text("Cancel")

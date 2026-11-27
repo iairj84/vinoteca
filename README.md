@@ -120,7 +120,9 @@ Gemini or Groq — with your own key.
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,
   region, country, appellation, a vintage range and where a bottle lives now — *only the ones with no
   location* included — lists the matches with where each one lives now, and writes nothing until you
-  tap **Move**. A place you name that the cellar does not have
+  tap **Move**. The same card changes a bottle's own fields — shelf, price paid, note, count, vintage
+  — with the old value shown beside the new and **Apply** before anything is written; a note is added
+  as a dated line rather than overwriting what is there. A place you name that the cellar does not have
   yet is offered for creation on the same card. The chat itself has no write access, so it cannot
   claim a change it did not make.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

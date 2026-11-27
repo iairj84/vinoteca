@@ -31,14 +31,14 @@ data class MoveRequest(
      * location yet" is the commonest way to pick them — a query without it silently widened to every
      * bottle of the grape or producer, which is how 39 bottles were offered when 27 were asked for.
      */
-    val fromLocation: String = "",
-    val grape: String = "",
-    val type: String = "",
-    val producer: String = "",
-    val name: String = "",
-    val region: String = "",
-    val country: String = "",
-    val appellation: String = "",
-    val vintageFrom: Int? = null,
-    val vintageTo: Int? = null
-)
+    override val fromLocation: String = "",
+    override val grape: String = "",
+    override val type: String = "",
+    override val producer: String = "",
+    override val name: String = "",
+    override val region: String = "",
+    override val country: String = "",
+    override val appellation: String = "",
+    override val vintageFrom: Int? = null,
+    override val vintageTo: Int? = null
+) : BottleQuery

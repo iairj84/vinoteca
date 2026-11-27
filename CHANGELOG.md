@@ -3,6 +3,28 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.34: Ask can change a bottle's fields, not only its place
+
+**The chat could propose a move and nothing else.** A shelf, a price, a note, a count and a vintage
+are the fields a cellar is actually corrected in, and all of them still had to be typed bottle by
+bottle on the detail page.
+
+- **`UPDATE` is the second proposal, on the same query.** Grape, type, producer, name, region,
+  country, appellation, a vintage range and the current place select the bottles exactly as a move
+  line does; the new values ride on top: slot, price, note, quantity, vintage. One matcher serves both
+  proposals, so a bottle cannot be selected by one and missed by the other.
+- **The card says what changes and what it was.** "Price → USD 48.00 (was USD 55.00)", "Bottles → 3",
+  "Slot cleared (was Top shelf)", "Vintage → 2019", "Add to my note: …". An old value is printed only
+  when every matched bottle agrees on it; otherwise the new value stands alone rather than listing
+  four different olds. The bottles themselves are listed under the values.
+- **Nothing is written until Apply.** Confirming edits the whole set in one write, and a null field is
+  never touched — every key the model left out stays exactly as it is. A note is appended as a dated
+  line, the shape a tasting note has always had, so the chat can add to what you wrote but cannot erase
+  it. A negative price, a negative count or a vintage that is not a year refuses the whole proposal
+  rather than dropping that one value and writing the rest.
+- **A quantity is a correction, not a drink.** Setting the count does not add an entry to the drink
+  log: the minus button takes a bottle out, an edit says the record was wrong.
+
 ### 1.2.33: a move can say where the bottles are now
 
 **"Move all Prospice bottles not with a location to garage fridge" offered 39 bottles.** The move

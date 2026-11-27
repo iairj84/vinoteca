@@ -244,7 +244,12 @@ data class ChatMessage(
      * [text], so the card is the only place the request is shown.
      */
     val moveRequest: MoveRequest? = null,
-    /** How many bottles the confirmed move wrote. 0 means nothing has moved yet. */
+    /**
+     * The field change this answer proposed, as a query plus the new values. Null when it proposed
+     * nothing, or proposed a move instead: one card per answer.
+     */
+    val update: BottleUpdate? = null,
+    /** How many bottles the confirmed proposal wrote. 0 means nothing has been written yet. */
     val movedCount: Int = 0
 )
 
