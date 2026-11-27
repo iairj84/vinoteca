@@ -188,7 +188,7 @@ fun CellarScreen(
                     // A label scanned since, or a picture already kept, is not replaced by a shop's.
                     if (kept.photo.isNotBlank()) return@launch
                     val bytes = ImageUtils.jpegBytes(picture) ?: return@launch
-                    val name = AppGraph.cellar.saveLabelPhoto(id, bytes)
+                    val name = AppGraph.cellar.saveLabelPhoto(id, bytes, fromWeb = true)
                     if (name.isNotBlank()) AppGraph.cellar.attachPhoto(id, name)
                 }
             }

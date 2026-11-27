@@ -2,6 +2,7 @@ package com.wineverdict.app
 
 import android.content.Context
 import com.wineverdict.app.ai.AiClient
+import com.wineverdict.app.ai.PictureGate
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.DetailsBackfill
@@ -25,6 +26,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Hand-rolled service locator: the app is small enough that a DI framework
@@ -115,12 +117,21 @@ object AppGraph {
             wines = { cellar.data.value.wines },
             find = { wine -> ai.bottleImageFor(wine) },
             save = { id, bytes ->
-                // A page's picture arrives full size; it is kept at the size a scanned label is.
+                // A page's picture arrives full size; it is kept at the size a scanned label is,
+                // and marked as the finder's so a later check may reconsider it.
                 val small = ImageUtils.jpegBytes(bytes)
-                val name = if (small == null) "" else cellar.saveLabelPhoto(id, small)
+                val name = if (small == null) "" else {
+                    cellar.saveLabelPhoto(id, small, fromWeb = true)
+                }
                 if (name.isNotBlank()) cellar.attachPhoto(id, name)
             },
-            scope = scope
+            scope = scope,
+            stored = { wine ->
+                withContext(Dispatchers.IO) { cellar.labelPhoto(wine)?.readBytes() }
+            },
+            looksLikeTheBottle = { bytes -> PictureGate.acceptable(bytes) },
+            fromThePages = { wine -> CellarRepository.isWebPhoto(wine.photo) },
+            drop = { id -> cellar.clearPhoto(id) }
         )
         updater = Updater(app)
         scope.launch {

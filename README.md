@@ -132,7 +132,10 @@ Gemini or Groq — with your own key.
   picture can be replaced or removed. **Settings → Bottle pictures** walks the bottles that have
   none and asks the pages that name them for the photograph they publish, keeping only a picture
   shaped like one bottle or its label on a plain field, with the subject spanning the frame (no
-  model, no quota, one bottle at a time, stoppable). The files are app-private, so the JSON backup carries records rather than pictures.
+  model, no quota, one bottle at a time, stoppable). A picture it pulls from a page is marked as the
+  finder's, and **Check** measures every kept picture against the same rule: one that is not the
+  bottle is looked for again, a page's picture with nothing better is taken off, and a photograph
+  you took yourself is only ever replaced by one that does look like the bottle. The files are app-private, so the JSON backup carries records rather than pictures.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.

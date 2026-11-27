@@ -69,15 +69,22 @@ class CellarRepository(context: Context) {
         ?.let { name -> File(labelDir, name).takeIf { it.isFile } }
 
     /**
-     * Writes a scanned label beside the record it will belong to, and returns the name to store on
-     * it. Best effort: a phone with no room for the picture still gets the bottle, because losing a
+     * Writes a picture beside the record it will belong to, and returns the name to store on it.
+     *
+     * [fromWeb] is what keeps the two kinds apart: a photograph of a page is named with
+     * [WEB_PREFIX], a label the user photographed is not. The finder is a heuristic that guesses at
+     * a bottle from markup, so its pictures are the ones worth re-checking later; a picture the
+     * user's own camera made is their record of the bottle, and nothing in Settings reconsiders it
+     * behind their back.
+     *
+     * Best effort: a phone with no room for the picture still gets the bottle, because losing a
      * wine over a failed JPEG is the wrong trade.
      */
-    suspend fun saveLabelPhoto(wineId: String, bytes: ByteArray): String =
+    suspend fun saveLabelPhoto(wineId: String, bytes: ByteArray, fromWeb: Boolean = false): String =
         withContext(Dispatchers.IO) {
             runCatching {
                 labelDir.mkdirs()
-                val name = "$wineId.jpg"
+                val name = if (fromWeb) "$WEB_PREFIX$wineId.jpg" else "$wineId.jpg"
                 File(labelDir, name).writeBytes(bytes)
                 name
             }.getOrDefault("")
@@ -91,6 +98,12 @@ class CellarRepository(context: Context) {
      * record read a second earlier.
      */
     suspend fun attachPhoto(wineId: String, name: String) = mutate { current ->
+        // The picture it replaces goes with it: a page's picture swapped for a label leaves the
+        // page's file behind for nothing, and the cellar keeps one picture per bottle.
+        current.wines.firstOrNull { it.id == wineId }
+            ?.photo
+            ?.takeIf { it.isNotBlank() && it != name }
+            ?.let { old -> runCatching { File(labelDir, old).delete() } }
         current.copy(
             wines = current.wines.map { if (it.id == wineId) it.copy(photo = name) else it }
         )
@@ -114,6 +127,16 @@ class CellarRepository(context: Context) {
      * Files whose wine is gone: a bottle deleted, or a scan that was read but never added. Nothing
      * can ever reach them again, so they are dropped on the way in rather than counted for ever.
      */
+    companion object {
+        /**
+         * The mark on a picture the finder pulled from a page. First thing other code asks about a
+         * photograph: whether the app guessed it, which is the only kind it may reconsider.
+         */
+        const val WEB_PREFIX = "web-"
+
+        fun isWebPhoto(name: String): Boolean = name.startsWith(WEB_PREFIX)
+    }
+
     private fun pruneLabelPhotos(data: CellarData) {
         val used = data.wines.map { it.photo }.filter { it.isNotBlank() }.toSet()
         labelDir.listFiles()?.forEach { photo ->

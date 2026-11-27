@@ -3,6 +3,27 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.40: page pictures are marked, and a check that reconsiders them
+
+**The junk already in the cellar could only be cleared one bottle at a time**, and nothing told the
+app which pictures it had guessed at: a page's photograph and a label the user photographed were
+both kept under the record's id.
+
+- **A picture the finder pulled from a page is named `web-<id>.jpg`**; a label photographed here
+  keeps `<id>.jpg`. The mark is the only thing that says a photograph was the app's guess rather
+  than the user's record of the bottle.
+- **Settings → Bottle pictures gains Check**, which measures every kept picture with the same gate
+  the finder applies before keeping one — no network for the pictures that pass, a search only
+  where one fails. A picture that is not the bottle is looked for again; a page's picture with
+  nothing better to put there is taken off, because a bare tile with a camera is honest; a
+  photograph the user took is only ever **replaced** by one that does look like the bottle, never
+  deleted on the gate's word alone.
+- **Pictures kept before this build carry no mark**, so they are treated as the user's: the check
+  still measures them and re-finds them, but it will not empty the bottle when nothing better turns
+  up. Existing junk is replaced where the pages have a bottle to offer, and left otherwise.
+- Replacing a picture now deletes the file it replaced, so a bottle holds one picture rather than a
+  trail of them.
+
 ### 1.2.39: a wordmark is not a label
 
 **1.2.38 stopped the banner and the cork, but a review site's "International VINE REPORTER" card and

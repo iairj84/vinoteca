@@ -62,6 +62,7 @@ import com.wineverdict.app.ai.AiProvider
 import com.wineverdict.app.data.Backup
 import androidx.compose.ui.text.font.FontFamily
 import com.wineverdict.app.data.BackupFile
+import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.CrashLog
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.PhotoBackfill
@@ -474,13 +475,28 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
 
             SectionCard("Bottle pictures") {
                 val without = PhotoBackfill.pending(data.wines).size
+                val kept = data.wines.count { it.photo.isNotBlank() }
+                val fromPages = data.wines.count { CellarRepository.isWebPhoto(it.photo) }
                 Text(
-                    "${data.wines.size - without} of ${data.wines.size} bottles carry a picture — " +
-                        "the label that was scanned, the photograph the page declared when the wine " +
-                        "was added, or one taken on the bottle's own page, where it can also be " +
-                        "replaced or removed. This asks the pages that name each bottle for theirs: " +
-                        "no model, no quota, one bottle at a time, and a page that publishes none " +
-                        "leaves the bottle bare.",
+                    "$kept of ${data.wines.size} bottles carry a picture — the label that was " +
+                        "scanned, the photograph the page declared when the wine was added, or one " +
+                        "taken on the bottle's own page, where it can also be replaced or removed. " +
+                        "This asks the pages that name each bottle for theirs: no model, no quota, " +
+                        "one bottle at a time, and a page that publishes none leaves the bottle bare.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (fromPages > 0) {
+                        "Of those, $fromPages came from a page and are marked as such. Check reads " +
+                            "every kept picture again: one that is not the bottle is looked for again, " +
+                            "and a page's picture with nothing better to put there is taken off. A " +
+                            "photograph you took yourself is only ever replaced by one that does look " +
+                            "like the bottle."
+                    } else {
+                        "Check reads every kept picture again against the same rule, and looks for a " +
+                            "better one where the picture in the cellar is not the bottle."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -500,6 +516,11 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                             if (without > 0) "Find pictures for $without bottles"
                             else "Every bottle has a picture"
                         )
+                    }
+                    if (kept > 0) {
+                        OutlinedButton(onClick = { AppGraph.photos.check() }) {
+                            Text("Check $kept pictures")
+                        }
                     }
                 }
                 pictures.message?.let { message ->
