@@ -62,6 +62,9 @@ Gemini or Groq — with your own key.
   three bottles run at a time, and anything the pages did not print stays empty rather than
   estimated. A lookup that does not answer is not written off: it is asked again next time, and
   **Look again** re-asks the bottles whose pages had nothing to say.
+- **One reminder** — an hour after a wine list is read, a single notification asks how the wines
+  were and opens the app. A second list replaces the first nudge, the permission is asked for when
+  the list is read rather than at first launch, and nothing else is ever posted.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

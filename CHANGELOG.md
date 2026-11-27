@@ -3,6 +3,20 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.16: an hour after the list, one reminder
+
+**The wines were photographed and then never recorded.** A list is read at a table, the wines are
+poured, and by the time the phone comes out again the evening is a name on a photo — the verdict
+that would have made the scan worth taking was the one thing left undone. An hour after a list is
+read, one notification now says **How was the wine?** and opens the app.
+
+**One nudge, and only for a list.** It is WorkManager work, not a timer in the screen, so it arrives
+with the app closed and the phone rebooted since; a second list replaces the first list's reminder
+rather than stacking a second notification onto the same evening. The notification says nothing
+about the wines — it is a reminder to answer, not a second copy of the answer. A bottle or a shelf
+never schedules one, and nothing is posted until the user allows it: the permission is asked for at
+the moment a list is read, which is the only moment it has a reason behind it.
+
 ### 1.2.15: a wine can be kept without being owned
 
 **The only way to remember a wine off a list was to pretend to own it.** Adding a pick put one

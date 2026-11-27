@@ -1,6 +1,8 @@
 package com.wineverdict.app.ui
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -71,6 +73,7 @@ import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
 import com.wineverdict.app.data.PairingTable
 import com.wineverdict.app.data.QuickStart
+import com.wineverdict.app.data.Reminders
 import com.wineverdict.app.data.Scored
 import com.wineverdict.app.data.Service
 import com.wineverdict.app.data.assertUniformUnit
@@ -196,6 +199,23 @@ fun ScanScreen(onReview: () -> Unit) {
         LaunchedEffect(Unit) {
             val fixture = withContext(Dispatchers.IO) { DebugScan.load(context, currency) }
             if (fixture != null && scan == null) scan = fixture
+        }
+    }
+    // The one nudge the app sends. Asked for here rather than at first launch: a permission
+    // dialog that arrives with a list still on the table has a reason behind it, and one at
+    // start-up has none. The reminder itself outlives the screen, which is why it is work and not
+    // a timer in this composable.
+    val askToNotify = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(scan) {
+        val read = scan ?: return@LaunchedEffect
+        if (read.scene != Scene.LIST || read.bottles.isEmpty()) return@LaunchedEffect
+        Reminders.scheduleListReview(context)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            !Reminders.canNotify(context)
+        ) {
+            askToNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
     LaunchedEffect(loading) {
