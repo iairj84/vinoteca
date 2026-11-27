@@ -3,6 +3,28 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.39: a wordmark is not a label
+
+**1.2.38 stopped the banner and the cork, but a review site's "International VINE REPORTER" card and
+a producer's full-bleed theme photo of the vineyard rows still got through.** Both are plain-field,
+bottle-shaped images, so a test that only asked for shape and a plain border had nothing to say
+about them.
+
+- **A third question is asked of the pixels**: the subject has to span the height of the frame (a
+  bottle standing on a field, or a label filling the frame), and a full-bleed landscape picture is
+  never kept — that is a hero or a newsletter banner, not a bottle.
+- **A texture test**: a picture whose neighbours differ sharply across the whole frame — a woven
+  label close-up, vineyard rows, a corduroy pattern — is dropped rather than kept as a label.
+- **Measured on real pictures**: the ten good ones 1.2.38 kept had subjects covering 0.80–1.0 of the
+  frame height and busyness of 0.03–0.22. The Ridge theme photo filled a landscape frame edge to
+  edge (rejected), the Prospice newsletter strips were full-bleed landscape 320×231 (rejected), and
+  the real Ridge bottle image on that page measures 0.24 wide by 0.97 tall — the next candidate now
+  taken instead. The wordmark card itself was not measured against its own page; it is covered by a
+  synthetic test of a text band in a white card.
+- **Fewer pictures, but no wrong ones.** A picture that fails sends the search to the next candidate
+  on the page; the ranking and the three queries are unchanged, so a boutique producer's page can
+  still yield nothing, which is the honest answer for a closed winery.
+
 ### 1.2.38: pictures that look like the bottle, and a filter that stays
 
 **The picture finder kept the shop's own furniture.** A page's `og:image` was trusted blindly, and

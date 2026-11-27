@@ -106,4 +106,71 @@ class PictureGateTest {
         val pixels = IntArray(64 * 64) { 0xFF101010.toInt() }
         assertTrue(PictureGate.plainBorder(pixels, 64, 64))
     }
+
+    /** A bottle standing on a plain field: narrow, and nearly the full height. */
+    private fun bottle(): IntArray {
+        val width = 64
+        val height = 96
+        return IntArray(width * height) { index ->
+            val x = index % width
+            val y = index / width
+            if (x in 26..38 && y in 8..88) 0xFF20301A.toInt() else 0xFFF4F0E6.toInt()
+        }
+    }
+
+    @Test
+    fun aBottleOnAPlainFieldIsKept() {
+        val (subjectWidth, subjectHeight) = PictureGate.subjectBox(bottle(), 64, 96)
+        assertEquals(0.2f, subjectWidth, 0.05f)
+        assertEquals(0.84f, subjectHeight, 0.05f)
+        assertTrue(PictureGate.composed(bottle(), 64, 96))
+    }
+
+    @Test
+    fun aWordmarkBandOnAWhiteCardIsNotABottle() {
+        // "International VINE REPORTER": a line of text across a square white card.
+        val pixels = IntArray(64 * 64) { index ->
+            val x = index % 64
+            val y = index / 64
+            if (x in 8..56 && y in 27..37) 0xFF1B1B1B.toInt() else 0xFFFFFFFF.toInt()
+        }
+        assertFalse(PictureGate.composed(pixels, 64, 64))
+    }
+
+    @Test
+    fun aFullBleedLandscapeHeroIsNotABottle() {
+        // A producer's theme photo of the vineyard, filling a landscape frame.
+        val width = 96
+        val height = 64
+        val pixels = IntArray(width * height) { index ->
+            val x = index % width
+            val y = index / width
+            val shade = 20 * ((x + y) % 2)
+            (0xFF - shade) shl 24 or (0x404040) or (shade shl 16) or (shade shl 8)
+        }
+        assertFalse(PictureGate.composed(pixels, width, height))
+    }
+
+    @Test
+    fun aLabelFillingAPortraitFrameIsKept() {
+        // The Stoller front label: cream, edge to edge, with the field's green only at the trim.
+        val pixels = IntArray(64 * 96) { index ->
+            val x = index % 64
+            val y = index / 64
+            if (x in 4..59 && y in 4..91) 0xFFE8DFC6.toInt() else 0xFF31402A.toInt()
+        }
+        assertTrue(PictureGate.composed(pixels, 64, 96))
+    }
+
+    @Test
+    fun aTextureIsNotALabel() {
+        // A woven or corduroy texture: every neighbour differs from the next.
+        val pixels = IntArray(64 * 64) { index ->
+            val x = index % 64
+            val y = index / 64
+            if ((x / 2 + y / 2) % 2 == 0) 0xFF6B5432.toInt() else 0xFF2A2018.toInt()
+        }
+        assertTrue(PictureGate.busy(pixels, 64, 64) > 0.4f)
+        assertFalse(PictureGate.composed(pixels, 64, 64))
+    }
 }
