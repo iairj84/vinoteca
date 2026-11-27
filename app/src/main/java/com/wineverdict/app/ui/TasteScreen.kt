@@ -11,7 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -41,7 +45,7 @@ import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.QuickStart
 
 /**
- * The Taste tab: what the app knows, and the exact text a model reads.
+ * The taste profile, opened from Settings: what the app knows, and the exact text a model reads.
  *
  * It used to be six cards of settings — answers, a typed ceiling, a links box, gates, pairing classes
  * and the whole file — while the flow collected some of the same facts in another place. Every
@@ -51,6 +55,7 @@ import com.wineverdict.app.data.QuickStart
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TasteScreen(
+    onBack: () -> Unit = {},
     onStartQuickStart: () -> Unit = {},
     onAddDetail: () -> Unit = {},
     onOpenAdvanced: () -> Unit = {}
@@ -85,7 +90,18 @@ fun TasteScreen(
     var showAnswers by remember { mutableStateOf(false) }
     var showFile by remember { mutableStateOf(false) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Taste profile") }) }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Taste profile") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()

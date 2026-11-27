@@ -3,6 +3,33 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.41: a cellar book you can write in
+
+**The drink log could only be read.** Every bottle that left the shelf was recorded, but a night the
+app did not see — a restaurant bottle, or one from before it was installed — had nowhere to go, and
+the one record people would keep was the one file the backup left behind. The Taste tab was also
+doing two jobs: the profile is something you set up and then rarely open, while what you drank is
+something you come back to.
+
+- **The Taste tab is now the Journal.** It opens the **Cellar book**: the nights newest first, the
+  verdict and note given at the time, and the survey words a hand-written entry carries. The taste
+  profile moved into Settings with a back arrow; the quick start, the brief and mytaste.md are
+  unchanged and one tap from there. The tab says **Journal** because "Cellar book" does not fit a
+  five-column bar beside "Cellar" at normal text size; the page itself is named the cellar book.
+- **Add writes a night by hand.** Pick a bottle already in the cellar, or name one you do not own.
+  The date is editable, because the entry is often made days later, and a remembered night claims
+  no clock time.
+- **The three-question survey is the part the model can use.** The four-word verdict, up to six
+  taste words and "would you buy it again?" are written onto the bottle — the verdict only when one
+  was given, never clearing one that was already there, and the words added to the record's own
+  rather than replacing published notes. A wine you do not own becomes a record with no bottles, so
+  it appears under **No bottles** and reaches the taste brief through the same loved-and-disliked
+  channel as any rated bottle. The drink digest tells Ask a hand-written line from one recorded on
+  the night.
+- **The cellar book is in the backup.** Exports carry every night, a restore merges by id or
+  replaces with the cellar, and a version 1 file still opens with an empty book. A backup of only
+  nights is no longer rejected as empty.
+
 ### 1.2.40: page pictures are marked, and a check that reconsiders them
 
 **The junk already in the cellar could only be cleared one bottle at a time**, and nothing told the

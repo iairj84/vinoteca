@@ -304,6 +304,43 @@ class CellarRepository(context: Context) {
         )
     }
 
+    /**
+     * What a night's quick survey said, written onto the bottle in one pass.
+     *
+     * The verdict is written only when one was given: a drink recorded without a word must not
+     * clear the bottle's own. The taste words are added to the record's, never put in place of the
+     * ones a page published, and the line is dated the night it was drunk rather than the day it
+     * was typed. This is the path by which a hand-written night reaches the taste brief.
+     */
+    suspend fun applyJournalTaste(
+        id: String,
+        rating: Int?,
+        flavors: List<String>,
+        note: String,
+        day: LocalDate = LocalDate.now()
+    ) = mutate { current ->
+        current.copy(
+            wines = current.wines.map { wine ->
+                if (wine.id != id) {
+                    wine
+                } else {
+                    val merged = (wine.flavorTags + flavors)
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinctBy { it.lowercase() }
+                        .take(12)
+                    val tasted = wine.copy(
+                        rating = rating ?: wine.rating,
+                        favorite = if (rating != null) rating == Verdict.LOVED.rating else wine.favorite,
+                        flavorTags = merged,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    if (note.isBlank()) tasted else tasted.withNote(note, day.toString())
+                }
+            }
+        )
+    }
+
     suspend fun addTastingNote(id: String, note: String) = mutate { current ->
         val stamp = LocalDate.now().toString()
         current.copy(

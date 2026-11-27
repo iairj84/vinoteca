@@ -15,7 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.LocalBar
-import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,7 +40,7 @@ import androidx.navigation.navArgument
 import com.wineverdict.app.ui.AdvancedTasteScreen
 import com.wineverdict.app.ui.CellarScreen
 import com.wineverdict.app.ui.ChatScreen
-import com.wineverdict.app.ui.DrinksScreen
+import com.wineverdict.app.ui.JournalScreen
 import com.wineverdict.app.ui.QuickStartScreen
 import com.wineverdict.app.ui.SavedListScreen
 import com.wineverdict.app.ui.SavedListsScreen
@@ -90,7 +90,9 @@ private val tabs = listOf(
     Tab("cellar", "Cellar", Icons.Filled.LocalBar),
     Tab("scan", "Scan", Icons.Filled.CameraAlt),
     Tab("chat", "Ask", Icons.Filled.Chat),
-    Tab("taste", "Taste", Icons.Filled.Psychology),
+    // The book of what was drunk takes the old Taste slot; the taste profile moved into Settings,
+    // where the rest of what the app knows about you already lives.
+    Tab("journal", "Journal", Icons.Filled.MenuBook),
     Tab("settings", "Settings", Icons.Filled.Settings)
 )
 
@@ -178,11 +180,11 @@ private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
                         }
                     },
                     onOpenLists = { navController.navigate("lists") },
-                    onOpenDrinks = { navController.navigate("drinks") }
+                    onOpenJournal = { navController.navigate("journal") }
                 )
             }
-            composable("drinks") {
-                DrinksScreen(onBack = { navController.popBackStack() })
+            composable("journal") {
+                JournalScreen()
             }
             composable("lists") {
                 SavedListsScreen(
@@ -207,13 +209,17 @@ private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
             }
             composable("taste") {
                 TasteScreen(
+                    onBack = { navController.popBackStack() },
                     onStartQuickStart = { navController.navigate("quickstart?extras=0") },
                     onAddDetail = { navController.navigate("quickstart?extras=1") },
                     onOpenAdvanced = { navController.navigate("advanced-taste") }
                 )
             }
             composable("settings") {
-                SettingsScreen(onOpenAdvancedTaste = { navController.navigate("advanced-taste") })
+                SettingsScreen(
+                    onOpenTaste = { navController.navigate("taste") },
+                    onOpenAdvancedTaste = { navController.navigate("advanced-taste") }
+                )
             }
             composable(
                 route = "quickstart?extras={extras}",

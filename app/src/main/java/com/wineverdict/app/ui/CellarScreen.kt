@@ -96,7 +96,7 @@ fun CellarScreen(
     onAddWine: () -> Unit,
     onScan: () -> Unit,
     onOpenLists: () -> Unit,
-    onOpenDrinks: () -> Unit
+    onOpenJournal: () -> Unit
 ) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
@@ -303,7 +303,7 @@ fun CellarScreen(
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(onClick = onOpenDrinks),
+                            .clickable(onClick = onOpenJournal),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
@@ -319,7 +319,7 @@ fun CellarScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("Drinks", style = MaterialTheme.typography.titleSmall)
+                                Text("Cellar book", style = MaterialTheme.typography.titleSmall)
                                 Text(
                                     (if (drinks.size == 1) "1 bottle · " else "${drinks.size} bottles · ") +
                                         dayWords(drinks.first().at) + ": " + drinks.first().title,

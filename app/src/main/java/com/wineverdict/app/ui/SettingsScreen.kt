@@ -80,7 +80,10 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
+fun SettingsScreen(
+    onOpenTaste: () -> Unit = {},
+    onOpenAdvancedTaste: () -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -168,6 +171,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
         scope.launch {
             try {
                 val cellar = AppGraph.cellar.data.value
+                val drinks = AppGraph.drinks.drinks.value
                 Backup.write(
                     context,
                     uri,
@@ -175,11 +179,13 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                         cellar = cellar,
                         taste = AppGraph.taste.text.value,
                         appVersion = BuildConfig.VERSION_NAME,
-                        currency = AppGraph.settings.currency
+                        currency = AppGraph.settings.currency,
+                        drinks = drinks
                     )
                 )
                 dataMessage = "Backup written: ${cellar.wines.size} wines, " +
-                    "${cellar.wines.sumOf { it.quantity }} bottles, plus your mytaste.md."
+                    "${cellar.wines.sumOf { it.quantity }} bottles, ${drinks.size} nights in the " +
+                    "cellar book, plus your mytaste.md."
             } catch (e: Exception) {
                 dataMessage = e.message ?: "Could not write the backup."
             } finally {
@@ -380,6 +386,19 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     }
                 )
             }
+            }
+
+            SectionCard("Taste profile") {
+                Text(
+                    "The quick start, the brief every model request reads, the gates the app checks, " +
+                        "and the mytaste.md file itself. It moved here when the Journal tab took its " +
+                        "place; nothing about the answers or the file has changed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(onClick = onOpenTaste) {
+                    Text("Open the taste profile")
+                }
             }
 
             SectionCard("Currency") {
@@ -589,7 +608,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
 
             SectionCard("Advanced") {
                 Text(
-                    "Edit mytaste.md directly. It is the file the model judges wine against, and most people never need to open it: the quick start writes it from ten taps and the Taste tab shows what it knows. A file you write or import here is kept when the quick start runs again; one the quick start wrote is replaced.",
+                    "Edit mytaste.md directly. It is the file the model judges wine against, and most people never need to open it: the quick start writes it from ten taps and the taste profile shows what it knows. A file you write or import here is kept when the quick start runs again; one the quick start wrote is replaced.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -873,7 +892,8 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     )
                     Text(
                         "${candidate.cellar.wines.size} wines · ${candidate.bottles} bottles · " +
-                            "${candidate.cellar.locations.size} storage locations"
+                            "${candidate.cellar.locations.size} storage locations · " +
+                            "${candidate.drinks.size} nights in the cellar book"
                     )
                     if (candidate.taste.isNotBlank()) Text("Includes the mytaste.md from that phone.")
                     Text("Merge keeps what is on this phone and matches duplicates. Replace deletes it first.")
@@ -885,6 +905,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                         onClick = {
                             scope.launch {
                                 val outcome = AppGraph.cellar.mergeCellar(candidate.cellar)
+                                AppGraph.drinks.merge(candidate.drinks)
                                 if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
                                 if (candidate.currency.isNotBlank()) {
                                     AppGraph.settings.currency = candidate.currency
@@ -900,6 +921,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                         onClick = {
                             scope.launch {
                                 AppGraph.cellar.replaceAll(candidate.cellar)
+                                AppGraph.drinks.replaceAll(candidate.drinks)
                                 if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
                                 if (candidate.currency.isNotBlank()) {
                                     AppGraph.settings.currency = candidate.currency

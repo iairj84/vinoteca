@@ -12,8 +12,12 @@ import java.io.FileNotFoundException
 import java.nio.charset.Charset
 
 /**
- * A whole-cellar backup: wines, storage locations, the hand-written mytaste.md and the
- * currency. One JSON file the user owns and can move between phones.
+ * A whole-cellar backup: wines, storage locations, the hand-written mytaste.md, the currency and
+ * the cellar book. One JSON file the user owns and can move between phones.
+ *
+ * The drink log is here because it stopped being a side effect of the minus button: a night written
+ * into the book by hand is the user's own record, and a backup that left it behind would lose the
+ * one thing the journal exists to keep.
  *
  * The Groq key is deliberately not included — a backup is something people email to themselves.
  */
@@ -25,7 +29,9 @@ data class BackupFile(
     val appVersion: String = "",
     val currency: String = "",
     val taste: String = "",
-    val cellar: CellarData = CellarData()
+    val cellar: CellarData = CellarData(),
+    /** Every night on record. Empty in a backup written before the cellar book existed. */
+    val drinks: List<Drink> = emptyList()
 ) {
     val bottles: Int get() = cellar.wines.sumOf { it.quantity }
 }
@@ -35,7 +41,8 @@ object Backup {
     const val FORMAT = "wineverdict-backup"
     // The old app's exports, so a cellar moves across the rename with Settings → Backup.
     private val ACCEPTED_FORMATS = setOf(FORMAT, "vinoteca-backup")
-    const val VERSION = 1
+    // 2 added the cellar book. A version 1 file still decodes: [BackupFile.drinks] defaults empty.
+    const val VERSION = 2
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -43,13 +50,20 @@ object Backup {
         prettyPrint = true
     }
 
-    fun encode(cellar: CellarData, taste: String, appVersion: String, currency: String): String =
+    fun encode(
+        cellar: CellarData,
+        taste: String,
+        appVersion: String,
+        currency: String,
+        drinks: List<Drink> = emptyList()
+    ): String =
         json.encodeToString(
             BackupFile(
                 appVersion = appVersion,
                 currency = currency,
                 taste = taste,
-                cellar = cellar
+                cellar = cellar,
+                drinks = drinks
             )
         )
 
@@ -66,7 +80,7 @@ object Backup {
         if (parsed.format.isNotBlank() && parsed.format !in ACCEPTED_FORMATS) {
             throw IllegalArgumentException("That backup was made by something else (${parsed.format}).")
         }
-        if (parsed.cellar.wines.isEmpty() && parsed.taste.isBlank()) {
+        if (parsed.cellar.wines.isEmpty() && parsed.taste.isBlank() && parsed.drinks.isEmpty()) {
             throw IllegalArgumentException("That backup is empty.")
         }
         return parsed

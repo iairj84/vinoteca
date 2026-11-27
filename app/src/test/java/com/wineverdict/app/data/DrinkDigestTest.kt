@@ -65,6 +65,28 @@ class DrinkDigestTest {
     }
 
     @Test
+    fun aNightWrittenByHandSaysSo() {
+        // The verdict was given from memory, days later. The record keeps the answer and says how
+        // it got there, so a model does not read it as something observed across the table.
+        val digest = drinkDigest(
+            listOf(
+                Drink(
+                    id = "m",
+                    title = "2018 Chianti",
+                    at = at(3),
+                    rating = Verdict.GOOD.rating,
+                    again = true,
+                    flavors = listOf("Cherry", "Earth"),
+                    via = Drink.MANUAL
+                )
+            ),
+            System.currentTimeMillis()
+        )
+        assertTrue(digest, digest.contains("Good, would buy again (recorded by hand)"))
+        assertTrue("no clock time is claimed for a remembered night", !digest.contains("count adjusted"))
+    }
+
+    @Test
     fun anEmptyRecordSaysNothingAtAll() {
         // Blank, not "nothing yet": the prompt supplies that sentence, and it has to be able to tell
         // an install that never drank from one whose record happens to be empty.

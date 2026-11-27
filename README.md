@@ -101,15 +101,18 @@ Gemini or Groq — with your own key.
   ever posted. Recording the evening settles it: the first wine you order or judge on that list
   cancels the nudge (and any notification already in the tray), because a reminder to say how a wine
   was is noise once you have said.
-- **What you have drunk** — every bottle that leaves the cellar is written down: **Drank one** with
-  the verdict you gave at the time, and the minus button as a count adjustment with no verdict
-  attributed to you. Cellar carries a **Drinks** card above the search that opens the history — the
-  nights newest first, each bottle with its word, its note and the time — so your own record is
-  readable without a model in between. Ask reads the same record: “what did I drink yesterday”, “what
-  did I have last week”, “what have I loved this month”. A bottle's page says when it was last
-  drunk, and the log is what makes those answers possible at all — before it, the only trace of a
-  bottle leaving the shelf was a number going down. **Undo** takes the entry back with the bottle,
-  since an undone tap never happened.
+- **The cellar book** — every bottle that leaves the cellar is written down: **Drank one** with the
+  verdict you gave at the time, and the minus button as a count adjustment with no verdict
+  attributed to you. The **Journal** tab opens it — the nights newest first, each bottle with its
+  word, its survey words and the time — so your own record is readable without a model in between;
+  Cellar carries a **Cellar book** card to the same page. **Add** writes a night the app could not
+  see — a restaurant bottle, or one from before it was installed — with an editable date, the
+  verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it
+  again. A wine you do not own becomes a record with no bottles, so the answer lives under Cellar's
+  **No bottles** filter and reaches the taste brief the way a rated bottle does. Ask reads the same
+  record: “what did I drink yesterday”, “what did I have last week”, “what have I loved this month”.
+  A bottle's page says when it was last drunk. **Undo** takes an inventory entry back with the
+  bottle, since an undone tap never happened. The whole book is in the JSON backup.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop. It is also given
   your saved wine menus — the place, the day, the wines you picked there and the ones you refused — so
@@ -339,7 +342,7 @@ The file is seeded on first run and lives in the app's private files directory
   the `## Notes` sections of this file. Scans, shelves, list advice and a bottle's insight all use
   it, so a model is given taste rather than a page of settings.
 - **The brief is not a file.** It is rendered from the stored profile each time a request is made,
-  capped at 2,000 characters, and printed verbatim on the Taste tab under *What the model reads*.
+  capped at 2,000 characters, and printed verbatim on the taste profile under *What the model reads*.
   There is nothing on disk to keep in sync and no way for it to drift from the answers.
 - **The dish carries through a conversation.** A question that names food — or heat — is checked
   against it; a follow-up like "what about the second bottle" reuses the dish from the turn before,
@@ -358,7 +361,7 @@ The file is seeded on first run and lives in the app's private files directory
 
 ## The quick start, and what it writes
 
-A new install has no palate, so **Taste → Start the quick start** asks ten taps: what you pour, which
+A new install has no palate, so **Settings → Taste profile → Start the quick start** asks ten taps: what you pour, which
 axis is doing the work, sweetness, budget, what you tell people about a bottle you loved, who it is
 for, what to avoid, dish context, how far to stray, and repeats. Every question can be skipped —
 skipping is recorded as *unknown*, never filled with a default. That is the 90%; everything after it
@@ -404,7 +407,7 @@ Three things are deliberate:
   Sugar and oak can only ever fail a check from a record, never pass one, because neither is printed
   on a label. The chat prompt says so explicitly.
 - **The pairing table stays in the app, not in the file.** `PairingTable` still ships the eight dish
-  classes and the Taste tab shows the ones implied by the dish-context answer. The generated file
+  classes and the taste profile shows the ones implied by the dish-context answer. The generated file
   deliberately carries no grape-to-dish rows: each row is a claim about wine, and the file has no
   source to cite for it. Instead it tells the model to work the dish out when asked — acid for fat,
   acid for tomato, salt, sweetness, heat, umami — and stores only the food context the user gave.
@@ -432,12 +435,12 @@ answering the questions again. A file saved by hand in the advanced editor is le
 
 ## Editing the file by hand
 
-**Settings → Advanced → Edit mytaste.md**, or **Taste → Edit mytaste.md (advanced)**, opens the raw
+**Settings → Advanced → Edit mytaste.md**, or **Taste profile → Edit mytaste.md (advanced)**, opens the raw
 Markdown with import, export and *Rebuild from loved bottles*. Saving there marks the file as yours.
 This sits behind Settings and is named as a file rather than as taste settings on purpose: the quick
 start is the normal route, and this is the escape hatch for people who would rather type Markdown.
 
-The Taste tab is the summary: how much of the baseline and of the interview is answered (with **Add
+The taste profile — **Settings → Taste profile** — is the summary: how much of the baseline and of the interview is answered (with **Add
 more detail** and **Retake**), **What the model reads** — the brief, verbatim, with its length — the
 gates the app checks (with how many cellar bottles currently fail one or cannot be checked), your
 answers and the file itself behind toggles, and the shipped pairing classes with a note that none of
@@ -449,6 +452,7 @@ them are written into the file.
 | --- | --- |
 | Cellar, locations | `files/cellar.json` |
 | Chat transcript (text only, no photos) | `files/chat.json` |
+| Cellar book (every night recorded) | `files/drinks.json` |
 | Taste profile | `files/mytaste.md` |
 | Quick-start answers | private `SharedPreferences` (`vinoteca_palate`) |
 | Pending batch scans + their photos | `files/scan-queue.json`, `files/scan-queue/` |
@@ -457,7 +461,7 @@ them are written into the file.
 | Captured photos | app cache, deleted by the system |
 
 Uninstalling the app deletes all of it, which is what **Settings → Backup and import → Export
-backup** is for: one JSON file with the cellar, the locations and `mytaste.md`.
+backup** is for: one JSON file with the cellar, the locations, `mytaste.md` and the cellar book.
 
 ## Documentation
 

@@ -43,7 +43,15 @@ data class Drink(
     val note: String = "",
     val at: Long = System.currentTimeMillis(),
     /**
-     * How the bottle left the shelf: [DRANK] for **Drank one**, [COUNT] for the minus button.
+     * The taste words the quick survey collected, if it was answered. They are added to the wine
+     * record as well, because the taste brief reads the bottle rather than this log.
+     */
+    val flavors: List<String> = emptyList(),
+    /** "Would you buy it again?" — null when the survey was skipped, which is not a no. */
+    val again: Boolean? = null,
+    /**
+     * How the bottle left the shelf: [DRANK] for **Drank one**, [COUNT] for the minus button,
+     * [MANUAL] for a night written into the book by hand.
      *
      * Kept because the two are not the same claim. One says a bottle was opened and what it was
      * like; the other says the number was wrong by one. Both belong in the record — a bottle taken
@@ -55,6 +63,7 @@ data class Drink(
     companion object {
         const val DRANK = "drank"
         const val COUNT = "count"
+        const val MANUAL = "manual"
     }
 }
 
@@ -97,6 +106,57 @@ class DrinkLog(context: Context) {
     fun logCount(wine: Wine): Drink? =
         if (wine.quantity <= 0) null else record(wine, null, "", Drink.COUNT)
 
+    /**
+     * A night written into the book by hand: a bottle drunk somewhere else, or one from before the
+     * app was installed. The night is the user's, not the tap's — the whole point of the entry is
+     * that it can be made late — and the survey's answers are kept with it.
+     */
+    fun add(
+        title: String,
+        at: Long,
+        type: String = "",
+        region: String = "",
+        wineId: String = "",
+        price: Double? = null,
+        currency: String = "USD",
+        rating: Int? = null,
+        note: String = "",
+        flavors: List<String> = emptyList(),
+        again: Boolean? = null
+    ): Drink {
+        val drink = Drink(
+            wineId = wineId,
+            title = title.trim().ifBlank { "Unnamed wine" },
+            type = type,
+            region = region,
+            price = price,
+            currency = currency,
+            rating = rating,
+            note = note.trim(),
+            flavors = flavors.map { it.trim() }.filter { it.isNotBlank() }
+                .distinctBy { it.lowercase() }.take(MAX_FLAVORS),
+            again = again,
+            at = at,
+            via = Drink.MANUAL
+        )
+        append(drink)
+        return drink
+    }
+
+    /** Adds the entries of a backup that this phone does not already hold. */
+    fun merge(others: List<Drink>) {
+        if (others.isEmpty()) return
+        val byId = LinkedHashMap<String, Drink>()
+        _drinks.value.forEach { byId[it.id] = it }
+        others.forEach { byId.putIfAbsent(it.id, it) }
+        write(byId.values.sortedByDescending { it.at }.take(MAX_DRINKS))
+    }
+
+    /** Replaces the whole record with a backup's, for a restore that replaces the cellar too. */
+    fun replaceAll(others: List<Drink>) {
+        write(others.sortedByDescending { it.at }.take(MAX_DRINKS))
+    }
+
     private fun record(wine: Wine, rating: Int?, note: String, via: String): Drink {
         val drink = Drink(
             wineId = wine.id,
@@ -109,8 +169,12 @@ class DrinkLog(context: Context) {
             note = note.trim(),
             via = via
         )
-        write((_drinks.value + drink).sortedByDescending { it.at }.take(MAX_DRINKS))
+        append(drink)
         return drink
+    }
+
+    private fun append(drink: Drink) {
+        write((_drinks.value + drink).sortedByDescending { it.at }.take(MAX_DRINKS))
     }
 
     /** Takes an entry back — the undo of a tap that was not meant. */
@@ -134,6 +198,8 @@ class DrinkLog(context: Context) {
     private companion object {
         /** Five years of a bottle most days; older entries are dropped rather than kept for ever. */
         const val MAX_DRINKS = 2_000
+        /** The brief prints three words a bottle; six is already more than the survey needs. */
+        const val MAX_FLAVORS = 6
     }
 }
 
@@ -168,6 +234,14 @@ internal fun drinkDigest(drinks: List<Drink>, now: Long, limit: Int = 20): Strin
                 append(" — count adjusted, no verdict")
             } else {
                 append(" — ").append(Verdict.label(drink.rating) ?: "no verdict")
+                when (drink.again) {
+                    true -> append(", would buy again")
+                    false -> append(", would not buy again")
+                    null -> Unit
+                }
+                // A night written in late is a memory, and the note should say so rather than
+                // read as something observed across the table.
+                if (drink.via == Drink.MANUAL) append(" (recorded by hand)")
             }
             if (drink.note.isNotBlank()) append(", \"").append(drink.note.trim()).append("\"")
         }
