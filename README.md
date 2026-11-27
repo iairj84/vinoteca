@@ -125,6 +125,11 @@ Gemini or Groq — with your own key.
   as a dated line rather than overwriting what is there. A place you name that the cellar does not have
   yet is offered for creation on the same card. The chat itself has no write access, so it cannot
   claim a change it did not make.
+- **Every bottle can carry its photograph** — a label scan keeps the picture it was read from, a
+  wine added from a search comes with the photograph its page declares, and any bottle can be given
+  one from the camera or the gallery. It sits beside the title as a thumbnail and opens full size
+  with pinch to zoom, which is what a wrong vintage or cuvée is checked against. The files are
+  app-private, so the JSON backup carries records rather than pictures.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.

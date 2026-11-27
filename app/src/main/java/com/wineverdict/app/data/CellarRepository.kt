@@ -84,6 +84,19 @@ class CellarRepository(context: Context) {
         }
 
     /**
+     * Names a photograph on a record, and touches nothing else.
+     *
+     * Its own call rather than an `upsert` of the whole wine: the file is already written, and a
+     * background lookup finishing at the same moment must not have its facts written over by a
+     * record read a second earlier.
+     */
+    suspend fun attachPhoto(wineId: String, name: String) = mutate { current ->
+        current.copy(
+            wines = current.wines.map { if (it.id == wineId) it.copy(photo = name) else it }
+        )
+    }
+
+    /**
      * Files whose wine is gone: a bottle deleted, or a scan that was read but never added. Nothing
      * can ever reach them again, so they are dropped on the way in rather than counted for ever.
      */

@@ -16,6 +16,9 @@ import java.util.concurrent.TimeUnit
  * call comes back 429 with a limit of zero), and Groq has no search at all. Fetching the pages here
  * means the model only ever reports what a real page says, on any provider, for nothing.
  */
+/** A bottle's photograph, not a wall of bottles: past this it is not the picture wanted. */
+private const val MAX_IMAGE_BYTES = 4_000_000L
+
 class WebLookup {
 
     data class Hit(val title: String, val url: String, val snippet: String)
@@ -32,6 +35,16 @@ class WebLookup {
     private val userAgent =
         "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) " +
             "Chrome/124.0 Mobile Safari/537.36"
+
+    /** The meta cards a page uses to declare the picture that stands for it. */
+    private val IMAGE_CARDS = setOf(
+        "og:image",
+        "og:image:url",
+        "og:image:secure_url",
+        "twitter:image",
+        "twitter:image:src"
+    )
+
 
     /** Search results in rank order. Throws only when the search itself could not be reached. */
     suspend fun search(query: String): List<Hit> = withContext(Dispatchers.IO) {
@@ -56,6 +69,77 @@ class WebLookup {
             .replace(Regex("\\s+"), " ")
             .trim()
         text.take(limit)
+    }
+
+    /**
+     * The picture a page offers for itself — its `og:image`, then its Twitter card — downloaded.
+     *
+     * A bottle added from a search was named by a page, and that page almost always carries the
+     * producer's own photograph of the label. Reading it here is what puts a real bottle on the
+     * thumbnail instead of a placeholder, for one request on top of the search that was already
+     * paid for.
+     *
+     * Null is a real answer — no card, a `data:` URI, a response that is not an image, or a picture
+     * too big to be worth keeping. Nothing is invented, and nothing is tried twice.
+     */
+    suspend fun pageImage(pageUrl: String): ByteArray? = withContext(Dispatchers.IO) {
+        if (!pageUrl.startsWith("http")) return@withContext null
+        val html = get(pageUrl).orEmpty()
+        val picture = imageUrl(html, pageUrl) ?: return@withContext null
+        download(picture)
+    }
+
+    /**
+     * The card image a page declares, resolved against the page's own address. Null when it
+     * declares none, or declares one that is not a picture the app could keep.
+     */
+    internal fun imageUrl(html: String, pageUrl: String): String? {
+        val cards = Regex("""<meta\s[^>]*>""", RegexOption.IGNORE_CASE).findAll(html).mapNotNull { tag ->
+            val text = tag.value
+            val key = Regex("""(?:property|name)\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                .find(text)?.groupValues?.get(1)?.lowercase() ?: return@mapNotNull null
+            if (key !in IMAGE_CARDS) return@mapNotNull null
+            val content = Regex("""content\s*=\s*["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                .find(text)?.groupValues?.get(1)?.trim().orEmpty()
+            if (content.isBlank()) return@mapNotNull null
+            key to content
+        }.toList()
+        // Open Graph first: that is the page's own choice of picture. The Twitter card is the
+        // fallback, and between two of the same kind the first one wins, which is the page's order.
+        val chosen = cards.firstOrNull { it.first.startsWith("og:") } ?: cards.firstOrNull()
+        return chosen?.second?.let { resolve(pageUrl, it) }
+    }
+
+    private fun resolve(pageUrl: String, raw: String): String? {
+        if (raw.startsWith("data:", ignoreCase = true)) return null
+        val resolved = runCatching { java.net.URI(pageUrl).resolve(raw.trim()).toString() }
+            .getOrNull()
+            ?: return null
+        // The app is built against a target that refuses cleartext, so a picture declared on http
+        // is asked for over https — where nearly every shop already serves it — rather than lost.
+        return resolved.replaceFirst("http://", "https://").takeIf { it.startsWith("https://") }
+    }
+
+    private fun download(url: String): ByteArray? = try {
+        val request = Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", userAgent)
+            .addHeader("Accept", "image/*")
+            .get()
+            .build()
+        http.newCall(request).execute().use { res ->
+            val body = res.body
+            val type = body?.contentType()?.toString().orEmpty()
+            if (!res.isSuccessful || body == null || !type.startsWith("image/", ignoreCase = true)) {
+                null
+            } else if (body.contentLength() > MAX_IMAGE_BYTES) {
+                null
+            } else {
+                body.bytes().takeIf { it.size <= MAX_IMAGE_BYTES }
+            }
+        }
+    } catch (e: IOException) {
+        null
     }
 
     private fun parseHits(html: String): List<Hit> {

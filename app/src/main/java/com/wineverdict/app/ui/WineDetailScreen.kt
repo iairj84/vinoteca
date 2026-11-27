@@ -1,6 +1,21 @@
 package com.wineverdict.app.ui
 
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
+import com.wineverdict.app.util.ImageUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -73,6 +88,60 @@ private fun sourceHosts(sources: String): String =
         .distinct()
         .joinToString(" \u00b7 ")
 
+/**
+ * The bottle's photograph, or the offer to add one.
+ *
+ * A thumbnail, not a card: the page is the record, and the picture is the check on it — so a tap
+ * opens it full size. A bottle with no picture yet gets the camera and the gallery instead, so a
+ * bottle can end up with one however it got into the cellar: scanned, found by search, or typed in.
+ */
+@Composable
+private fun BottlePhoto(
+    photo: File?,
+    adding: Boolean,
+    onOpen: () -> Unit,
+    onAdd: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .padding(start = 12.dp)
+            .size(76.dp)
+            .clip(shape)
+            .clickable(enabled = !adding) { if (photo != null) onOpen() else onAdd() }
+    ) {
+        if (photo != null) {
+            UriImage(uri = Uri.fromFile(photo), modifier = Modifier.fillMaxSize())
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                if (adding) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(
+                        Icons.Filled.PhotoCamera,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Add photo",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Unit) {
@@ -88,6 +157,10 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     var showNoteDialog by remember { mutableStateOf(false) }
     var drankOpen by remember { mutableStateOf(false) }
     var showingLabel by remember { mutableStateOf(false) }
+    var photoMenu by remember { mutableStateOf(false) }
+    var addingPhoto by remember { mutableStateOf(false) }
+    var photoTarget by remember { mutableStateOf<Uri?>(null) }
+    val context = LocalContext.current
     val snackbarState = remember { SnackbarHostState() }
     var confirmDelete by remember { mutableStateOf(false) }
     var looking by remember { mutableStateOf(false) }
@@ -119,6 +192,46 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     fun recordDrank(wine: Wine, rating: Int?, note: String) {
         val drink = AppGraph.drinks.log(wine, rating, note)
         offerUndo(drink.id, wine.id)
+    }
+
+    /**
+     * Keeps a photograph with the record, at the size and quality a scanned label is kept at: the
+     * file through the same call the scan uses, then the name on the wine alone. A picture that
+     * cannot be written says so and leaves the bottle exactly as it was.
+     */
+    suspend fun attachPhoto(id: String, uri: Uri) {
+        addingPhoto = true
+        try {
+            val bytes = withContext(Dispatchers.IO) {
+                ImageUtils.jpegBytes(context, uri, maxDim = 1600, quality = 82)
+            }
+            val name = AppGraph.cellar.saveLabelPhoto(id, bytes)
+            if (name.isNotBlank()) {
+                AppGraph.cellar.attachPhoto(id, name)
+            } else {
+                snackbarState.showSnackbar("That photo could not be kept.")
+            }
+        } catch (e: Exception) {
+            snackbarState.showSnackbar("That photo could not be kept.")
+        } finally {
+            addingPhoto = false
+        }
+    }
+
+    val photoCamera = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { kept ->
+        val target = photoTarget
+        photoTarget = null
+        val id = wine?.id
+        if (kept && target != null && id != null) scope.launch { attachPhoto(id, target) }
+    }
+
+    val photoGallery = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { picked ->
+        val id = wine?.id
+        if (picked != null && id != null) scope.launch { attachPhoto(id, picked) }
     }
 
     Scaffold(
@@ -160,28 +273,24 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column {
-                Text(wine.title, style = MaterialTheme.typography.headlineSmall)
-                Text(
-                    text = wine.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // The label as it was photographed. The record is the app's reading of this, and the
-            // reading is what everything else in the app works from — so when a vintage or a
-            // cuvée looks wrong, this is the thing to check it against.
-            AppGraph.cellar.labelPhoto(wine)?.let { label ->
-                SectionCard("The label you scanned") {
-                    UriImage(
-                        uri = Uri.fromFile(label),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(wine.title, style = MaterialTheme.typography.headlineSmall)
+                    Text(
+                        text = wine.subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    TextButton(onClick = { showingLabel = true }) { Text("Open full size") }
                 }
+                // The bottle as it was scanned, or as the page that named it photographs it. A
+                // thumbnail rather than a card: the record is what this page is for, and the
+                // picture is what a vintage or a cuvée is checked against — so it opens full size.
+                BottlePhoto(
+                    photo = AppGraph.cellar.labelPhoto(wine),
+                    adding = addingPhoto,
+                    onOpen = { showingLabel = true },
+                    onAdd = { photoMenu = true }
+                )
             }
 
             // Wraps rather than pushing the last badge off the edge, which is what happened to
@@ -486,6 +595,41 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 }
             }
         }
+    }
+
+    if (photoMenu) {
+        AlertDialog(
+            onDismissRequest = { photoMenu = false },
+            title = { Text("Add a photo") },
+            text = {
+                Text(
+                    "A photograph of this bottle, kept with it on the phone. The label is what a " +
+                        "vintage or a cuvée gets checked against later."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        photoMenu = false
+                        val uri = ImageUtils.newCaptureUri(context)
+                        photoTarget = uri
+                        photoCamera.launch(uri)
+                    }
+                ) { Text("Take a photo") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        photoMenu = false
+                        photoGallery.launch(
+                            PickVisualMediaRequest(
+                                ActivityResultContracts.PickVisualMedia.ImageOnly
+                            )
+                        )
+                    }
+                ) { Text("Choose a photo") }
+            }
+        )
     }
 
     if (showingLabel) {

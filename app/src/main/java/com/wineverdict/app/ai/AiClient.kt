@@ -249,6 +249,14 @@ class AiClient(
     }
 
     /**
+     * The bottle's own photograph, from the page that named it.
+     *
+     * No model is asked: the page declares the picture in its head, and the app fetches it. Null is
+     * a real answer — the picture is a check on the record, not a requirement for having one.
+     */
+    suspend fun bottleImage(pageUrl: String): ByteArray? = web.pageImage(pageUrl)
+
+    /**
      * The bottlings a few typed words name, before any page has been read.
      *
      * The user's own words are the query — "2025 stoller rose" — and one keyless search plus one

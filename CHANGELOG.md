@@ -3,6 +3,30 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.36: the bottle's own picture, on its page
+
+**A bottle had a photograph only if it had been scanned as a label.** Everything else — typed in,
+found by name, imported, ordered off a menu — reached its page with nothing to check a vintage or a
+cuvée against, and the picture a scan did keep sat in a card half way down the page rather than
+beside the bottle itself.
+
+- **A thumbnail beside the title**, and a tap opens it full screen with the pinch and drag the kept
+  menu pages already use. The card that used to hold the label is gone: the picture is part of the
+  bottle now, not a section under it.
+- **A bottle with no picture offers to take one** — camera or gallery, down-scaled to the size a
+  scanned label is kept at, written through the same call the scan uses and named on the record by
+  its own write, so a lookup finishing at the same moment cannot undo it.
+- **Added by search, the bottle arrives with the page's own picture.** The page that named it
+  declares a photograph of the wine (`og:image`, then the Twitter card); that one image is fetched,
+  kept at label size and attached after the bottle is saved, so a slow shop page never holds up the
+  add. A relative or protocol-relative path is resolved against the page, an `http` picture is asked
+  for over `https`, and an image over four megabytes or not an image at all is refused.
+- **A page that declares nothing leaves the bottle without a picture** rather than inventing one —
+  the thumbnail then offers to add one, which is the honest answer to a shop that publishes none.
+- **Nothing is replaced.** A label you scanned, or a picture you added yourself, is never overwritten
+  by a search result; the picture is only taken when the record has none.
+- Said plainly: the files are app-private, so the JSON backup still carries records, not pictures.
+
 ### 1.2.35: a proposal card names every bottle, not the first twelve
 
 **A move of 23 bottles listed twelve of them and said "and 11 more".** The card is the thing being

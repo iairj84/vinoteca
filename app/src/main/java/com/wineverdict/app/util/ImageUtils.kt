@@ -27,6 +27,28 @@ object ImageUtils {
     }
 
     /**
+     * Down-scaled JPEG bytes from a picture already in memory — a page's photograph rather than a
+     * capture, so there is no EXIF rotation to honour. Null when the bytes are not an image at all,
+     * which is what a page that answered an error or an HTML page leaves behind.
+     */
+    fun jpegBytes(bytes: ByteArray, maxDim: Int = 1600, quality: Int = 82): ByteArray? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (bounds.outWidth / (sample * 2) >= maxDim && bounds.outHeight / (sample * 2) >= maxDim) {
+            sample *= 2
+        }
+        val bitmap = BitmapFactory.decodeByteArray(
+            bytes,
+            0,
+            bytes.size,
+            BitmapFactory.Options().apply { inSampleSize = sample }
+        ) ?: return null
+        return compress(scaleDown(bitmap, maxDim), quality)
+    }
+
+    /**
      * The middle of the photo, enlarged. Small print — the vintage, the appellation, the
      * "mis en bouteille" line — is the first thing a phone photo loses, and the first thing the
      * model needs, so the label scan sends this alongside the full frame.

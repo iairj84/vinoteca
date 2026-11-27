@@ -72,6 +72,7 @@ import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
 import com.wineverdict.app.model.locationName
 import com.wineverdict.app.model.stats
+import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.launch
 
 private enum class CellarFilter(val label: String) {
@@ -165,6 +166,22 @@ fun CellarScreen(
             } else {
                 AppGraph.cellar.upsert(wine)
                 wine.id
+            }
+            // The page that named it usually carries a photograph of the wine, and that is the
+            // picture the thumbnail on its page wants. Fetched after the add, so a slow shop page
+            // cannot hold a bottle up, and written by its own call so the details lookup running
+            // beside it cannot be written over.
+            if (existing == null && candidate.sourceUrl.isNotBlank()) {
+                AppGraph.scope.launch {
+                    val picture = runCatching { AppGraph.ai.bottleImage(candidate.sourceUrl) }
+                        .getOrNull() ?: return@launch
+                    val kept = AppGraph.cellar.wine(id) ?: return@launch
+                    // A label scanned since, or a picture already kept, is not replaced by a shop's.
+                    if (kept.photo.isNotBlank()) return@launch
+                    val bytes = ImageUtils.jpegBytes(picture) ?: return@launch
+                    val name = AppGraph.cellar.saveLabelPhoto(id, bytes)
+                    if (name.isNotBlank()) AppGraph.cellar.attachPhoto(id, name)
+                }
             }
             // The identity is the user's; the facts are the pages'. Read them for this one bottle,
             // after it is saved, so leaving the screen never loses it.

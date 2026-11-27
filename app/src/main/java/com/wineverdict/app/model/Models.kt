@@ -89,9 +89,10 @@ data class Wine(
     val fitReason: String = "",
     val source: String = "manual",
     /**
-     * The label as photographed, as a file name under the cellar's label directory. Blank for a
-     * bottle typed in, imported, or added without a scan — the record is the app's reading of a
-     * label, and this is the label itself, which is what to check when a vintage looks wrong.
+     * The bottle's photograph, as a file name under the cellar's photo directory: a scanned label,
+     * the picture the page that named it declares, or one taken from the bottle's own page. Blank
+     * for a bottle with none yet — the record is the app's reading of the wine, and this is the
+     * picture itself, which is what to check when a vintage or a cuvée looks wrong.
      */
     val photo: String = "",
     val addedAt: Long = System.currentTimeMillis(),
