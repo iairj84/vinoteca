@@ -170,6 +170,23 @@ class CellarRepository(context: Context) {
     }
 
     /**
+     * Notes a wine ordered off a menu, without duplicating a bottle already on record.
+     *
+     * The menu's copy of a wine carries its own id, so inserting it blindly — which is what the
+     * order button did — put a second row of the same bottle in the cellar whenever the wine was
+     * already there under the id it was first added with. Identity is the only thing that survives
+     * that: the same producer, cuvée and vintage is the same bottle, whatever page it was read off.
+     * A match is left exactly as it stands, stock included, because ordering a wine at a table is
+     * not buying another one. [added] says which happened, so the screen can say it.
+     */
+    suspend fun noteOrdered(wine: Wine): Boolean {
+        val identity = InsightStore.key(wine)
+        if (_data.value.wines.any { InsightStore.key(it) == identity }) return false
+        upsert(wine)
+        return true
+    }
+
+    /**
      * Records the verdict and keeps the favourite flag in step with it. "Loved" is what the Loved
      * filter, the cellar's sort order, the taste brief and the mytaste.md loved block have always
      * read as a favourite, so one answer sets both instead of asking for the same thing twice.

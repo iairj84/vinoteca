@@ -71,7 +71,8 @@ Gemini or Groq — with your own key.
   picked that night — the ones you ordered or later gave a verdict to — not how many the answer
   suggested, so three recommendations never read as three glasses. Open one from Cellar and give any wine on it a
   verdict — the answer is written on the cellar record when you have kept that wine, and on the
-  list's own copy when you have not. Thirty lists are kept, newest first, and each can be renamed
+  list's own copy when you have not. Ordering a wine puts it on record too, matched by producer,
+  cuvée and vintage: a bottle you already have is left exactly as it is rather than added twice. Thirty lists are kept, newest first, and each can be renamed
   or deleted. The photograph of the page is kept with it — a thumbnail in the index, the whole page
   on the list, tappable to read at full size — so a line the reading missed is still there to check.
   Photos live in app storage and are not part of the JSON backup. The whole page opens full screen,

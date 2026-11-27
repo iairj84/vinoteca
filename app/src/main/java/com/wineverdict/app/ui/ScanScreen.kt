@@ -1487,7 +1487,11 @@ fun ScanScreen(onReview: () -> Unit) {
                                         onClick = {
                                             if (label != null) {
                                                 scope.launch {
-                                                    AppGraph.cellar.upsert(label.wine)
+                                                    // Matched by identity, not by the menu's id:
+                                                    // the same wine already on record is that
+                                                    // record, and a second row of the same bottle
+                                                    // is not a second bottle.
+                                                    val added = AppGraph.cellar.noteOrdered(label.wine)
                                                     // The one wine of the three the answer named
                                                     // that was actually ordered. The card's count
                                                     // is this, not the suggestion.
@@ -1495,8 +1499,13 @@ fun ScanScreen(onReview: () -> Unit) {
                                                         AppGraph.lists.choose(id, label.wine.id)
                                                     }
                                                     snackbarHostState.showSnackbar(
-                                                        if (eff == Service.GLASS) "Noted for a glass"
-                                                        else "Noted for the bottle"
+                                                        when {
+                                                            !added -> "Already in your cellar — " +
+                                                                if (eff == Service.GLASS) "noted for the glass"
+                                                                else "noted for the bottle"
+                                                            eff == Service.GLASS -> "Noted for a glass"
+                                                            else -> "Noted for the bottle"
+                                                        }
                                                     )
                                                 }
                                             }

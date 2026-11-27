@@ -3,6 +3,22 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.27: ordering a bottle you already own no longer duplicates it
+
+**"Noted for the glass" put a second row of the same bottle in the cellar.** The order button wrote
+the menu's copy of the wine in with the menu's own id, so a wine already on record — added from a
+label scan, an import or an earlier menu — arrived beside itself: two rows, the same producer, cuvée
+and vintage, and a bottle count that now disagreed with itself.
+
+Identity decides it now, the same match the CSV import and the cellars already use: producer, cuvée
+and vintage. A wine already on record is left exactly as it stands, stock included, because ordering
+a bottle at a table is not buying another one; a wine not on record is added as before. The snackbar
+says which happened — "Already in your cellar — noted for the glass" — and the pick is still recorded
+on the menu, which is a fact about the evening rather than about the cellar.
+
+Duplicates created by the old behaviour are left alone: merging two rows is a decision about which
+count and which notes are right, and that is the user's to make, not an upgrade's.
+
 ### 1.2.26: the fallback reader knows the place too
 
 **A page only the line reader could follow was still saved under its date.** 1.2.25 taught the
