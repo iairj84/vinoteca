@@ -268,6 +268,9 @@ class SavedListStore(private val context: Context) {
                 if (it.id == listId) it.copy(chosen = it.chosen + wineId) else it
             }
         )
+        // The evening has been recorded: the nudge that was booked for this list has nothing left
+        // to ask. Guarded by the list's id, so picking from an old menu cannot silence tonight's.
+        Reminders.cancelListReview(context, listId)
     }
 
     fun rename(id: String, name: String) {
@@ -275,6 +278,8 @@ class SavedListStore(private val context: Context) {
     }
 
     fun delete(id: String) {
+        // A reminder to reopen a menu that no longer exists is worse than no reminder.
+        Reminders.cancelListReview(context, id)
         val photo = _lists.value.firstOrNull { it.id == id }?.photo.orEmpty()
         write(_lists.value.filterNot { it.id == id })
         if (photo.isNotBlank()) runCatching { File(photoDir, photo).delete() }

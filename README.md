@@ -98,7 +98,9 @@ Gemini or Groq — with your own key.
 - **One reminder** — an hour after a wine list is read, a single notification asks how the wines
   were and **reopens that list**, not the app's front door. A second list replaces the first nudge,
   the permission is asked for when the list is read rather than at first launch, and nothing else is
-  ever posted.
+  ever posted. Recording the evening settles it: the first wine you order or judge on that list
+  cancels the nudge (and any notification already in the tray), because a reminder to say how a wine
+  was is noise once you have said.
 - **What you have drunk** — every bottle that leaves the cellar is written down: **Drank one** with
   the verdict you gave at the time, and the minus button as a count adjustment with no verdict
   attributed to you. Cellar carries a **Drinks** card above the search that opens the history — the

@@ -3,6 +3,19 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.31: the reminder stops once the evening is recorded
+
+**The nudge fired an hour after the page was read, whatever had happened since.** Rate every wine on
+the list, mark the bottle you ordered, and it still arrived asking how the wines were — the app's only
+notification, at the moment it had least to say.
+
+- **Recording the evening settles it.** The first wine you order or judge on that list cancels the
+  pending nudge, and takes the notification out of the tray if it has already landed.
+- **It knows which list it is about.** Only one nudge exists at a time and it belongs to the newest
+  list, so a pick on a menu from last month cannot silence tonight's reminder.
+- **Deleting a menu cancels its own reminder too** — a notification to reopen a page that no longer
+  exists is worse than none.
+
 ### 1.2.30: Ask can see the menus
 
 **The chat was given the cellar and the drink log, and nothing about restaurants.** Eleven releases

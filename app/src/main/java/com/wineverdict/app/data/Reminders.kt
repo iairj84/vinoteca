@@ -47,6 +47,10 @@ object Reminders {
     /** Work input: which list the nudge is about. Internal so the worker can read it back. */
     internal const val KEY_LIST = "list"
 
+    /** Where the id of the list the pending nudge belongs to is kept, so a pick can settle it. */
+    private const val PREFS = "reminders"
+    private const val PENDING = "pending-list"
+
     /** How long after a list is read the nudge arrives. */
     const val DELAY_MINUTES = 60L
 
@@ -64,11 +68,41 @@ object Reminders {
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, request)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putString(PENDING, listId.orEmpty())
+            .apply()
     }
 
-    /** Drops a pending nudge, for a list that has been answered already. */
-    fun cancelListReview(context: Context) {
+    /**
+     * Whether a pick on [listId] settles the nudge booked for [pending].
+     *
+     * Only one nudge exists at a time and it belongs to the newest list. Touching an old menu must
+     * not silence tonight's reminder, and a pick for the list the nudge is about is the whole point:
+     * the evening has been recorded, so the reminder has nothing left to ask.
+     */
+    internal fun settles(pending: String?, listId: String?): Boolean =
+        pending.isNullOrBlank() || listId == null || pending == listId
+
+    /**
+     * Drops a pending nudge, for a list that has been answered already.
+     *
+     * Passing a list id only cancels when that is the list the nudge is about; passing none cancels
+     * unconditionally. The notification, if it has already landed, goes with it — a reminder in the
+     * tray is the same nag as one still waiting to fire.
+     */
+    fun cancelListReview(context: Context, listId: String? = null) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!settles(prefs.getString(PENDING, ""), listId)) return
         WorkManager.getInstance(context).cancelUniqueWork(WORK)
+        context.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION_ID)
+        prefs.edit().remove(PENDING).apply()
+    }
+
+    /** Forgets which list the nudge belonged to, once it has been posted. */
+    internal fun clearPending(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .remove(PENDING)
+            .apply()
     }
 
     /** Whether the app may post at all. False only on 13+ before the one-time grant. */
@@ -143,6 +177,9 @@ object Reminders {
 class ListReviewWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
         Reminders.post(applicationContext, inputData.getString(Reminders.KEY_LIST))
+        // The nudge has had its say; nothing is pending any more, so a later pick must not cancel
+        // whatever reminder a *newer* list books.
+        Reminders.clearPending(applicationContext)
         return Result.success()
     }
 }
