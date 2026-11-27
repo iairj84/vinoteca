@@ -215,7 +215,17 @@ fun ScanScreen(onReview: () -> Unit) {
         // evening's wines instead of on the cellar. Keeping is idempotent for one day, so the
         // second read of the same page (the model's answer on top of the phone's) is the same
         // record rather than a duplicate.
-        val kept = AppGraph.lists.keep(read)
+        // The page itself, kept beside its wines. A list is a photograph of small print, and the
+        // wines are the app's reading of it — the recourse when a line was missed is the menu.
+        // Read at the size a menu is photographed at, not the 1400px the model is sent.
+        val page = imageUri?.let { uri ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    ImageUtils.jpegBytes(context, uri, maxDim = 2400, quality = 85)
+                }.getOrNull()
+            }
+        }
+        val kept = AppGraph.lists.keep(read, page)
         Reminders.scheduleListReview(context, kept?.id)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !Reminders.canNotify(context)
@@ -1287,7 +1297,8 @@ fun ScanScreen(onReview: () -> Unit) {
                     // Said plainly, because a list that quietly keeps itself is a list nobody looks
                     // for again. This is where the reminder will land.
                     Text(
-                        "Kept with today's date — reopen it any time from Cellar › Saved lists, " +
+                        "Kept with today's date and the page as you photographed it — reopen it " +
+                            "any time from Cellar › Saved lists, " +
                             "and name it after the restaurant if you want it findable.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline

@@ -1,6 +1,8 @@
 package com.wineverdict.app.ui
 
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -9,9 +11,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
@@ -36,7 +41,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.InsightStore
@@ -109,6 +117,17 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // The page itself, as a thumbnail: a photograph is the fastest way to
+                            // tell two evenings at the same restaurant apart.
+                            AppGraph.lists.photoFile(list)?.let { page ->
+                                UriImage(
+                                    uri = Uri.fromFile(page),
+                                    modifier = Modifier
+                                        .padding(end = 10.dp)
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                )
+                            }
                             Column(Modifier.weight(1f)) {
                                 Text(list.title, style = MaterialTheme.typography.titleMedium)
                                 Text(
@@ -189,8 +208,8 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
             title = { Text("Delete this list?") },
             text = {
                 Text(
-                    "“${list.title}” and its wines go. The wines you kept from it stay in your " +
-                        "cellar with their verdicts."
+                    "“${list.title}”, its wines and the photograph go. The wines you kept from it " +
+                        "stay in your cellar with their verdicts."
                 )
             },
             confirmButton = {
@@ -221,6 +240,9 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val list = lists.firstOrNull { it.id == listId }
     var ratingWine by remember { mutableStateOf<Wine?>(null) }
+    var showingPage by remember { mutableStateOf(false) }
+    // The photograph, when this build kept one for the list.
+    val page = AppGraph.lists.photoFile(list)
 
     Scaffold(
         topBar = {
@@ -269,6 +291,36 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
+                    }
+                }
+            }
+            if (page != null) {
+                item {
+                    // First, because it is the reference: the wines below are what was read out of
+                    // this page, and a line the reading missed is on the photograph.
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showingPage = true },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column {
+                            UriImage(
+                                uri = Uri.fromFile(page),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                            )
+                            Text(
+                                "The page as you photographed it · tap to read it",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -331,6 +383,37 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                             color = MaterialTheme.colorScheme.outline
                         )
                     }
+                }
+            }
+        }
+    }
+
+    if (showingPage && page != null) {
+        // The whole page, as large as the screen allows: the point of keeping it is reading print
+        // that the reading did not capture, so this is the surface for it, not a thumbnail.
+        Dialog(onDismissRequest = { showingPage = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        MaterialTheme.colorScheme.surface,
+                        RoundedCornerShape(16.dp)
+                    )
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                UriImage(
+                    uri = Uri.fromFile(page),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(520.dp),
+                    contentScale = ContentScale.Fit
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showingPage = false }) { Text("Close") }
                 }
             }
         }

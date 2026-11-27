@@ -68,7 +68,9 @@ Gemini or Groq — with your own key.
   usually; until then it is titled by its date). Open one from Cellar and give any wine on it a
   verdict — the answer is written on the cellar record when you have kept that wine, and on the
   list's own copy when you have not. Thirty lists are kept, newest first, and each can be renamed
-  or deleted.
+  or deleted. The photograph of the page is kept with it — a thumbnail in the index, the whole page
+  on the list, tappable to read at full size — so a line the reading missed is still there to check.
+  Photos live in app storage and are not part of the JSON backup.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,

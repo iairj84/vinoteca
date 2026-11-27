@@ -7,6 +7,8 @@ import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -39,7 +41,13 @@ data class SavedList(
     val note: String = "",
     /** Ids of the wines the answer picked, in its order. Empty when only a ranking came back. */
     val picks: List<String> = emptyList(),
-    val wines: List<Wine> = emptyList()
+    val wines: List<Wine> = emptyList(),
+    /**
+     * The page as photographed, as a file name under the store's photo directory. Blank for a list
+     * kept before this existed, and for a photo that could not be written — the wines are still a
+     * list without it, which is why this is a name and not a required field.
+     */
+    val photo: String = ""
 ) {
     /** What the rows and the reminder call it: the name the user gave it, or the day it was read. */
     val title: String
@@ -54,9 +62,16 @@ data class SavedList(
  * Small and hand-written like the chat log: a list is a few hundred bytes of wine, so the whole set
  * lives in one JSON document and the UI filters in memory.
  */
-class SavedListStore(context: Context) {
+class SavedListStore(private val context: Context) {
 
     private val file = File(context.filesDir, "lists.json")
+
+    /**
+     * The photographs. Kept apart from the JSON because they are pictures, not records: a list is
+     * read as wines, but the page is the evidence — small print, sections, the prices the reading
+     * may have missed — and the wines can never stand in for it.
+     */
+    private val photoDir = File(context.filesDir, "list-photos")
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -73,6 +88,11 @@ class SavedListStore(context: Context) {
 
     fun list(id: String?): SavedList? = id?.let { key -> _lists.value.firstOrNull { it.id == key } }
 
+    /** The photographed page for a list, if this build kept one and the file is still there. */
+    fun photoFile(list: SavedList?): File? = list?.photo
+        ?.takeIf { it.isNotBlank() }
+        ?.let { name -> File(photoDir, name).takeIf { it.isFile } }
+
     /**
      * Keeps a page of wines, and returns the record that stands for it.
      *
@@ -81,7 +101,7 @@ class SavedListStore(context: Context) {
      * twice — the phone's own pass, then the model's answer on top — and one page deserves one
      * list. A wine list read again on a later day is a different evening, so it is kept again.
      */
-    fun keep(scan: SceneScan): SavedList? {
+    suspend fun keep(scan: SceneScan, page: ByteArray? = null): SavedList? {
         val wines = scan.bottles.map { it.wine }.filter { it.producer.isNotBlank() || it.name.isNotBlank() }
         if (wines.isEmpty()) return null
         val signature = signatureOf(wines)
@@ -101,14 +121,45 @@ class SavedListStore(context: Context) {
                 picks = if (picks.isNotEmpty()) picks else existing.picks,
                 note = if (note.isNotBlank()) note else existing.note
             )
-            if (merged != existing) {
-                write(_lists.value.map { if (it.id == existing.id) merged else it })
+            // A list kept by a build before the page was stored takes the photo the next read of
+            // the same page brings, rather than staying pictureless for ever.
+            val withPage = if (merged.photo.isBlank() && page != null) {
+                merged.copy(photo = writePage(merged.id, page))
+            } else {
+                merged
             }
-            return merged
+            if (withPage != existing) {
+                write(_lists.value.map { if (it.id == existing.id) withPage else it })
+            }
+            return withPage
         }
         val kept = SavedList(signature = signature, note = note, picks = picks, wines = wines)
-        write((_lists.value + kept).sortedByDescending { it.savedAt }.take(MAX_LISTS))
-        return kept
+        val withPage = if (page != null) kept.copy(photo = writePage(kept.id, page)) else kept
+        val next = (_lists.value + withPage).sortedByDescending { it.savedAt }.take(MAX_LISTS)
+        write(next)
+        // The lists that fell off the end take their photographs with them.
+        prunePhotos(next)
+        return withPage
+    }
+
+    /**
+     * Writes the page beside the record. Best effort: a phone with no room for the picture still
+     * gets the list, because losing the wines over a failed JPEG would be the wrong trade.
+     */
+    private suspend fun writePage(id: String, bytes: ByteArray): String = withContext(Dispatchers.IO) {
+        runCatching {
+            photoDir.mkdirs()
+            val name = "$id.jpg"
+            File(photoDir, name).writeBytes(bytes)
+            name
+        }.getOrDefault("")
+    }
+
+    private fun prunePhotos(kept: List<SavedList>) {
+        val used = kept.map { it.photo }.filter { it.isNotBlank() }.toSet()
+        photoDir.listFiles()?.forEach { file ->
+            if (file.name !in used) runCatching { file.delete() }
+        }
     }
 
     fun rename(id: String, name: String) {
@@ -116,7 +167,9 @@ class SavedListStore(context: Context) {
     }
 
     fun delete(id: String) {
+        val photo = _lists.value.firstOrNull { it.id == id }?.photo.orEmpty()
         write(_lists.value.filterNot { it.id == id })
+        if (photo.isNotBlank()) runCatching { File(photoDir, photo).delete() }
     }
 
     /**

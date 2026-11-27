@@ -3,6 +3,22 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.20: the page itself is kept with the list
+
+**The photograph was read and then thrown away.** A list is photographed at a table, transcribed
+into wines, and the capture stayed in the cache until Android cleared it — so a kept list was the
+app's reading of the page and nothing else. When a line was missed, a price read wrong or a section
+that never made it into the wines, the evidence was already gone.
+
+**Kept beside the wines.** The page is now stored with the list, at the size a menu is photographed
+at rather than the 1400px the model is sent, because the point of keeping it is reading small print
+again. The index shows a thumbnail per list, the reopened list opens with the page and taps to full
+size. Lists kept before this take their photograph the next time the same page is read; deleting a
+list deletes its picture, and the thirty-list limit takes the photographs of the lists it drops.
+
+**Not in the backup.** A JSON export carries records, not photographs, so a restore brings the
+wines back without their pages. Said here rather than discovered after a phone change.
+
 ### 1.2.19: one tap can be taken back
 
 **A bottle left the cellar on a tap with no way back.** **Drank one** sits where a thumb already is,
