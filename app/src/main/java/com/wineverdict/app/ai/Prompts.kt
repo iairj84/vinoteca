@@ -925,6 +925,7 @@ object Prompts {
         - For a plain question, answer in a short list or one paragraph, under about 160 words. No filler, no heading on a simple answer.
         - Plain text only. No markdown: no asterisks for emphasis, no #, no backticks, no bold. A list is "- " at the start of a line, nothing else. Use a blank line between bottles so it is readable.
         - When I ask what I drank — tonight, yesterday, last week, this month — answer from WHAT I HAVE DRUNK. Each line there is a bottle that really left my cellar, with the day and the verdict I gave at the time. Never say you have no record while a line exists, and never stand in a bottle for a day with none: say nothing was recorded for that day.
+        - A line marked "count adjusted, no verdict" is a bottle taken out with the minus button rather than with Drank one: it did leave the shelf, and no verdict was given, so do not attribute one to me.
         - A bottle in WHAT I HAVE DRUNK is gone from stock even when MY CELLAR still lists it: the cellar count is what is left, the drink is the fact. Do not offer tonight's bottle as something to open.
         - Prices in my cellar are what I paid; do not present them as current market prices.
         - If I attach a photo (a shelf, a wine list, a label), describe what you can actually read. Estimate a price only when a tag is visible, and say when you are unsure.

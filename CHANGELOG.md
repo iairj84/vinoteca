@@ -3,6 +3,24 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.23: the minus button is a drink too, and the record can be read
+
+**A bottle taken out with the minus button left no trace.** Drank one wrote the night; the plain
+minus beside the bottle count did not, so "what did I drink last week" could miss a bottle that was
+opened the other way. Both now write to the log.
+
+**They are not the same claim, so they are not written the same way.** Drank one carries the verdict
+and note from the sheet; the minus button records a count adjustment with no verdict, because none
+was asked and inventing one would put words in the user's mouth. The history says so in as many
+words ("count adjusted"), and the chat prompt tells the model not to attribute a verdict to those
+lines.
+
+**And the record has a page of its own.** Cellar gains a **Drinks** card above the search, opening
+the history: nights newest first with today/yesterday/date headers, each bottle with its type and
+region, its verdict or the count marker, its note and the time. A summary line counts the last 7
+days, the last 30 and everything on record. Asking the model is now one way to read the log rather
+than the only way.
+
 ### 1.2.22: what you drank is on record
 
 **Ask could not say what you drank because nothing recorded it.** The screenshot answer was honest:

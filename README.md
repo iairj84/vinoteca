@@ -87,8 +87,11 @@ Gemini or Groq — with your own key.
   were and **reopens that list**, not the app's front door. A second list replaces the first nudge,
   the permission is asked for when the list is read rather than at first launch, and nothing else is
   ever posted.
-- **What you have drunk** — every **Drank one** is now written down with the day, the bottle and
-  the verdict you gave at the time, and Ask reads that record: “what did I drink yesterday”, “what
+- **What you have drunk** — every bottle that leaves the cellar is written down: **Drank one** with
+  the verdict you gave at the time, and the minus button as a count adjustment with no verdict
+  attributed to you. Cellar carries a **Drinks** card above the search that opens the history — the
+  nights newest first, each bottle with its word, its note and the time — so your own record is
+  readable without a model in between. Ask reads the same record: “what did I drink yesterday”, “what
   did I have last week”, “what have I loved this month”. A bottle's page says when it was last
   drunk, and the log is what makes those answers possible at all — before it, the only trace of a
   bottle leaving the shelf was a number going down. **Undo** takes the entry back with the bottle,

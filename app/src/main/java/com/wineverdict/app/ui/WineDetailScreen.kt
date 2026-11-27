@@ -269,7 +269,13 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                     Text("Bottles", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.weight(1f))
                     FilledTonalIconButton(
-                        onClick = { scope.launch { AppGraph.cellar.adjustQuantity(wine.id, -1) } }
+                        onClick = {
+                            // A count going down is a bottle leaving the shelf whichever button did
+                            // it. Recorded as a count change, with no verdict, because none was
+                            // asked for and inventing one would put words in the user's mouth.
+                            AppGraph.drinks.logCount(wine)
+                            scope.launch { AppGraph.cellar.adjustQuantity(wine.id, -1) }
+                        }
                     ) {
                         Icon(Icons.Filled.Remove, contentDescription = "One fewer")
                     }

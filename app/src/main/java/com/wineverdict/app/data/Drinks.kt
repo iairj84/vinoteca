@@ -41,8 +41,22 @@ data class Drink(
     /** The four-word answer at the time, not the bottle's rating now. Null when Skip was tapped. */
     val rating: Int? = null,
     val note: String = "",
-    val at: Long = System.currentTimeMillis()
-)
+    val at: Long = System.currentTimeMillis(),
+    /**
+     * How the bottle left the shelf: [DRANK] for **Drank one**, [COUNT] for the minus button.
+     *
+     * Kept because the two are not the same claim. One says a bottle was opened and what it was
+     * like; the other says the number was wrong by one. Both belong in the record — a bottle taken
+     * out by the minus button is still a bottle that left the cellar — but only one of them has a
+     * verdict, and a history that pretended otherwise would put words in the user's mouth.
+     */
+    val via: String = DRANK
+) {
+    companion object {
+        const val DRANK = "drank"
+        const val COUNT = "count"
+    }
+}
 
 /**
  * Every bottle that has been drunk, newest first.
@@ -72,7 +86,18 @@ class DrinkLog(context: Context) {
      * Records the bottle, with whatever the sheet collected. Written even when the sheet was skipped:
      * the drink happened, and "no verdict" is a real answer rather than a missing entry.
      */
-    fun log(wine: Wine, rating: Int?, note: String): Drink {
+    fun log(wine: Wine, rating: Int?, note: String): Drink = record(wine, rating, note, Drink.DRANK)
+
+    /**
+     * A bottle taken out with the minus button.
+     *
+     * No sheet is shown for that tap, so no verdict is invented: the entry says the count changed,
+     * which is the whole of what happened. Nothing is returned when there was nothing to remove.
+     */
+    fun logCount(wine: Wine): Drink? =
+        if (wine.quantity <= 0) null else record(wine, null, "", Drink.COUNT)
+
+    private fun record(wine: Wine, rating: Int?, note: String, via: String): Drink {
         val drink = Drink(
             wineId = wine.id,
             title = wine.title,
@@ -81,7 +106,8 @@ class DrinkLog(context: Context) {
             price = wine.price,
             currency = wine.currency,
             rating = rating,
-            note = note.trim()
+            note = note.trim(),
+            via = via
         )
         write((_drinks.value + drink).sortedByDescending { it.at }.take(MAX_DRINKS))
         return drink
@@ -137,7 +163,12 @@ internal fun drinkDigest(drinks: List<Drink>, now: Long, limit: Int = 20): Strin
                 .filter { it.isNotBlank() }
                 .joinToString(", ")
             if (where.isNotBlank()) append(" (").append(where).append(")")
-            append(" — ").append(Verdict.label(drink.rating) ?: "no verdict")
+            if (drink.via == Drink.COUNT) {
+                // Said here rather than left to be read as a verdict the user never gave.
+                append(" — count adjusted, no verdict")
+            } else {
+                append(" — ").append(Verdict.label(drink.rating) ?: "no verdict")
+            }
             if (drink.note.isNotBlank()) append(", \"").append(drink.note.trim()).append("\"")
         }
     }
@@ -152,4 +183,22 @@ internal fun drinkDigest(drinks: List<Drink>, now: Long, limit: Int = 20): Strin
         if (rejected.isNotEmpty()) append(" Not for me this week: ${rejected.joinToString("; ")}.")
     }
     return summary + "\n" + lines.joinToString("\n")
+}
+
+/**
+ * How a night is said out loud: today, yesterday, then the date. The same words the chat uses, so a
+ * record read on the phone and a record read by Ask agree.
+ */
+fun dayWords(
+    at: Long,
+    now: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault()
+): String {
+    val day = Instant.ofEpochMilli(at).atZone(zone).toLocalDate()
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    return when (day) {
+        today -> "today"
+        today.minusDays(1) -> "yesterday"
+        else -> day.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"))
+    }
 }

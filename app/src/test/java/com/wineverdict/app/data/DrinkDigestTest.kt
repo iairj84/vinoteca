@@ -53,6 +53,18 @@ class DrinkDigestTest {
     }
 
     @Test
+    fun aCorrectedCountGetsNoVerdict() {
+        // The minus button asks nothing, so the record must not look as though it had been asked
+        // and answered: the bottle left the shelf, and that is all that is claimed.
+        val digest = drinkDigest(
+            listOf(Drink(title = "2020 Rioja", at = at(0), via = Drink.COUNT)),
+            System.currentTimeMillis()
+        )
+        assertTrue(digest, digest.contains("count adjusted, no verdict"))
+        assertTrue("no verdict word invented", !digest.contains("Not for me"))
+    }
+
+    @Test
     fun anEmptyRecordSaysNothingAtAll() {
         // Blank, not "nothing yet": the prompt supplies that sentence, and it has to be able to tell
         // an install that never drank from one whose record happens to be empty.

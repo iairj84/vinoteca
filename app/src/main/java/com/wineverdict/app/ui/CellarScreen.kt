@@ -64,6 +64,7 @@ import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.BottleCandidate
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
+import com.wineverdict.app.data.dayWords
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
@@ -92,10 +93,12 @@ fun CellarScreen(
     onOpenWine: (String) -> Unit,
     onAddWine: () -> Unit,
     onScan: () -> Unit,
-    onOpenLists: () -> Unit
+    onOpenLists: () -> Unit,
+    onOpenDrinks: () -> Unit
 ) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
+    val drinks by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
     // A candidate the cellar already holds is a second bottle, not a twin: the same identity the
     // add matches on, so a card can say what the tap will do before it is tapped.
     val owned = remember(data) {
@@ -256,6 +259,47 @@ fun CellarScreen(
                                         savedLists.first().title,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+            }
+            if (drinks.isNotEmpty()) {
+                item {
+                    // The record of what has been drunk is a place, not only something to ask
+                    // about: the answer should not need a model to be readable.
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenDrinks),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(
+                                start = 14.dp,
+                                end = 6.dp,
+                                top = 8.dp,
+                                bottom = 8.dp
+                            ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Drinks", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    (if (drinks.size == 1) "1 bottle · " else "${drinks.size} bottles · ") +
+                                        dayWords(drinks.first().at) + ": " + drinks.first().title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1
                                 )
                             }
                             Icon(

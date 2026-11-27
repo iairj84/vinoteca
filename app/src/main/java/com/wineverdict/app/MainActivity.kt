@@ -40,6 +40,7 @@ import androidx.navigation.navArgument
 import com.wineverdict.app.ui.AdvancedTasteScreen
 import com.wineverdict.app.ui.CellarScreen
 import com.wineverdict.app.ui.ChatScreen
+import com.wineverdict.app.ui.DrinksScreen
 import com.wineverdict.app.ui.QuickStartScreen
 import com.wineverdict.app.ui.SavedListScreen
 import com.wineverdict.app.ui.SavedListsScreen
@@ -176,8 +177,12 @@ private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
                             restoreState = true
                         }
                     },
-                    onOpenLists = { navController.navigate("lists") }
+                    onOpenLists = { navController.navigate("lists") },
+                    onOpenDrinks = { navController.navigate("drinks") }
                 )
+            }
+            composable("drinks") {
+                DrinksScreen(onBack = { navController.popBackStack() })
             }
             composable("lists") {
                 SavedListsScreen(
