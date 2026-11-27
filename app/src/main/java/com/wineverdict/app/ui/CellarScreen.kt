@@ -323,8 +323,9 @@ fun CellarScreen(
      * Offered once the sheet is closed, because a snackbar behind a dialog is a snackbar nobody
      * sees, and the sheet is exactly when a mistap is noticed. Only the bottle comes back: a verdict
      * or a note given in the same breath is the user's, and undoing the count must not throw it away.
+     * The night goes with the bottle: an undo is the tap never having happened.
      */
-    fun offerUndo(id: String) {
+    fun offerUndo(drinkId: String, wineId: String) {
         scope.launch {
             val answer = snackbarState.showSnackbar(
                 message = "One bottle out of the cellar.",
@@ -332,9 +333,23 @@ fun CellarScreen(
                 duration = SnackbarDuration.Long
             )
             if (answer == SnackbarResult.ActionPerformed) {
-                AppGraph.cellar.adjustQuantity(id, 1)
+                AppGraph.drinks.remove(drinkId)
+                AppGraph.cellar.adjustQuantity(wineId, 1)
             }
         }
+    }
+
+    /**
+     * The night, written down as it happens.
+     *
+     * **Drank one** is the only moment the app learns a bottle left the shelf, and a count going
+     * down is not a record: "what did I drink yesterday" has to be answerable months later, when the
+     * number means nothing. The answer given in the sheet is part of the entry — a drink with no
+     * verdict is still a drink.
+     */
+    fun recordDrank(wine: Wine, rating: Int?, note: String) {
+        val drink = AppGraph.drinks.log(wine, rating, note)
+        offerUndo(drink.id, wine.id)
     }
 
     val drank = drankId?.let { id -> data.wines.firstOrNull { it.id == id } }
@@ -343,7 +358,7 @@ fun CellarScreen(
             wine = drank,
             onSave = { rating, note ->
                 drankId = null
-                offerUndo(drank.id)
+                recordDrank(drank, rating, note)
                 scope.launch {
                     // Only when the word changed: an untouched sheet must not overwrite a verdict,
                     // and setting a null rating would clear a heart the bottle still earns.
@@ -353,7 +368,7 @@ fun CellarScreen(
             },
             onClose = {
                 drankId = null
-                offerUndo(drank.id)
+                recordDrank(drank, drank.rating, "")
             }
         )
     }

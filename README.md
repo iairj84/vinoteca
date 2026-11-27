@@ -87,6 +87,12 @@ Gemini or Groq — with your own key.
   were and **reopens that list**, not the app's front door. A second list replaces the first nudge,
   the permission is asked for when the list is read rather than at first launch, and nothing else is
   ever posted.
+- **What you have drunk** — every **Drank one** is now written down with the day, the bottle and
+  the verdict you gave at the time, and Ask reads that record: “what did I drink yesterday”, “what
+  did I have last week”, “what have I loved this month”. A bottle's page says when it was last
+  drunk, and the log is what makes those answers possible at all — before it, the only trace of a
+  bottle leaving the shelf was a number going down. **Undo** takes the entry back with the bottle,
+  since an undone tap never happened.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

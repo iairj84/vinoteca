@@ -158,7 +158,13 @@ fun ChatScreen() {
                             // A hundred bottles is a long digest. Gemini's free tier carries it;
                             // Groq's 8k tokens a minute does not, so it keeps the shortlist.
                             digestLimit = budget.digestLimit,
-                            dish = dish
+                            dish = dish,
+                            // The record of what was actually opened, which is what "what did I
+                            // drink yesterday" needs and what the cellar alone cannot say. Fewer
+                            // lines on the budget that keeps a short cellar digest.
+                            drinks = AppGraph.drinks.digest(
+                                limit = if (budget.digestLimit >= 30) 20 else 8
+                            )
                         )
                         val answer = AppGraph.ai.complete(
                             system = system,
@@ -202,7 +208,8 @@ fun ChatScreen() {
                         // on the cellar page anyway.
                         if (LocalDensity.current.fontScale <= 1.6f) {
                             Text(
-                                "${cellar.wines.sumOf { it.quantity }} bottles and your taste file in context",
+                                "${cellar.wines.sumOf { it.quantity }} bottles, your taste file and " +
+                                    "what you have drunk in context",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1,

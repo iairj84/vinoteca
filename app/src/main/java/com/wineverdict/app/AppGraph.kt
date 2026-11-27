@@ -5,6 +5,7 @@ import com.wineverdict.app.ai.AiClient
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.DetailsBackfill
+import com.wineverdict.app.data.DrinkLog
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
@@ -46,6 +47,8 @@ object AppGraph {
         private set
     lateinit var lists: SavedListStore
         private set
+    lateinit var drinks: DrinkLog
+        private set
     lateinit var insights: InsightStore
         private set
     lateinit var details: DetailsBackfill
@@ -83,6 +86,7 @@ object AppGraph {
         }
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
         lists = SavedListStore(app)
+        drinks = DrinkLog(app)
         // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
         insights = InsightStore(app, ai, cellar) { taste.brief() }
         // One job for everything a bottle is missing: published notes, flavour words and the ABV
@@ -108,6 +112,7 @@ object AppGraph {
             insights.load()
             scanQueue.load()
             lists.load()
+            drinks.load()
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
             // mytaste.md is a projection of the stored answers, and Ask sends that file. An upgrade

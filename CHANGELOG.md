@@ -3,6 +3,24 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.22: what you drank is on record
+
+**Ask could not say what you drank because nothing recorded it.** The screenshot answer was honest:
+"I do not have a record of what you opened tonight." **Drank one** only took a bottle off the shelf,
+so a question about yesterday, or last week, had nothing to answer from.
+
+**Every drink is now written down.** The tap that removes the bottle records the night — the wine,
+the day, and the verdict and line given in the sheet; **Skip** records it too, because a drink with
+no verdict is still a drink. **Undo** removes the entry with the count, since an undone tap never
+happened. The record lives in `drinks.json` beside the cellar.
+
+**And Ask reads it.** The chat prompt now carries a drinks section with each recent night named the
+way the question will name it — "today", "yesterday", "N days ago" worked out in code rather than
+left to the model reading a timestamp — plus how many bottles in the last 7 and 30 days and which of
+them were loved or not for them. The rules say plainly that a line there is a bottle that really
+left the cellar, that it is never an excuse to say there is no record, and that a day with no line
+is said to have none rather than filled in. The bottle's page also says when it was last drunk.
+
 ### 1.2.21: the page zooms, and a bottle keeps its label
 
 **A long menu was opened at fit-to-screen, which is exactly the size that is unreadable.** The kept

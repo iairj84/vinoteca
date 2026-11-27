@@ -77,6 +77,8 @@ private fun sourceHosts(sources: String): String =
 @Composable
 fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Unit) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    // The drink record, collected so the line below appears the moment this page records one.
+    val drinkLog by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
     val wine = data.wines.firstOrNull { it.id == wineId }
     val scope = rememberCoroutineScope()
     // Derived match lines follow the palate answers: they say something about the rules as they are,
@@ -93,10 +95,10 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     var lookupError by remember { mutableStateOf<String?>(null) }
 
     /**
-     * The way back from a tap that was not meant: the count and nothing else, offered once the
-     * sheet is out of the way so the bar is actually visible.
+     * The way back from a tap that was not meant: the count and the night, offered once the sheet
+     * is out of the way so the bar is actually visible.
      */
-    fun offerUndo(id: String) {
+    fun offerUndo(drinkId: String, wineId: String) {
         scope.launch {
             val answer = snackbarState.showSnackbar(
                 message = "One bottle out of the cellar.",
@@ -104,9 +106,19 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 duration = SnackbarDuration.Long
             )
             if (answer == SnackbarResult.ActionPerformed) {
-                AppGraph.cellar.adjustQuantity(id, 1)
+                AppGraph.drinks.remove(drinkId)
+                AppGraph.cellar.adjustQuantity(wineId, 1)
             }
         }
+    }
+
+    /**
+     * The night, written down as it happens — the same record the cellar's cards write, so the
+     * answer does not depend on where the bottle was opened from.
+     */
+    fun recordDrank(wine: Wine, rating: Int?, note: String) {
+        val drink = AppGraph.drinks.log(wine, rating, note)
+        offerUndo(drink.id, wine.id)
     }
 
     Scaffold(
@@ -183,6 +195,19 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 wine.alcohol?.let { Pill("${oneDecimal(it)}% vol") }
                 // One word, not a count: the scale is the four verdicts now.
                 Verdict.labelFor(wine)?.let { Pill(it) }
+            }
+
+            // When it was last opened, from the drink log: the count says how many are left, and
+            // this is the fact behind it — the same record Ask answers "what did I drink" from.
+            drinkLog.firstOrNull { it.wineId == wine.id }?.let { last ->
+                Text(
+                    text = "Last drunk " + java.time.Instant.ofEpochMilli(last.at)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDate()
+                        .toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
 
             VerdictChips(wine.rating) { value ->
@@ -471,7 +496,7 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             wine = after,
             onSave = { rating, note ->
                 drankOpen = false
-                offerUndo(wine.id)
+                recordDrank(wine, rating, note)
                 scope.launch {
                     if (rating != wine.rating) AppGraph.cellar.setRating(wine.id, rating)
                     if (note.isNotBlank()) AppGraph.cellar.addTastingNote(wine.id, note)
@@ -479,7 +504,7 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             },
             onClose = {
                 drankOpen = false
-                offerUndo(wine.id)
+                recordDrank(wine, wine.rating, "")
             }
         )
     }
