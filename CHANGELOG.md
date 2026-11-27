@@ -3,6 +3,20 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.24: what *you* picked, and a better name for the menus
+
+**"3 picked that night" counted the answer's suggestions, not the evening.** The three bottles the
+advice names are what it would order, and a card that counted them claimed three glasses for a
+table that had one. A menu now records what you actually picked — the wine you order off the ranked
+cards, and any wine on the menu you later give a verdict to, since an answer about a wine is the
+strongest sign there is that it was poured — and the card counts only those. Menus kept before this
+have no recorded pick and simply show no line rather than an untrue one. On a reopened menu, **Picked**
+is now yours and the advice's place is its own **#1** badge, so the two claims cannot be confused.
+
+**Saved lists is now Saved wine menus** — on the Cellar card, on the screen's title, in the empty
+state and in the line the scan screen prints after a menu is kept. "List" was doing double duty for
+the shopping list of bottles and the restaurant's menu, and only one of them is what this is.
+
 ### 1.2.23: the minus button is a drink too, and the record can be read
 
 **A bottle taken out with the minus button left no trace.** Drank one wrote the night; the plain

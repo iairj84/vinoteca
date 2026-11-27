@@ -53,8 +53,8 @@ Gemini or Groq — with your own key.
   A tap is not final: once the sheet is closed, an **Undo** snackbar puts the bottle back, and only
   the bottle — a verdict or a note given in the same breath stays.
   A **No bottles** filter shows every wine on record with none left — the wines kept off a list and
-  the bottles you finished — instead of leaving them at the bottom of the list, and a **Saved lists**
-  card above the search opens a wine list you kept.
+  the bottles you finished — instead of leaving them at the bottom of the list, and a
+  **Saved wine menus** card above the search opens a wine list you kept.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
@@ -63,9 +63,11 @@ Gemini or Groq — with your own key.
   cellar and never will be. A wine already on the shelf is left exactly as it is, and the line says
   which of the two it found. Kept wines are found under Cellar's **No bottles** filter, not by
   scrolling.
-- **Saved lists** — a restaurant wine list is kept when it is read: the wines as the page printed
-  them, the day, the answer's picks and its closing note, under a name you give it (the restaurant,
-  usually; until then it is titled by its date). Open one from Cellar and give any wine on it a
+- **Saved wine menus** — a restaurant wine list is kept when it is read: the wines as the page
+  printed them, the day, the answer's picks and its closing note, under a name you give it (the
+  restaurant, usually; until then it is titled by its date). Each menu says how many wines **you**
+  picked that night — the ones you ordered or later gave a verdict to — not how many the answer
+  suggested, so three recommendations never read as three glasses. Open one from Cellar and give any wine on it a
   verdict — the answer is written on the cellar record when you have kept that wine, and on the
   list's own copy when you have not. Thirty lists are kept, newest first, and each can be renamed
   or deleted. The photograph of the page is kept with it — a thumbnail in the index, the whole page

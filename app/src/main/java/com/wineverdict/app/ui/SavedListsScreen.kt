@@ -78,7 +78,7 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Saved lists", style = MaterialTheme.typography.headlineSmall) },
+                title = { Text("Saved wine menus", style = MaterialTheme.typography.headlineSmall) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
@@ -89,10 +89,10 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
     ) { padding ->
         if (lists.isEmpty()) {
             EmptyState(
-                title = "No lists yet",
+                title = "No menus yet",
                 body = "Photograph a restaurant's wine list and it is kept here with its wines, the " +
-                    "day it was read and what the answer picked. Name it after the restaurant and " +
-                    "it reads as that evening rather than as a date.",
+                    "day it was read, the page itself and what you picked off it. Name it after the " +
+                    "restaurant and it reads as that evening rather than as a date.",
                 modifier = Modifier.padding(padding)
             )
             return@Scaffold
@@ -144,9 +144,11 @@ fun SavedListsScreen(onBack: () -> Unit, onOpenList: (String) -> Unit) {
                                 tint = MaterialTheme.colorScheme.outline
                             )
                         }
-                        if (list.picks.isNotEmpty()) {
+                        // What the user had, not what the answer suggested: three picks the model
+                        // would order is not three bottles on the table.
+                        if (list.picked.isNotEmpty()) {
                             Text(
-                                "${list.picks.size} picked that night",
+                                "${list.picked.size} picked that night",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -287,7 +289,7 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                     )
                     if (list.name.isBlank()) {
                         Text(
-                            "Name it from the list of saved lists to say where it was.",
+                            "Name it from the saved menus to say where it was.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.outline
                         )
@@ -336,7 +338,8 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                     InsightStore.key(it) == InsightStore.key(wine)
                 }
                 val verdict = Verdict.labelFor(kept ?: wine)
-                val picked = list.picks.indexOf(wine.id)
+                val rank = list.picks.indexOf(wine.id)
+                val mine = wine.id in list.picked
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -354,11 +357,12 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.titleSmall,
                                 modifier = Modifier.weight(1f)
                             )
-                            if (picked == 0) {
+                            // Two different claims, so two different badges: what you had, and
+                            // where the answer put it.
+                            if (mine) {
                                 Pill("Picked", color = MaterialTheme.colorScheme.primaryContainer)
-                            } else if (picked > 0) {
-                                Pill("#${picked + 1}")
                             }
+                            if (rank >= 0) Pill("#${rank + 1}")
                         }
                         if (wine.subtitle.isNotBlank()) {
                             Text(

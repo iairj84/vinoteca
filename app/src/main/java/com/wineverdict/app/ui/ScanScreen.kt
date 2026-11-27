@@ -173,6 +173,8 @@ fun ScanScreen(onReview: () -> Unit) {
         ?: "your provider"
 
     var imageUri by remember { mutableStateOf<Uri?>(null) }
+    // The kept menu for the page being read, so a wine the user actually orders can be marked on it.
+    var keptListId by remember { mutableStateOf<String?>(null) }
     var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -226,6 +228,7 @@ fun ScanScreen(onReview: () -> Unit) {
             }
         }
         val kept = AppGraph.lists.keep(read, page)
+        keptListId = kept?.id
         Reminders.scheduleListReview(context, kept?.id)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !Reminders.canNotify(context)
@@ -318,6 +321,8 @@ fun ScanScreen(onReview: () -> Unit) {
 
     fun analyse() {
         val uri = imageUri ?: return
+        // A new read is a new page: the menu the last one kept is not this one.
+        keptListId = null
         if (!AppGraph.settings.hasAnyKey) {
             error = "Add an API key in Settings first — Groq and Google Gemini both have free tiers."
             return
@@ -1316,7 +1321,7 @@ fun ScanScreen(onReview: () -> Unit) {
                     // for again. This is where the reminder will land.
                     Text(
                         "Kept with today's date and the page as you photographed it — reopen it " +
-                            "any time from Cellar › Saved lists, " +
+                            "any time from Cellar › Saved wine menus, " +
                             "and name it after the restaurant if you want it findable.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.outline
@@ -1480,6 +1485,12 @@ fun ScanScreen(onReview: () -> Unit) {
                                             if (label != null) {
                                                 scope.launch {
                                                     AppGraph.cellar.upsert(label.wine)
+                                                    // The one wine of the three the answer named
+                                                    // that was actually ordered. The card's count
+                                                    // is this, not the suggestion.
+                                                    keptListId?.let { id ->
+                                                        AppGraph.lists.choose(id, label.wine.id)
+                                                    }
                                                     snackbarHostState.showSnackbar(
                                                         if (eff == Service.GLASS) "Noted for a glass"
                                                         else "Noted for the bottle"

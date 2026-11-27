@@ -41,6 +41,14 @@ data class SavedList(
     val note: String = "",
     /** Ids of the wines the answer picked, in its order. Empty when only a ranking came back. */
     val picks: List<String> = emptyList(),
+    /**
+     * Ids of the wines the *user* picked off this page — ordered, noted, or judged afterwards.
+     *
+     * Kept apart from [picks] on purpose. The answer names three bottles it would order; the user
+     * orders one. A card that counted the first as the second said "3 picked that night" about an
+     * evening with one glass in it, which is the model's opinion wearing the user's coat.
+     */
+    val chosen: List<String> = emptyList(),
     val wines: List<Wine> = emptyList(),
     /**
      * The page as photographed, as a file name under the store's photo directory. Blank for a list
@@ -49,6 +57,13 @@ data class SavedList(
      */
     val photo: String = ""
 ) {
+    /**
+     * What the user actually had that night: the wines they marked, and the ones they later gave a
+     * verdict to — an answer about a wine is the strongest sign there is that it was poured.
+     */
+    val picked: List<String>
+        get() = (chosen + wines.filter { it.rating != null }.map { it.id }).distinct()
+
     /** What the rows and the reminder call it: the name the user gave it, or the day it was read. */
     val title: String
         get() = name.trim().ifBlank {
@@ -160,6 +175,18 @@ class SavedListStore(private val context: Context) {
         photoDir.listFiles()?.forEach { file ->
             if (file.name !in used) runCatching { file.delete() }
         }
+    }
+
+    /** Marks a wine as one the user picked off that page, once, whatever the tap was called. */
+    fun choose(listId: String, wineId: String) {
+        if (wineId.isBlank()) return
+        val list = _lists.value.firstOrNull { it.id == listId } ?: return
+        if (wineId in list.chosen) return
+        write(
+            _lists.value.map {
+                if (it.id == listId) it.copy(chosen = it.chosen + wineId) else it
+            }
+        )
     }
 
     fun rename(id: String, name: String) {

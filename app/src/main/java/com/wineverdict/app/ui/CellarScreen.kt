@@ -253,9 +253,9 @@ fun CellarScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text("Saved lists", style = MaterialTheme.typography.titleSmall)
+                                Text("Saved wine menus", style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    (if (savedLists.size == 1) "1 list · " else "${savedLists.size} lists · ") +
+                                                                            (if (savedLists.size == 1) "1 menu · " else "${savedLists.size} menus · ") +
                                         savedLists.first().title,
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
