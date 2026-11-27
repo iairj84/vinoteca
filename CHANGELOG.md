@@ -3,6 +3,18 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.19: one tap can be taken back
+
+**A bottle left the cellar on a tap with no way back.** **Drank one** sits where a thumb already is,
+which is the point of it, and a thumb that meant to open the bottle instead took one off the shelf
+with nothing to say it had been a mistake. The count move is now confirmed with an **Undo** snackbar,
+on the cellar's cards and on the bottle page alike.
+
+**It arrives after the sheet, and it restores the count alone.** A snackbar behind a dialog is a
+snackbar nobody sees, so the offer waits until the sheet is closed — which is also the moment a
+mis-tap is noticed. Undo adds the bottle back and touches nothing else: a verdict or a line given in
+the same breath is the user's, and taking back a count must not throw away an answer.
+
 ### 1.2.18: Drank one, on the bottle's own page too
 
 **The action was only where the list is.** 1.2.14 put **Drank one** on the cellar's cards, but the

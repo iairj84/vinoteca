@@ -50,6 +50,8 @@ Gemini or Groq — with your own key.
   bottle with stock carries **Drank one**, which takes it out of the cellar on the tap and then asks
   for the verdict and one line about it; Skip keeps the bottle counted as drunk and says nothing more.
   The same button sits under **Bottles** on the bottle's own page, where the notes and the rules are.
+  A tap is not final: once the sheet is closed, an **Undo** snackbar puts the bottle back, and only
+  the bottle — a verdict or a note given in the same breath stays.
   A **No bottles** filter shows every wine on record with none left — the wines kept off a list and
   the bottles you finished — instead of leaving them at the bottom of the list, and a **Saved lists**
   card above the search opens a wine list you kept.

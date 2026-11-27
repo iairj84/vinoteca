@@ -36,6 +36,10 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -102,6 +106,7 @@ fun CellarScreen(
     // The list's quick action. The id, not the bottle: the sheet reads the record as it is, so the
     // count it shows is the count after the tap that opened it.
     var drankId by remember { mutableStateOf<String?>(null) }
+    val snackbarState = remember { SnackbarHostState() }
 
     // The search box above the list filters the cellar, and only the cellar. Adding a bottle that is
     // not in it is a different question, asked by the + button: the bottle in words, one search over
@@ -196,6 +201,7 @@ fun CellarScreen(
                 title = { Text("Cellar", style = MaterialTheme.typography.headlineSmall) }
             )
         },
+        snackbarHost = { SnackbarHost(snackbarState) },
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { addOpen = true },
@@ -311,12 +317,33 @@ fun CellarScreen(
         }
     }
 
+    /**
+     * The way back from a tap that was not meant.
+     *
+     * Offered once the sheet is closed, because a snackbar behind a dialog is a snackbar nobody
+     * sees, and the sheet is exactly when a mistap is noticed. Only the bottle comes back: a verdict
+     * or a note given in the same breath is the user's, and undoing the count must not throw it away.
+     */
+    fun offerUndo(id: String) {
+        scope.launch {
+            val answer = snackbarState.showSnackbar(
+                message = "One bottle out of the cellar.",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Long
+            )
+            if (answer == SnackbarResult.ActionPerformed) {
+                AppGraph.cellar.adjustQuantity(id, 1)
+            }
+        }
+    }
+
     val drank = drankId?.let { id -> data.wines.firstOrNull { it.id == id } }
     if (drank != null) {
         DrankDialog(
             wine = drank,
             onSave = { rating, note ->
                 drankId = null
+                offerUndo(drank.id)
                 scope.launch {
                     // Only when the word changed: an untouched sheet must not overwrite a verdict,
                     // and setting a null rating would clear a heart the bottle still earns.
@@ -324,7 +351,10 @@ fun CellarScreen(
                     if (note.isNotBlank()) AppGraph.cellar.addTastingNote(drank.id, note)
                 }
             },
-            onClose = { drankId = null }
+            onClose = {
+                drankId = null
+                offerUndo(drank.id)
+            }
         )
     }
 

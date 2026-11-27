@@ -28,6 +28,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -80,12 +84,31 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     val rules = remember(profile) { AppGraph.palate.rules }
     var showNoteDialog by remember { mutableStateOf(false) }
     var drankOpen by remember { mutableStateOf(false) }
+    val snackbarState = remember { SnackbarHostState() }
     var confirmDelete by remember { mutableStateOf(false) }
     var looking by remember { mutableStateOf(false) }
     var lookupMessage by remember { mutableStateOf<String?>(null) }
     var lookupError by remember { mutableStateOf<String?>(null) }
 
+    /**
+     * The way back from a tap that was not meant: the count and nothing else, offered once the
+     * sheet is out of the way so the bar is actually visible.
+     */
+    fun offerUndo(id: String) {
+        scope.launch {
+            val answer = snackbarState.showSnackbar(
+                message = "One bottle out of the cellar.",
+                actionLabel = "Undo",
+                duration = SnackbarDuration.Long
+            )
+            if (answer == SnackbarResult.ActionPerformed) {
+                AppGraph.cellar.adjustQuantity(id, 1)
+            }
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarState) },
         topBar = {
             TopAppBar(
                 title = { Text("Bottle", style = MaterialTheme.typography.titleLarge) },
@@ -425,12 +448,16 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
             wine = after,
             onSave = { rating, note ->
                 drankOpen = false
+                offerUndo(wine.id)
                 scope.launch {
                     if (rating != wine.rating) AppGraph.cellar.setRating(wine.id, rating)
                     if (note.isNotBlank()) AppGraph.cellar.addTastingNote(wine.id, note)
                 }
             },
-            onClose = { drankOpen = false }
+            onClose = {
+                drankOpen = false
+                offerUndo(wine.id)
+            }
         )
     }
 
