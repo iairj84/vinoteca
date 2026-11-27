@@ -602,19 +602,14 @@ private fun MoveCard(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    // Every match, because this is the list the user is being asked to approve. The
-                    // cap only stops a hundred-bottle query from filling the screen.
-                    plan.wines.take(MAX_SHOWN).forEach { wine ->
+                    // Every match, because this is the list the user is being asked to approve.
+                    // It used to stop at twelve with "and N more", which asked them to approve
+                    // bottles they could not see — and a big move is exactly when that matters.
+                    // A tall card is just a tall card: the transcript scrolls like any message.
+                    plan.wines.forEach { wine ->
                         Text(
                             text = "\u00b7  ${wine.title} — ${plan.describe(wine, cellar)}",
                             style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                    if (plan.wines.size > MAX_SHOWN) {
-                        Text(
-                            text = "and ${plan.wines.size - MAX_SHOWN} more",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     if (plan.alreadyThere.isNotEmpty()) {
@@ -722,16 +717,11 @@ private fun UpdateCard(
                     plan.lines.forEach { line ->
                         Text(text = "\u00b7  $line", style = MaterialTheme.typography.bodySmall)
                     }
-                    plan.wines.take(MAX_SHOWN).forEach { wine ->
+                    // Every match, the same as a move card: the values above are what changes, and
+                    // these are the bottles it changes them on, however many there are.
+                    plan.wines.forEach { wine ->
                         Text(
                             text = "\u00b7  ${wine.title} — ${wine.subtitle}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (plan.wines.size > MAX_SHOWN) {
-                        Text(
-                            text = "and ${plan.wines.size - MAX_SHOWN} more",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -758,6 +748,3 @@ private fun UpdateCard(
         }
     }
 }
-
-/** How many matched bottles the card names before it starts counting. */
-private const val MAX_SHOWN = 12

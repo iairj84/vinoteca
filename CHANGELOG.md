@@ -3,6 +3,18 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.35: a proposal card names every bottle, not the first twelve
+
+**A move of 23 bottles listed twelve of them and said "and 11 more".** The card is the thing being
+approved, so the bottles it left out were the ones being approved unseen — and a big move, the case
+where that matters most, was exactly the case that hit the cap. Twelve was there so a hundred-bottle
+query would not fill the screen; a tall card is just a tall card, and the transcript already scrolls.
+
+- **Every match is listed**, on the change card as well as the move card: the values first, then each
+  bottle those values will be written to.
+- **The count and the list can no longer disagree**: "Move 23" sits under twenty-three lines, so the
+  bottles in the list are the bottles the button moves.
+
 ### 1.2.34: Ask can change a bottle's fields, not only its place
 
 **The chat could propose a move and nothing else.** A shelf, a price, a note, a count and a vintage
