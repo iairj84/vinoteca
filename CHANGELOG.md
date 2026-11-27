@@ -3,6 +3,21 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.14: one tap takes a bottle out, and asks what it was like
+
+**The cellar's commonest change was buried.** Drinking a bottle was three taps and a scroll — open
+the wine, find “Where it lives”, press the minus — and the number was all that got recorded, so the
+verdict and the line that make the next purchase worth anything were left for later and usually
+lost. Every bottle with stock now carries **Drank one** on its card in the list.
+
+**It counts first and asks second.** The bottle leaves the inventory the moment it is tapped, so the
+count is right even if the phone is put down mid-dialog; the sheet then says what is left and asks
+the four words and one line. **Skip** closes it and leaves the bottle recorded as drunk with nothing
+said about it, which is the truth of that answer. Saving writes the word every filter, sort and the
+taste brief already read — and only when it changed, so an untouched sheet cannot overwrite a
+verdict or clear a heart — and appends the line as a dated tasting note, the same call the bottle
+page uses.
+
 ### 1.2.13: the rating is four words instead of five stars
 
 **A star count asked for a precision the app never used.** Every place that read a rating read it

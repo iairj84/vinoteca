@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -214,7 +215,12 @@ fun LabeledValue(label: String, value: String) {
 }
 
 @Composable
-fun WineRow(wine: Wine, locationName: String, onClick: () -> Unit) {
+fun WineRow(
+    wine: Wine,
+    locationName: String,
+    onClick: () -> Unit,
+    onDrank: (() -> Unit)? = null
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -254,12 +260,31 @@ fun WineRow(wine: Wine, locationName: String, onClick: () -> Unit) {
                 )
                 DrinkBadge(wine.drinkStatus())
             }
-            if (wine.quantity > 0 && wine.price != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "Paid ${formatMoney(wine.price, wine.currency)}",
+                    text = if (wine.quantity > 0 && wine.price != null) {
+                        "Paid ${formatMoney(wine.price, wine.currency)}"
+                    } else {
+                        ""
+                    },
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.weight(1f)
                 )
+                // The one thing done to a bottle often enough to earn a tap on the list itself.
+                // Opening the bottle is the fact and the verdict is the follow-up, so the count
+                // moves first and the question comes after, where it can be skipped.
+                if (onDrank != null && wine.quantity > 0) {
+                    TextButton(
+                        onClick = onDrank,
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("Drank one", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
         }
     }

@@ -46,7 +46,9 @@ Gemini or Groq — with your own key.
   each of them, and every line is checked against the page before it is shown. List prices carry a
   markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
-  drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters.
+  drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters. Every
+  bottle with stock carries **Drank one**, which takes it out of the cellar on the tap and then asks
+  for the verdict and one line about it; Skip keeps the bottle counted as drunk and says nothing more.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the

@@ -88,6 +88,9 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
     }
     var query by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf(CellarFilter.ALL) }
+    // The list's quick action. The id, not the bottle: the sheet reads the record as it is, so the
+    // count it shows is the count after the tap that opened it.
+    var drankId by remember { mutableStateOf<String?>(null) }
 
     // The search box above the list filters the cellar, and only the cellar. Adding a bottle that is
     // not in it is a different question, asked by the + button: the bottle in words, one search over
@@ -244,11 +247,34 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
                     WineRow(
                         wine = wine,
                         locationName = data.locationName(wine.locationId),
-                        onClick = { onOpenWine(wine.id) }
+                        onClick = { onOpenWine(wine.id) },
+                        // Out of the inventory on the tap, then the question worth asking. The
+                        // count must not wait on a dialog nobody may finish.
+                        onDrank = {
+                            scope.launch { AppGraph.cellar.adjustQuantity(wine.id, -1) }
+                            drankId = wine.id
+                        }
                     )
                 }
             }
         }
+    }
+
+    val drank = drankId?.let { id -> data.wines.firstOrNull { it.id == id } }
+    if (drank != null) {
+        DrankDialog(
+            wine = drank,
+            onSave = { rating, note ->
+                drankId = null
+                scope.launch {
+                    // Only when the word changed: an untouched sheet must not overwrite a verdict,
+                    // and setting a null rating would clear a heart the bottle still earns.
+                    if (rating != drank.rating) AppGraph.cellar.setRating(drank.id, rating)
+                    if (note.isNotBlank()) AppGraph.cellar.addTastingNote(drank.id, note)
+                }
+            },
+            onClose = { drankId = null }
+        )
     }
 
     if (addOpen) {
@@ -275,6 +301,57 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
             onClose = { if (adding == null) closeAdd() }
         )
     }
+}
+
+/**
+ * The second half of the list's quick action.
+ *
+ * The bottle has already left the inventory by the time this opens, so the two questions here are
+ * the ones only the drinker can answer: the four-word verdict and one line about it. Closing it
+ * says nothing about the bottle, which is an answer too — it was drunk, and that is recorded.
+ */
+@Composable
+private fun DrankDialog(wine: Wine, onSave: (Int?, String) -> Unit, onClose: () -> Unit) {
+    var rating by remember(wine.id) { mutableStateOf(wine.rating) }
+    var note by remember(wine.id) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("How was it?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(wine.title, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        when {
+                            wine.quantity <= 0 -> "The last bottle is out of the cellar."
+                            wine.quantity == 1 -> "One bottle left in the cellar."
+                            else -> "${wine.quantity} bottles left in the cellar."
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // The same four words the bottle page and the editor offer, so the answer given
+                // here is the answer every filter, sort and brief already reads.
+                VerdictChips(rating) { rating = it }
+                OutlinedTextField(
+                    value = note,
+                    onValueChange = { note = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("One line about it") },
+                    placeholder = { Text("Strawberry, cold, worth it") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onSave(rating, note) }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onClose) { Text("Skip") }
+        }
+    )
 }
 
 /**
