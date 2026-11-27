@@ -3,6 +3,12 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.44: the update card in plain words
+
+**The card that offers a new release printed its notes as Markdown.** The notes are the changelog,
+written for the release page, so the first thing the card said was `**Five small things…**`. The
+card now takes the heading marks, dashes and asterisks off each line, so what it shows is prose.
+
 ### 1.2.43: the book you can search, a calendar, and a quieter cellar
 
 **Five small things that made the app ask for taps it should not.** The cellar value was printed on

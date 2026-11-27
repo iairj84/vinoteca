@@ -839,8 +839,16 @@ private fun UpdateAvailableCard(release: Updater.Release, onDismiss: () -> Unit)
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // The notes are the changelog, written in markdown for the release page. A card is not
+            // a page, so the decoration comes off rather than being printed as asterisks.
             val notes = release.notes
                 .lines()
+                .map { line ->
+                    line.trim()
+                        .trimStart('#', '-', '*', ' ')
+                        .replace("**", "")
+                        .replace("`", "")
+                }
                 .filter { it.isNotBlank() }
                 .take(3)
                 .joinToString("\n")
