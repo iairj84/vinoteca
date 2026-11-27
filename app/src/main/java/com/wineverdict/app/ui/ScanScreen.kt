@@ -66,6 +66,7 @@ import com.wineverdict.app.ai.withFinePrint
 import com.wineverdict.app.data.BuyAdvice
 import com.wineverdict.app.data.DebugScan
 import com.wineverdict.app.data.ImportRow
+import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
 import com.wineverdict.app.data.PairingTable
@@ -1426,6 +1427,9 @@ fun ScanScreen(onReview: () -> Unit) {
                                     ) {
                                         Text(orderButtonLabel(service))
                                     }
+                                    if (label != null) {
+                                        KeepLine(wine = label.wine, shop = false)
+                                    }
                                 }
                             }
                         }
@@ -1646,6 +1650,38 @@ private fun LabelResult(
 }
 
 /**
+ * Keeps a wine that is not in the cellar: a pick off a list, a bottle somebody else opened.
+ *
+ * It is saved with no bottles, so no count, value or "ready now" moves; what it gains is a page of
+ * its own, where the four words and the notes work exactly as they do on a bottle at home. The
+ * action disappears once the wine is on record and says which kind of record it is — stock, or a
+ * wine kept without any.
+ */
+@Composable
+private fun KeepLine(wine: Wine, shop: Boolean) {
+    val cellar by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    val kept = remember(cellar.wines, wine) {
+        cellar.wines.firstOrNull { InsightStore.key(it) == InsightStore.key(wine) }
+    }
+    if (kept == null) {
+        TextButton(onClick = { scope.launch { AppGraph.cellar.saveWine(wine) } }) {
+            Text(if (shop) "Save this wine" else "Save this one")
+        }
+    } else {
+        Text(
+            if (kept.quantity > 0) {
+                "In your cellar · ${kept.quantity}"
+            } else {
+                "Saved with no bottles — give it a verdict from Cellar."
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
  * What to order, from the advice answer.
  *
  * The name and the prices come from the label the phone read — the advice carries line numbers,
@@ -1761,6 +1797,7 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>, shop: B
                             )
                         }
                     }
+                    KeepLine(wine = bottle.wine, shop = shop)
                 }
             }
         }
@@ -2010,7 +2047,11 @@ private fun BottleVerdictCard(
                     color = MaterialTheme.colorScheme.outline
                 )
             }
-            if (!restaurant) {
+            if (restaurant) {
+                // A list is where a wine is met that nobody owns yet, so keeping it records the
+                // meeting without claiming a bottle.
+                KeepLine(wine = result.wine, shop = false)
+            } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onAdd) {
                         Icon(Icons.Filled.ShoppingCart, contentDescription = null)

@@ -96,6 +96,34 @@ class CellarRepository(context: Context) {
     }
 
     /**
+     * Keeps a wine that is not in the cellar: a pick off a restaurant list, a bottle somebody else
+     * opened. It is stored with no bottles, so it changes no count, no value and no "ready now" —
+     * what it gains is a page of its own, where a wine that was never on the shelf at home can be
+     * given a verdict like any other.
+     *
+     * Insert only. Saving a wine already on the shelf must never rewrite the stock the user typed,
+     * so an identity already on record is left exactly as it is; [added] says which happened.
+     */
+    suspend fun saveWine(wine: Wine): Boolean {
+        var added = false
+        mutate { current ->
+            val identity = InsightStore.key(wine)
+            if (current.wines.any { InsightStore.key(it) == identity }) {
+                current
+            } else {
+                added = true
+                current.copy(
+                    wines = current.wines + wine.copy(
+                        quantity = 0,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                )
+            }
+        }
+        return added
+    }
+
+    /**
      * Records the verdict and keeps the favourite flag in step with it. "Loved" is what the Loved
      * filter, the cellar's sort order, the taste brief and the mytaste.md loved block have always
      * read as a favourite, so one answer sets both instead of asking for the same thing twice.

@@ -51,6 +51,11 @@ Gemini or Groq — with your own key.
   for the verdict and one line about it; Skip keeps the bottle counted as drunk and says nothing more.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
+- **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
+  card in the full read does too. It keeps the wine with no bottles: it never counts as stock or
+  value, but it gets a page, so the four words and the notes work on a wine that was never in the
+  cellar and never will be. A wine already on the shelf is left exactly as it is, and the line says
+  which of the two it found.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,

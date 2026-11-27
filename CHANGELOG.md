@@ -3,6 +3,23 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.15: a wine can be kept without being owned
+
+**The only way to remember a wine off a list was to pretend to own it.** Adding a pick put one
+bottle in the cellar, so a wine met at a restaurant arrived as stock — it counted in the plaque,
+in the value, in “ready now” — and a bottle somebody else opened could not be recorded at all. The
+list's picks, and every line of the full read, now carry **Save this one**.
+
+**It is a page, not a bottle.** The wine is stored with no bottles, so nothing about stock or value
+moves; the cellar shows it with “none left” below the bottles you have, and it opens like any other
+wine, which is the point: the four words and the notes are the same controls, so a wine that was
+never on the shelf at home can still be called Loved. Saving is insert-only — an identity already on
+record is never rewritten, so saving a wine you own cannot touch your stock — and the line under the
+pick then says whether it found a bottle or a wine kept without any.
+
+**The plaque counts stock.** “Wines” used to be the number of records, so a kept wine with no bottles
+would have lifted it while “Bottles” stayed put. It is now the wines with at least one bottle.
+
 ### 1.2.14: one tap takes a bottle out, and asks what it was like
 
 **The cellar's commonest change was buried.** Drinking a bottle was three taps and a scroll — open

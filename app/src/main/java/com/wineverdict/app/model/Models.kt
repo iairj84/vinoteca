@@ -213,7 +213,9 @@ fun CellarData.stats(): CellarStats {
     val priced = wines.filter { it.price != null }
     return CellarStats(
         bottles = wines.sumOf { it.quantity },
-        distinctWines = wines.size,
+        // Stock, not pages: a wine kept off a list has no bottles and must not inflate the count
+        // of what the cellar holds.
+        distinctWines = wines.count { it.quantity > 0 },
         readyToDrink = wines.filter { it.quantity > 0 && it.isDrinkableNow() }.size,
         invested = priced.sumOf { (it.price ?: 0.0) * it.quantity },
         currency = wines.mapNotNull { it.currency.takeIf { c -> c.isNotBlank() } }.firstOrNull() ?: "USD"
