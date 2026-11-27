@@ -164,6 +164,12 @@ fun ChatScreen() {
                             // lines on the budget that keeps a short cellar digest.
                             drinks = AppGraph.drinks.digest(
                                 limit = if (budget.digestLimit >= 30) 20 else 8
+                            ),
+                            // The menus, the same way: what was ordered and what was refused where,
+                            // which is the one thing neither the cellar nor the drink log holds.
+                            menus = AppGraph.lists.digest(
+                                AppGraph.cellar.data.value.wines,
+                                limit = if (budget.digestLimit >= 30) 6 else 3
                             )
                         )
                         val answer = AppGraph.ai.complete(

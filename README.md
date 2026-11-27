@@ -109,7 +109,10 @@ Gemini or Groq — with your own key.
   bottle leaving the shelf was a number going down. **Undo** takes the entry back with the bottle,
   since an undone tap never happened.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
-  pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
+  pot pie”, “What's at its best right now?”, or attach a photo taken in the shop. It is also given
+  your saved wine menus — the place, the day, the wines you picked there and the ones you refused — so
+  “what did I order at that place” is answerable, and a wine you turned down at that table is never
+  offered again.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.

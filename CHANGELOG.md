@@ -3,6 +3,23 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.30: Ask can see the menus
+
+**The chat was given the cellar and the drink log, and nothing about restaurants.** Eleven releases
+have built saved wine menus — the place, the day, the wines, what was ordered, what was refused — and
+Ask could not see any of it, so "what did I order at that Italian place" had no answer and the one
+thing a menu makes certain, that a wine was turned down there, was invisible.
+
+Each kept menu now reaches the prompt as one line: **the place, the date, the number of wines read,
+the wines you picked with their verdict word, and the wines you called Not for me there.** Verdicts
+are read by identity, so a bottle judged before the menu was kept still counts, and a refused wine
+is never listed as picked — the chat is told what was ordered and, separately, what was refused. The
+budget is honoured: six menus when the room is wide, three when it is thin.
+
+With that in context the rules are explicit: answer restaurant questions from the menus and the drink
+log only, never invent a place or a page, never suggest a wine marked not for me there, and on a menu
+you have eaten at before prefer the wines you picked and loved.
+
 ### 1.2.29: a wine you said no to is not a suggestion
 
 **"Not for me" sat in the same grey as "Fine".** On a menu it was one badge among several on a

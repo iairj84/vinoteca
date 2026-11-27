@@ -73,11 +73,62 @@ data class SavedList(
  * kept before picks were recorded. A suggestion the answer made is not one of them.
  */
 fun pickedWines(list: SavedList, cellarIds: Set<String>): List<String> =
+    pickedWines(list) { it.id in cellarIds }
+
+/** The same question asked the way the chat has to ask it: by identity, not by a record's id. */
+fun pickedWines(list: SavedList, matchesCellar: (Wine) -> Boolean): List<String> =
     (
         list.chosen +
             list.wines.filter { it.rating != null }.map { it.id } +
-            list.wines.filter { it.id in cellarIds }.map { it.id }
+            list.wines.filter(matchesCellar).map { it.id }
         ).distinct()
+
+/**
+ * The menus as the chat reads them, newest first.
+ *
+ * A menu is the only record of a restaurant: what the page offered, what was ordered there and what
+ * was refused. Without it Ask can answer what was drunk but not "what did I order at that place",
+ * and it can happily recommend a wine that was turned down on that very menu.
+ *
+ * Verdicts are read by identity, so a wine judged before it was ever kept under a menu still counts,
+ * and the refusal list is stated as a fact rather than a preference: those are wines not to offer.
+ */
+internal fun menuDigest(
+    lists: List<SavedList>,
+    cellar: List<Wine>,
+    limit: Int = 6,
+    now: Long = System.currentTimeMillis()
+): String {
+    if (lists.isEmpty()) return ""
+    val identities = cellar.map { InsightStore.key(it) }.toSet()
+    val byIdentity = cellar.associateBy { InsightStore.key(it) }
+    return lists.take(limit).joinToString("\n") { list ->
+        fun record(wine: Wine): Wine = byIdentity[InsightStore.key(wine)] ?: wine
+        // A wine judged Not for me on the menu counts as "handled" for the picked count, which is
+        // right on the card and wrong here: the chat is told the wines that were ordered, and told
+        // separately which ones were refused.
+        val refused = list.wines.filter { Verdict.of(record(it).rating) == Verdict.NOT_FOR_ME }
+        val refusedIds = refused.map { it.id }.toSet()
+        val picked = pickedWines(list) { InsightStore.key(it) in identities }
+            .filterNot { it in refusedIds }
+        val pickedNames = list.wines.filter { it.id in picked }.map { wine ->
+            val word = Verdict.labelFor(record(wine))
+            if (word == null) wine.title else "${wine.title} ($word)"
+        }
+        buildString {
+            append("- ").append(list.title).append(" · ").append(dayWords(list.savedAt, now))
+            append(" — ").append(list.wines.size).append(" wines read")
+            if (pickedNames.isNotEmpty()) {
+                append("; picked ").append(pickedNames.size).append(": ")
+                append(pickedNames.take(4).joinToString("; "))
+            }
+            if (refused.isNotEmpty()) {
+                append("; not for me there: ")
+                    .append(refused.take(4).joinToString("; ") { it.title })
+            }
+        }
+    }
+}
 
 /**
  * Every list that has been read, newest first.
@@ -110,6 +161,13 @@ class SavedListStore(private val context: Context) {
     }
 
     fun list(id: String?): SavedList? = id?.let { key -> _lists.value.firstOrNull { it.id == key } }
+
+    /**
+     * The menus as Ask reads them; blank when none are kept. The cellar is passed in so a verdict
+     * given on the bottle — not on the menu's copy — still counts.
+     */
+    fun digest(cellar: List<Wine>, limit: Int = 6): String =
+        menuDigest(_lists.value, cellar, limit)
 
     /** The photographed page for a list, if this build kept one and the file is still there. */
     fun photoFile(list: SavedList?): File? = list?.photo
