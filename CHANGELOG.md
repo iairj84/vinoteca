@@ -3,6 +3,33 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.38: pictures that look like the bottle, and a filter that stays
+
+**The picture finder kept the shop's own furniture.** A page's `og:image` was trusted blindly, and
+a shop's social card is often its banner: one cellar came back with a 976×291 "Uncork Life" strip
+as a bottle's photograph, a candlelit lifestyle pour for a Pinot Noir, and a producer's cork. Only
+about one bottle in ten got a picture at all.
+
+- **The page's own product data now comes first**: schema.org `Product.image`, then `itemprop="image"`,
+  then an `<img>` that names the wine in its address or its alt text (including lazy `data-src` and
+  `srcset`), and only then the social cards. A picture whose address or alt says logo, banner, sprite,
+  cork, capsule, candle, glass, gift or vineyard is never a candidate.
+- **Every picture has to pass a gate before it is kept**: at least 150 px on the short side, a shape
+  between 0.45 and 1.9 (a bottle is tall or square, a banner is not), and a border that is one colour
+  rather than a scene. The 976×291 strip, the 450×1308 logo strip and the candlelit room all fail it.
+- **Three searches, five pages**: the exact bottling, then "wine label", then the wine without its
+  vintage — an older bottle often has no page for its year, and the label is what gets recognised.
+  PDFs and sites that answer a phone with a wall are skipped instead of spending a request.
+- **A bottle added by search falls back too**: if the page that named it publishes nothing usable,
+  the pages that name the wine are asked for its label.
+- **Measured, not assumed**: on ten wines from shops and producers (Thesis, Stoller, Margaux, Keller,
+  Produttori, Aubert, Penfolds, Duckhorn, Fontodi, Wittmann) the new pipeline kept a picture for nine,
+  and eight of those nine were checked by eye and were the right bottle or its label — two were flat
+  label fronts. The old pipeline kept the banner, the cork and the candle. Not measured on a real
+  cellar of fifty, where the pages are the ones the user actually owns.
+- **The cellar filter is sticky.** Opening a bottle and coming back rebuilt the list with no filter;
+  the filter now lives in saved screen state and survives the trip (and a rotation).
+
 ### 1.2.37: a picture for the bottles already here, and a way to change the wrong one
 
 **1.2.36 gave a picture to a wine added from a search, and left the bottles already in the cellar

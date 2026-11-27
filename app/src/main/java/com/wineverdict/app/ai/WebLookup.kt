@@ -45,6 +45,41 @@ class WebLookup {
         "twitter:image:src"
     )
 
+    /** Unmistakable in a picture's own address, whatever it is glued to. */
+    private val FURNITURE_ANYWHERE = setOf(
+        "logo", "icon", "banner", "sprite", "avatar", "favicon", "placeholder",
+        "corkscrew", "tappo", "tappi"
+    )
+
+    /** Words that are a thing rather than a bottle, matched whole so "pinot" is not a pin. */
+    private val FURNITURE_WORDS = setOf(
+        "cork", "header", "footer", "hero", "badge", "social", "payment", "spacer",
+        "divider", "capsule", "candle", "vineyard", "medal", "award", "shelf", "newsletter",
+        "map", "gift", "menu", "cart", "arrow", "star", "glass", "scene"
+    )
+
+    private val WORD_SPLIT = Regex("[^0-9a-z\\u00C0-\\u00FF]+")
+
+    private val JSON_LD = Regex(
+        "<script[^>]+application/ld\\+json[^>]*>(.*?)</script>",
+        setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+    )
+    private val JSON_IMAGE = Regex("\"image\"\\s*:\\s*(\\[[^\\]]*\\]|\"[^\"]+\")")
+    private val QUOTED = Regex("\"([^\"]+)\"")
+    private val ITEMPROP_IMAGE = Regex(
+        "<[a-z]+\\s[^>]*itemprop\\s*=\\s*[\"']image[\"'][^>]*>",
+        RegexOption.IGNORE_CASE
+    )
+    private val IMG_TAG = Regex("<img\\s[^>]*>", RegexOption.IGNORE_CASE)
+    private val ALT_ATTR = Regex("alt\\s*=\\s*[\"']([^\"']*)[\"']", RegexOption.IGNORE_CASE)
+    private val META_TAG = Regex("<meta\\s[^>]*>", RegexOption.IGNORE_CASE)
+    private val META_KEY = Regex(
+        "(?:property|name)\\s*=\\s*[\"']([^\"']+)[\"']",
+        RegexOption.IGNORE_CASE
+    )
+    private val META_CONTENT = Regex("content\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+    private val SRC_ATTR = Regex("src\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+
 
     /** Search results in rank order. Throws only when the search itself could not be reached. */
     suspend fun search(query: String): List<Hit> = withContext(Dispatchers.IO) {
@@ -72,37 +107,115 @@ class WebLookup {
     }
 
     /**
-     * The picture a page offers for itself — its `og:image`, then its Twitter card — downloaded.
+     * The picture a page offers for the bottle it is about, downloaded.
      *
-     * A bottle added from a search was named by a page, and that page almost always carries the
-     * producer's own photograph of the label. Reading it here is what puts a real bottle on the
-     * thumbnail instead of a placeholder, for one request on top of the search that was already
-     * paid for.
+     * [name] and [producer] are what the bottle is called: the page has to say the name, and the
+     * pictures it offers are ranked by whether they name the wine too. Its product data comes before
+     * its social card, because a shop's card is often the shop's own banner — a 976×291 "Uncork
+     * Life" strip was what the first version of this kept as a bottle's photograph. Every picture
+     * then has to pass [PictureGate]: one bottle's shape, on a plain field.
      *
-     * [mentions] are the words the page has to carry before its picture is trusted. A photograph of
-     * the neighbouring bottling is worse than no photograph, so a search for a bottle the app
-     * already holds asks for its producer and its name rather than the first page that answers.
-     *
-     * Null is a real answer — no card, a page that does not name the wine, a `data:` URI, a
-     * response that is not an image, or a picture too big to be worth keeping. Nothing is invented,
-     * and nothing is tried twice.
+     * Null is a real answer — no picture, a page that does not name the wine, a logo, a banner, a
+     * lifestyle scene, a cork. Nothing is invented, and nothing is tried twice.
      */
-    suspend fun pageImage(pageUrl: String, mentions: List<String> = emptyList()): ByteArray? =
+    suspend fun pageImage(pageUrl: String, name: String = "", producer: String = ""): ByteArray? =
         withContext(Dispatchers.IO) {
             if (!pageUrl.startsWith("http")) return@withContext null
             val html = get(pageUrl).orEmpty()
             if (html.isBlank()) return@withContext null
-            if (!mentions(html, mentions)) return@withContext null
-            val picture = imageUrl(html, pageUrl) ?: return@withContext null
-            download(picture)
+            if (!mentions(html, tokens("$producer $name"))) return@withContext null
+            for (candidate in pictureCandidates(html, pageUrl, tokens(name), tokens(producer)).take(8)) {
+                val picture = download(candidate) ?: continue
+                if (PictureGate.acceptable(picture)) return@withContext picture
+            }
+            null
         }
 
     /** Whether the page says these words, ignoring case, accents and punctuation. */
     private fun mentions(html: String, words: List<String>): Boolean {
-        val wanted = words.map { fold(it) }.filter { it.length >= 4 }
+        val wanted = words.filter { it.length >= 4 }.distinct()
         if (wanted.isEmpty()) return true
         val page = fold(html)
         return wanted.all { page.contains(it) }
+    }
+
+    private fun tokens(raw: String): List<String> = raw
+        .split(Regex("[^0-9A-Za-z\\u00C0-\\u00FF]+"))
+        .map { fold(it) }
+        .filter { it.length >= 3 }
+        .distinct()
+
+    /**
+     * Every picture the page offers, best first.
+     *
+     * Schema.org's `Product.image` and an `itemprop="image"` come before an `<img>` that names the
+     * wine in its address or its alt text, which comes before `og:image`, which comes before the
+     * Twitter card. Anything wearing a word that is furniture rather than a bottle — logo, banner,
+     * cork, candle, glass — is not a candidate at all.
+     */
+    internal fun pictureCandidates(
+        html: String,
+        pageUrl: String,
+        name: List<String> = emptyList(),
+        producer: List<String> = emptyList()
+    ): List<String> {
+        val scored = mutableListOf<Pair<Int, String>>()
+        for (block in JSON_LD.findAll(html)) {
+            val body = block.groupValues[1]
+            if (!body.contains("\"Product\"") && !body.contains("\"Wine\"")) continue
+            for (image in JSON_IMAGE.findAll(body)) {
+                for (quoted in QUOTED.findAll(image.groupValues[1])) {
+                    offer(scored, 70, pageUrl, quoted.groupValues[1])
+                }
+            }
+        }
+        for (tag in ITEMPROP_IMAGE.findAll(html)) {
+            SRC_ATTR.find(tag.value)?.groupValues?.get(1)?.let { offer(scored, 60, pageUrl, it) }
+        }
+
+        val named = (name + producer).distinct()
+        for (tag in IMG_TAG.findAll(html)) {
+            val text = tag.value
+            val raw = listOf("src", "data-src", "data-lazy-src", "srcset", "data-srcset")
+                .firstNotNullOfOrNull { attribute ->
+                    Regex("$attribute\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
+                        .find(text)?.groupValues?.get(1)
+                        ?.substringBefore(",")?.substringBefore(" ")
+                } ?: continue
+            val alt = ALT_ATTR.find(text)?.groupValues?.get(1).orEmpty()
+            if (furniture(raw + " " + alt)) continue
+            val folded = fold(raw + " " + alt)
+            if (named.any { folded.contains(it) }) offer(scored, 65, pageUrl, raw)
+        }
+
+        for (tag in META_TAG.findAll(html)) {
+            val text = tag.value
+            val key = META_KEY.find(text)?.groupValues?.get(1)?.lowercase() ?: continue
+            if (key !in IMAGE_CARDS) continue
+            val content = META_CONTENT.find(text)?.groupValues?.get(1)?.trim().orEmpty()
+            if (content.isBlank() || furniture(content)) continue
+            offer(scored, if (key.startsWith("og:")) 50 else 40, pageUrl, content)
+        }
+
+        val seen = mutableSetOf<String>()
+        return scored.sortedByDescending { it.first }.map { it.second }.filter { seen.add(it) }
+    }
+
+    private fun offer(
+        into: MutableList<Pair<Int, String>>,
+        score: Int,
+        pageUrl: String,
+        raw: String
+    ) {
+        if (raw.startsWith("data:", ignoreCase = true)) return
+        resolve(pageUrl, raw)?.let { into += score to it }
+    }
+
+    /** A word that means the page's own furniture, or something that is not a bottle. */
+    private fun furniture(raw: String): Boolean {
+        val low = raw.lowercase()
+        if (FURNITURE_ANYWHERE.any { low.contains(it) }) return true
+        return WORD_SPLIT.split(low).any { it in FURNITURE_WORDS }
     }
 
     private fun fold(raw: String): String = java.text.Normalizer

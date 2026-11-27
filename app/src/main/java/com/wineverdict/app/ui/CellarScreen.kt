@@ -49,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -106,7 +107,11 @@ fun CellarScreen(
         data.wines.associateBy { InsightStore.key(it) }
     }
     var query by remember { mutableStateOf("") }
-    var filter by remember { mutableStateOf(CellarFilter.ALL) }
+    // The filter outlives the screen: opening a bottle and coming back rebuilds this composable, and
+    // a filter that resets on every lookup is a filter nobody keeps. Held by its label because a
+    // string is what a saved screen state can carry; the enum is read back from it.
+    var filterLabel by rememberSaveable { mutableStateOf(CellarFilter.ALL.label) }
+    val filter = CellarFilter.entries.firstOrNull { it.label == filterLabel } ?: CellarFilter.ALL
     // The list's quick action. The id, not the bottle: the sheet reads the record as it is, so the
     // count it shows is the count after the tap that opened it.
     var drankId by remember { mutableStateOf<String?>(null) }
@@ -174,7 +179,11 @@ fun CellarScreen(
             if (existing == null && candidate.sourceUrl.isNotBlank()) {
                 AppGraph.scope.launch {
                     val picture = runCatching { AppGraph.ai.bottleImage(candidate.sourceUrl) }
-                        .getOrNull() ?: return@launch
+                        .getOrNull()
+                        // The page that named it can publish nothing usable; the pages that name
+                        // the wine can still carry its label.
+                        ?: runCatching { AppGraph.ai.bottleImageFor(wine) }.getOrNull()
+                        ?: return@launch
                     val kept = AppGraph.cellar.wine(id) ?: return@launch
                     // A label scanned since, or a picture already kept, is not replaced by a shop's.
                     if (kept.photo.isNotBlank()) return@launch
@@ -342,9 +351,7 @@ fun CellarScreen(
                 FilterChipRow(
                     options = CellarFilter.entries.map { it.label },
                     selected = filter.label,
-                    onSelect = { label ->
-                        filter = CellarFilter.entries.firstOrNull { it.label == label } ?: CellarFilter.ALL
-                    }
+                    onSelect = { label -> filterLabel = label }
                 )
             }
             if (visible.isEmpty()) {

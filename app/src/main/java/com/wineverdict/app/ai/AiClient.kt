@@ -265,18 +265,50 @@ class AiClient(
      * publishes no photograph is an answer, not a failure.
      */
     suspend fun bottleImageFor(wine: Wine): ByteArray? = withContext(Dispatchers.IO) {
-        val words = listOf(wine.producer, wine.name).filter { it.isNotBlank() }
-        if (words.isEmpty()) return@withContext null
-        val query = (words + listOfNotNull(wine.vintage?.toString())).joinToString(" ")
-        val hits = web.search(query)
-            .filter { it.url.startsWith("http") }
-            .take(3)
-        for (hit in hits) {
-            val picture = runCatching { web.pageImage(hit.url, words) }.getOrNull()
+        val base = listOf(wine.producer, wine.name).filter { it.isNotBlank() }.joinToString(" ")
+        if (base.isBlank()) return@withContext null
+        // The exact bottling first, then the label itself, then the wine without its vintage: an
+        // older bottle often has no page for its year, and the label is what has to be recognised.
+        val queries = listOf(
+            listOfNotNull(base, wine.vintage?.toString()).joinToString(" "),
+            "$base wine label",
+            base
+        ).distinct()
+        val pages = mutableListOf<String>()
+        for (query in queries) {
+            val hits = runCatching { web.search(query) }.getOrNull().orEmpty()
+            for (hit in hits) {
+                if (pages.size >= 5) break
+                if (readable(hit.url) && hit.url !in pages) pages += hit.url
+            }
+            if (pages.size >= 5) break
+        }
+        for (page in pages) {
+            val picture = runCatching { web.pageImage(page, wine.name, wine.producer) }.getOrNull()
             if (picture != null && picture.isNotEmpty()) return@withContext picture
         }
         null
     }
+
+    /** A page worth the request: a page, not a PDF or a site that refuses a phone. */
+    private fun readable(url: String): Boolean {
+        val low = url.lowercase()
+        if (!low.startsWith("http")) return false
+        if (low.endsWith(".pdf") || ".pdf?" in low) return false
+        return PICTURE_DEAD_ENDS.none { low.contains(it) }
+    }
+
+    /** Pages that answer a phone with a wall, a script, or a product page that never renders. */
+    private val PICTURE_DEAD_ENDS = listOf(
+        "cellartracker.com",
+        "wine-searcher.com",
+        "vivino.com",
+        "jamessuckling.com",
+        "wine.com/product",
+        "youtube.com",
+        "facebook.com",
+        "instagram.com"
+    )
 
     /**
      * The bottlings a few typed words name, before any page has been read.
