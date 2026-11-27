@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,11 +44,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.Image
 import com.wineverdict.app.model.DrinkStatus
 import com.wineverdict.app.model.Verdict
@@ -172,6 +181,95 @@ fun VerdictChips(rating: Int?, modifier: Modifier = Modifier, onRating: (Int?) -
                     selectedBorderColor = MaterialTheme.colorScheme.primary
                 )
             )
+        }
+    }
+}
+
+/**
+ * A photograph a finger can read.
+ *
+ * Small print on a menu or a back label is the reason a picture is kept at all, and fit-to-screen is
+ * never enough for it. Pinch zooms between 1× and [MAX_ZOOM]; dragging moves the picture only once
+ * it is zoomed, and only as far as its edges allow, so the page cannot be shoved off the screen and
+ * left there.
+ */
+@Composable
+fun ZoomableImage(uri: Uri, modifier: Modifier = Modifier) {
+    var scale by remember(uri) { mutableStateOf(1f) }
+    var offset by remember(uri) { mutableStateOf(Offset.Zero) }
+    var viewport by remember(uri) { mutableStateOf(IntSize.Zero) }
+    Box(
+        modifier = modifier
+            .onSizeChanged { viewport = it }
+            .pointerInput(uri) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val next = (scale * zoom).coerceIn(1f, MAX_ZOOM)
+                    offset = if (next <= 1f) Offset.Zero else clampPan(offset + pan, next, viewport)
+                    scale = next
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        UriImage(
+            uri = uri,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+/** How far in a kept photograph can be pinched: enough for a menu's small print, not a microscope. */
+private const val MAX_ZOOM = 6f
+
+/** Pan stops at the picture's own edge, so zooming in never loses the image off screen. */
+private fun clampPan(current: Offset, scale: Float, viewport: IntSize): Offset {
+    val maxX = viewport.width * (scale - 1f) / 2f
+    val maxY = viewport.height * (scale - 1f) / 2f
+    return Offset(current.x.coerceIn(-maxX, maxX), current.y.coerceIn(-maxY, maxY))
+}
+
+/**
+ * A kept photograph, opened to be read: the whole screen, pinch to zoom, drag to move once zoomed.
+ *
+ * The dialog is full width on purpose — a page shown inside a dialog's default inset is a page shown
+ * at two-thirds scale, which is the problem this replaces.
+ */
+@Composable
+fun ZoomDialog(uri: Uri, onClose: () -> Unit) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Pinch to zoom · drag to move",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onClose) { Text("Close") }
+                }
+                ZoomableImage(
+                    uri = uri,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                )
+            }
         }
     }
 }

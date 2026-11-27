@@ -28,6 +28,12 @@ import java.time.LocalDate
 class CellarRepository(context: Context) {
 
     private val file = File(context.filesDir, "cellar.json")
+
+    /**
+     * Label photographs, one per wine, named after the record's id. Small and few — a label is not
+     * a page — but they are what a wrong vintage or a mistaken cuvée is settled against.
+     */
+    private val labelDir = File(context.filesDir, "label-photos")
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -47,6 +53,7 @@ class CellarRepository(context: Context) {
                     val cleaned = loaded.withPlaceholdersCleared()
                     _data.value = cleaned
                     if (cleaned != loaded) persist(cleaned)
+                    pruneLabelPhotos(cleaned)
                 }
         }
         if (_data.value.locations.isEmpty()) {
@@ -55,6 +62,37 @@ class CellarRepository(context: Context) {
     }
 
     fun wine(id: String?): Wine? = id?.let { key -> _data.value.wines.firstOrNull { it.id == key } }
+
+    /** The label photograph for a wine, when one was saved and the file is still there. */
+    fun labelPhoto(wine: Wine?): File? = wine?.photo
+        ?.takeIf { it.isNotBlank() }
+        ?.let { name -> File(labelDir, name).takeIf { it.isFile } }
+
+    /**
+     * Writes a scanned label beside the record it will belong to, and returns the name to store on
+     * it. Best effort: a phone with no room for the picture still gets the bottle, because losing a
+     * wine over a failed JPEG is the wrong trade.
+     */
+    suspend fun saveLabelPhoto(wineId: String, bytes: ByteArray): String =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                labelDir.mkdirs()
+                val name = "$wineId.jpg"
+                File(labelDir, name).writeBytes(bytes)
+                name
+            }.getOrDefault("")
+        }
+
+    /**
+     * Files whose wine is gone: a bottle deleted, or a scan that was read but never added. Nothing
+     * can ever reach them again, so they are dropped on the way in rather than counted for ever.
+     */
+    private fun pruneLabelPhotos(data: CellarData) {
+        val used = data.wines.map { it.photo }.filter { it.isNotBlank() }.toSet()
+        labelDir.listFiles()?.forEach { photo ->
+            if (photo.name !in used) runCatching { photo.delete() }
+        }
+    }
 
     private fun persist(next: CellarData) {
         runCatching { file.writeText(json.encodeToString(next)) }
@@ -69,7 +107,15 @@ class CellarRepository(context: Context) {
         val exists = current.wines.any { it.id == wine.id }
         val stamped = wine.copy(updatedAt = System.currentTimeMillis())
         val wines = if (exists) {
-            current.wines.map { if (it.id == wine.id) stamped else it }
+            current.wines.map {
+                if (it.id == wine.id) {
+                    // A save that never knew about the picture must not drop it: the photograph is a
+                    // fact about the bottle, and only a new one replaces it.
+                    stamped.copy(photo = stamped.photo.ifBlank { it.photo })
+                } else {
+                    it
+                }
+            }
         } else {
             current.wines + stamped
         }

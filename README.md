@@ -70,7 +70,13 @@ Gemini or Groq — with your own key.
   list's own copy when you have not. Thirty lists are kept, newest first, and each can be renamed
   or deleted. The photograph of the page is kept with it — a thumbnail in the index, the whole page
   on the list, tappable to read at full size — so a line the reading missed is still there to check.
-  Photos live in app storage and are not part of the JSON backup.
+  Photos live in app storage and are not part of the JSON backup. The whole page opens full screen,
+  where pinching zooms in and dragging moves it, for the print that no reading captures.
+- **The label you scanned** — a bottle added from a single-label scan keeps its photograph, shown
+  on the bottle's page and openable full screen with pinch-to-zoom. A shelf or menu frame is one
+  picture of several bottles, so it is not named as any one of their labels. Photos live in app
+  storage beside `cellar.json` and are not in the JSON backup; a photo whose wine is deleted is
+  cleaned up on the next start.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,

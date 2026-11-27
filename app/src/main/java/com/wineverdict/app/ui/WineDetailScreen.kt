@@ -1,5 +1,6 @@
 package com.wineverdict.app.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -84,6 +85,7 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     val rules = remember(profile) { AppGraph.palate.rules }
     var showNoteDialog by remember { mutableStateOf(false) }
     var drankOpen by remember { mutableStateOf(false) }
+    var showingLabel by remember { mutableStateOf(false) }
     val snackbarState = remember { SnackbarHostState() }
     var confirmDelete by remember { mutableStateOf(false) }
     var looking by remember { mutableStateOf(false) }
@@ -153,6 +155,21 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+
+            // The label as it was photographed. The record is the app's reading of this, and the
+            // reading is what everything else in the app works from — so when a vintage or a
+            // cuvée looks wrong, this is the thing to check it against.
+            AppGraph.cellar.labelPhoto(wine)?.let { label ->
+                SectionCard("The label you scanned") {
+                    UriImage(
+                        uri = Uri.fromFile(label),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                    )
+                    TextButton(onClick = { showingLabel = true }) { Text("Open full size") }
+                }
             }
 
             // Wraps rather than pushing the last badge off the edge, which is what happened to
@@ -437,6 +454,12 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                     Text(wine.flavorTags.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
                 }
             }
+        }
+    }
+
+    if (showingLabel) {
+        AppGraph.cellar.labelPhoto(wine)?.let { label ->
+            ZoomDialog(uri = Uri.fromFile(label)) { showingLabel = false }
         }
     }
 

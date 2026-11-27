@@ -3,6 +3,19 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.21: the page zooms, and a bottle keeps its label
+
+**A long menu was opened at fit-to-screen, which is exactly the size that is unreadable.** The kept
+page now opens full screen — the dialog's default inset is gone — and pinches between 1× and 6×,
+with dragging that follows the picture once it is zoomed and stops at its own edge so the page
+cannot be shoved off the screen.
+
+**The label a bottle was added from is kept too.** A single-label scan now writes its photograph
+beside the record and names it on the wine, and the bottle's page shows it under **The label you
+scanned**, openable full size with the same zoom. A shelf or menu frame is one photograph of several
+bottles, so it is not claimed as any one of their labels; a photo whose wine is deleted is pruned on
+the next start, and a save that never knew about the picture cannot drop it.
+
 ### 1.2.20: the page itself is kept with the list
 
 **The photograph was read and then thrown away.** A list is photographed at a table, transcribed

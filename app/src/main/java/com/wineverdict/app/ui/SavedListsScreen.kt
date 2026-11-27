@@ -389,34 +389,9 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
     }
 
     if (showingPage && page != null) {
-        // The whole page, as large as the screen allows: the point of keeping it is reading print
-        // that the reading did not capture, so this is the surface for it, not a thumbnail.
-        Dialog(onDismissRequest = { showingPage = false }) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        MaterialTheme.colorScheme.surface,
-                        RoundedCornerShape(16.dp)
-                    )
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                UriImage(
-                    uri = Uri.fromFile(page),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(520.dp),
-                    contentScale = ContentScale.Fit
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = { showingPage = false }) { Text("Close") }
-                }
-            }
-        }
+        // The whole page, full screen and zoomable: the point of keeping it is reading print the
+        // reading did not capture, and a menu at fit-to-screen is unreadable by design.
+        ZoomDialog(uri = Uri.fromFile(page)) { showingPage = false }
     }
 
     ratingWine?.let { wine ->

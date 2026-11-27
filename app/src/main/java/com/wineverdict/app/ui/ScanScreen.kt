@@ -241,6 +241,24 @@ fun ScanScreen(onReview: () -> Unit) {
             elapsed += 1
         }
     }
+    /**
+     * The label photograph, saved beside the record it belongs to.
+     *
+     * Only for a single-bottle label scan: a shelf or a menu frame is one photograph of several
+     * bottles, and naming that same picture on every one of them would claim the frame is each
+     * bottle's label. Best effort — a photo that cannot be written leaves the bottle as it was read,
+     * because the reading is the thing worth keeping.
+     */
+    suspend fun keepLabelPhoto(wineId: String): String {
+        val uri = imageUri ?: return ""
+        val read = scan ?: return ""
+        if (read.scene != Scene.BOTTLE || read.bottles.count { it.usable } != 1) return ""
+        return withContext(Dispatchers.IO) {
+            ImageUtils.jpegBytes(context, uri, maxDim = 1600, quality = 82)
+                .let { bytes -> AppGraph.cellar.saveLabelPhoto(wineId, bytes) }
+        }
+    }
+
     val queueItems by AppGraph.scanQueue.items.collectAsStateWithLifecycle()
     val queueWaitingUntil by AppGraph.scanQueue.waitingUntil.collectAsStateWithLifecycle()
     val queueRunning by AppGraph.scanQueue.running.collectAsStateWithLifecycle()
@@ -1528,8 +1546,14 @@ val idWine = remember(result) { result.bottles.associate { it.wine.id to it.wine
                             reReading = reReading,
                             onReRead = { reRead() },
                             onReview = {
-                                ScanHandoff.put(bottle.wine)
-                                onReview()
+                                // The bottle reaches the cellar through the editor, so the photo is
+                                // saved and named on the draft before the screen changes: the
+                                // record must not arrive pointing at a picture nobody wrote.
+                                scope.launch {
+                                    val photo = keepLabelPhoto(bottle.wine.id)
+                                    ScanHandoff.put(bottle.wine.copy(photo = photo))
+                                    onReview()
+                                }
                             }
                         )
                     } else {
