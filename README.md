@@ -128,8 +128,11 @@ Gemini or Groq — with your own key.
 - **Every bottle can carry its photograph** — a label scan keeps the picture it was read from, a
   wine added from a search comes with the photograph its page declares, and any bottle can be given
   one from the camera or the gallery. It sits beside the title as a thumbnail and opens full size
-  with pinch to zoom, which is what a wrong vintage or cuvée is checked against. The files are
-  app-private, so the JSON backup carries records rather than pictures.
+  with pinch to zoom, which is what a wrong vintage or cuvée is checked against — and the open
+  picture can be replaced or removed. **Settings → Bottle pictures** walks the bottles that have
+  none and asks the pages that name them for the photograph they publish (no model, no quota, one
+  bottle at a time, stoppable). The files are app-private, so the JSON backup carries records
+  rather than pictures.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.

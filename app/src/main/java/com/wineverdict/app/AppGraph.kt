@@ -11,6 +11,7 @@ import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.PalateStore
+import com.wineverdict.app.data.PhotoBackfill
 import com.wineverdict.app.data.SavedListStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
@@ -19,6 +20,7 @@ import com.wineverdict.app.data.TasteText
 import com.wineverdict.app.data.Updater
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
+import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +54,8 @@ object AppGraph {
     lateinit var insights: InsightStore
         private set
     lateinit var details: DetailsBackfill
+        private set
+    lateinit var photos: PhotoBackfill
         private set
     lateinit var updater: Updater
         private set
@@ -102,6 +106,20 @@ object AppGraph {
                 if (found.alcohol != null) found else found.copy(alcohol = ai.abvOf(wine))
             },
             save = { id, abv, result -> cellar.applyDetails(id, abv, result) },
+            scope = scope
+        )
+        // The same picture a search-added bottle gets, for the bottles already here: the pages that
+        // name each one, and the photograph the first of them declares. No model is asked, so this
+        // costs no quota — only the keyless search and the pages it names.
+        photos = PhotoBackfill(
+            wines = { cellar.data.value.wines },
+            find = { wine -> ai.bottleImageFor(wine) },
+            save = { id, bytes ->
+                // A page's picture arrives full size; it is kept at the size a scanned label is.
+                val small = ImageUtils.jpegBytes(bytes)
+                val name = if (small == null) "" else cellar.saveLabelPhoto(id, small)
+                if (name.isNotBlank()) cellar.attachPhoto(id, name)
+            },
             scope = scope
         )
         updater = Updater(app)

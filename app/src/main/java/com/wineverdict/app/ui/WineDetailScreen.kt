@@ -218,6 +218,12 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
         }
     }
 
+    /** Takes the picture off the bottle: the file and the field together, in one write. */
+    suspend fun removePhoto(id: String) {
+        AppGraph.cellar.clearPhoto(id)
+        snackbarState.showSnackbar("The picture was removed.")
+    }
+
     val photoCamera = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { kept ->
@@ -598,13 +604,19 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
     }
 
     if (photoMenu) {
+        val replacing = AppGraph.cellar.labelPhoto(wine) != null
         AlertDialog(
             onDismissRequest = { photoMenu = false },
-            title = { Text("Add a photo") },
+            title = { Text(if (replacing) "Replace the picture" else "Add a photo") },
             text = {
                 Text(
-                    "A photograph of this bottle, kept with it on the phone. The label is what a " +
-                        "vintage or a cuvée gets checked against later."
+                    if (replacing) {
+                        "Another photograph of this bottle replaces the one kept now. The old one " +
+                            "is deleted when the new one is saved."
+                    } else {
+                        "A photograph of this bottle, kept with it on the phone. The label is what " +
+                            "a vintage or a cuvée gets checked against later."
+                    }
                 )
             },
             confirmButton = {
@@ -632,9 +644,32 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
         )
     }
 
-    if (showingLabel) {
-        AppGraph.cellar.labelPhoto(wine)?.let { label ->
-            ZoomDialog(uri = Uri.fromFile(label)) { showingLabel = false }
+    if (showingLabel && wine != null) {
+        val shown = wine
+        AppGraph.cellar.labelPhoto(shown)?.let { label ->
+            ZoomDialog(
+                uri = Uri.fromFile(label),
+                onClose = { showingLabel = false }
+            ) {
+                // Replacing or removing a picture is decided while looking at it, so both sit
+                // here rather than in chrome the page would carry for one bottle in ten.
+                IconButton(
+                    onClick = {
+                        showingLabel = false
+                        photoMenu = true
+                    }
+                ) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Replace the picture")
+                }
+                IconButton(
+                    onClick = {
+                        showingLabel = false
+                        scope.launch { removePhoto(shown.id) }
+                    }
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Remove the picture")
+                }
+            }
         }
     }
 

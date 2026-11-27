@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontFamily
 import com.wineverdict.app.data.BackupFile
 import com.wineverdict.app.data.CrashLog
 import com.wineverdict.app.data.DetailsBackfill
+import com.wineverdict.app.data.PhotoBackfill
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.SpendMeter
@@ -84,6 +85,7 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
     val snackbarHostState = remember { SnackbarHostState() }
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val fill by AppGraph.details.progress.collectAsStateWithLifecycle()
+    val pictures by AppGraph.photos.progress.collectAsStateWithLifecycle()
     var showAi by remember { mutableStateOf(false) }
 
     var currency by remember { mutableStateOf(AppGraph.settings.currency) }
@@ -462,6 +464,45 @@ fun SettingsScreen(onOpenAdvancedTaste: () -> Unit = {}) {
                     }
                 }
                 fill.message?.let { message ->
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            SectionCard("Bottle pictures") {
+                val without = PhotoBackfill.pending(data.wines).size
+                Text(
+                    "${data.wines.size - without} of ${data.wines.size} bottles carry a picture — " +
+                        "the label that was scanned, the photograph the page declared when the wine " +
+                        "was added, or one taken on the bottle's own page, where it can also be " +
+                        "replaced or removed. This asks the pages that name each bottle for theirs: " +
+                        "no model, no quota, one bottle at a time, and a page that publishes none " +
+                        "leaves the bottle bare.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (pictures.running) {
+                    Text(
+                        "${(pictures.done + 1).coerceAtMost(pictures.total)} of " +
+                            "${pictures.total} · ${pictures.current}",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    TextButton(onClick = { AppGraph.photos.cancel() }) { Text("Stop") }
+                } else {
+                    OutlinedButton(
+                        onClick = { AppGraph.photos.start() },
+                        enabled = without > 0
+                    ) {
+                        Text(
+                            if (without > 0) "Find pictures for $without bottles"
+                            else "Every bottle has a picture"
+                        )
+                    }
+                }
+                pictures.message?.let { message ->
                     Text(
                         message,
                         style = MaterialTheme.typography.bodySmall,

@@ -402,7 +402,7 @@ fun SavedListScreen(listId: String?, onBack: () -> Unit) {
     if (showingPage && page != null) {
         // The whole page, full screen and zoomable: the point of keeping it is reading print the
         // reading did not capture, and a menu at fit-to-screen is unreadable by design.
-        ZoomDialog(uri = Uri.fromFile(page)) { showingPage = false }
+        ZoomDialog(uri = Uri.fromFile(page), onClose = { showingPage = false })
     }
 
     ratingWine?.let { wine ->

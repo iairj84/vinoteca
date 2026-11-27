@@ -242,7 +242,11 @@ private fun clampPan(current: Offset, scale: Float, viewport: IntSize): Offset {
  * at two-thirds scale, which is the problem this replaces.
  */
 @Composable
-fun ZoomDialog(uri: Uri, onClose: () -> Unit) {
+fun ZoomDialog(
+    uri: Uri,
+    onClose: () -> Unit,
+    actions: (@Composable () -> Unit)? = null
+) {
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -261,6 +265,9 @@ fun ZoomDialog(uri: Uri, onClose: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
+                    // The owner of the picture can offer what to do with it here — replacing or
+                    // removing a label is decided while looking at it, not from the page behind.
+                    actions?.invoke()
                     TextButton(onClick = onClose) { Text("Close") }
                 }
                 ZoomableImage(

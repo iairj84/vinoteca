@@ -257,6 +257,28 @@ class AiClient(
     suspend fun bottleImage(pageUrl: String): ByteArray? = web.pageImage(pageUrl)
 
     /**
+     * A picture for a bottle the app already holds, from a page that names it.
+     *
+     * The same keyless search the notes lookup makes, without the model: the first three pages that
+     * answer are asked whether they declare a picture, and a page has to carry the wine's own
+     * producer and name before its picture is trusted. Null when none of them does — a page that
+     * publishes no photograph is an answer, not a failure.
+     */
+    suspend fun bottleImageFor(wine: Wine): ByteArray? = withContext(Dispatchers.IO) {
+        val words = listOf(wine.producer, wine.name).filter { it.isNotBlank() }
+        if (words.isEmpty()) return@withContext null
+        val query = (words + listOfNotNull(wine.vintage?.toString())).joinToString(" ")
+        val hits = web.search(query)
+            .filter { it.url.startsWith("http") }
+            .take(3)
+        for (hit in hits) {
+            val picture = runCatching { web.pageImage(hit.url, words) }.getOrNull()
+            if (picture != null && picture.isNotEmpty()) return@withContext picture
+        }
+        null
+    }
+
+    /**
      * The bottlings a few typed words name, before any page has been read.
      *
      * The user's own words are the query — "2025 stoller rose" — and one keyless search plus one

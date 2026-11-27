@@ -79,15 +79,36 @@ class WebLookup {
      * thumbnail instead of a placeholder, for one request on top of the search that was already
      * paid for.
      *
-     * Null is a real answer — no card, a `data:` URI, a response that is not an image, or a picture
-     * too big to be worth keeping. Nothing is invented, and nothing is tried twice.
+     * [mentions] are the words the page has to carry before its picture is trusted. A photograph of
+     * the neighbouring bottling is worse than no photograph, so a search for a bottle the app
+     * already holds asks for its producer and its name rather than the first page that answers.
+     *
+     * Null is a real answer — no card, a page that does not name the wine, a `data:` URI, a
+     * response that is not an image, or a picture too big to be worth keeping. Nothing is invented,
+     * and nothing is tried twice.
      */
-    suspend fun pageImage(pageUrl: String): ByteArray? = withContext(Dispatchers.IO) {
-        if (!pageUrl.startsWith("http")) return@withContext null
-        val html = get(pageUrl).orEmpty()
-        val picture = imageUrl(html, pageUrl) ?: return@withContext null
-        download(picture)
+    suspend fun pageImage(pageUrl: String, mentions: List<String> = emptyList()): ByteArray? =
+        withContext(Dispatchers.IO) {
+            if (!pageUrl.startsWith("http")) return@withContext null
+            val html = get(pageUrl).orEmpty()
+            if (html.isBlank()) return@withContext null
+            if (!mentions(html, mentions)) return@withContext null
+            val picture = imageUrl(html, pageUrl) ?: return@withContext null
+            download(picture)
+        }
+
+    /** Whether the page says these words, ignoring case, accents and punctuation. */
+    private fun mentions(html: String, words: List<String>): Boolean {
+        val wanted = words.map { fold(it) }.filter { it.length >= 4 }
+        if (wanted.isEmpty()) return true
+        val page = fold(html)
+        return wanted.all { page.contains(it) }
     }
+
+    private fun fold(raw: String): String = java.text.Normalizer
+        .normalize(raw.lowercase(), java.text.Normalizer.Form.NFD)
+        .replace(Regex("\\p{Mn}+"), "")
+        .filter { it.isLetterOrDigit() }
 
     /**
      * The card image a page declares, resolved against the page's own address. Null when it

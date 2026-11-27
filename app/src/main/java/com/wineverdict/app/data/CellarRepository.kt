@@ -97,6 +97,20 @@ class CellarRepository(context: Context) {
     }
 
     /**
+     * Takes the photograph off a record, and deletes the file behind it.
+     *
+     * Both or neither: a file with no record is a file nothing can ever reach again, and a record
+     * naming a file that is gone is a thumbnail that never loads.
+     */
+    suspend fun clearPhoto(wineId: String) = mutate { current ->
+        current.wines.firstOrNull { it.id == wineId }
+            ?.photo
+            ?.takeIf { it.isNotBlank() }
+            ?.let { name -> runCatching { File(labelDir, name).delete() } }
+        current.copy(wines = current.wines.map { if (it.id == wineId) it.copy(photo = "") else it })
+    }
+
+    /**
      * Files whose wine is gone: a bottle deleted, or a scan that was read but never added. Nothing
      * can ever reach them again, so they are dropped on the way in rather than counted for ever.
      */

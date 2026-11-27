@@ -3,6 +3,27 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.37: a picture for the bottles already here, and a way to change the wrong one
+
+**1.2.36 gave a picture to a wine added from a search, and left the bottles already in the cellar
+bare.** And once a picture was there, the page could add the first one and nothing else: a label
+scanned by mistake, or a shop's stock shot of the wrong bottling, had to stay.
+
+- **Settings → Bottle pictures** walks the bottles that have none, asks the pages that name each one
+  (producer and name, at most three pages) for the photograph they declare, and keeps the first
+  that answers. No model, so no quota and no API key; one bottle at a time with a pause between
+  them, stoppable, and a run that is stopped carries on from where it had reached.
+- **The page has to name the wine.** Producer and name are matched against the page before its
+  picture is taken, folding case, accents and punctuation — a photograph of the neighbouring
+  bottling is worse than no photograph.
+- **A page that publishes none is an answer**, not a failure: the bottle stays bare and the
+  thumbnail keeps offering the camera, which is the honest record of that shop.
+- **Replace or remove the picture from the picture itself.** Opening the label now carries
+  **Replace** (camera or gallery, overwriting the file) and **Remove** (the file and the field
+  deleted together, so no orphan is left). The thumbnail then goes back to offering a camera.
+- **Nothing is replaced automatically.** The job only touches bottles with no picture, so a label
+  you scanned or a photograph you chose is never written over.
+
 ### 1.2.36: the bottle's own picture, on its page
 
 **A bottle had a photograph only if it had been scanned as a label.** Everything else — typed in,
