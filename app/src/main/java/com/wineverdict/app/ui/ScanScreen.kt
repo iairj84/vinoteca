@@ -69,6 +69,7 @@ import com.wineverdict.app.data.BuyAdvice
 import com.wineverdict.app.data.DebugScan
 import com.wineverdict.app.data.ImportRow
 import com.wineverdict.app.data.InsightStore
+import com.wineverdict.app.data.priorFor
 import com.wineverdict.app.data.ListIdentity
 import com.wineverdict.app.data.ListPicks
 import com.wineverdict.app.data.PairingTable
@@ -262,6 +263,10 @@ fun ScanScreen(onReview: () -> Unit) {
         }
     }
 
+    // The reader's own history, read once for the screen: "have I had this?" is matched against
+    // the cellar and the drink log for every wine on the page.
+    val cellarNow by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val drankNow by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
     val queueItems by AppGraph.scanQueue.items.collectAsStateWithLifecycle()
     val queueWaitingUntil by AppGraph.scanQueue.waitingUntil.collectAsStateWithLifecycle()
     val queueRunning by AppGraph.scanQueue.running.collectAsStateWithLifecycle()
@@ -1470,6 +1475,18 @@ fun ScanScreen(onReview: () -> Unit) {
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
+                                    // "You have had this", said before the advice rather than
+                                    // after it: it is the one thing on this card that is already
+                                    // known to be true.
+                                    bottleById[card.rowId]?.let { picked ->
+                                        priorFor(picked.wine, cellarNow.wines, drankNow)?.let { known ->
+                                            Text(
+                                                known.summary,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
                                     // What it is, then why it is first: a name and a producer blurb
                                     // leave the reader exactly where they started.
                                     if (shownWhat.isNotBlank()) {
@@ -1798,6 +1815,9 @@ private fun adviceUnitLine(service: Service?): String = when (service) {
 @Composable
 private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>, shop: Boolean = false) {
     if (advice.picks.isEmpty()) return
+    // The reader's own history, read once for the whole answer rather than once per card.
+    val cellarNow by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val drankNow by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
     // Which pour the answer is read in. The ranked section carried this before advice replaced it,
     // and it is the first question at a table: a list that pours by the glass and one that only
     // sells bottles need different answers, and the advice was written for both.
@@ -1866,6 +1886,17 @@ private fun AdviceBlock(advice: ListAdvice, bottles: List<ScannedLabel>, shop: B
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    // The one line on this pick that is already known to be true: you have had it,
+                    // or you own it — said before the reason, not after it.
+                    priorFor(bottle.wine, cellarNow.wines, drankNow)?.let { known ->
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Pill(known.summary, color = MaterialTheme.colorScheme.primaryContainer)
+                            known.verdict?.let { Pill(it) }
+                        }
                     }
                     if (pick.headline.isNotBlank()) {
                         Text(pick.headline, style = MaterialTheme.typography.bodyMedium)
@@ -2093,6 +2124,19 @@ private fun BottleVerdictCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // What this wine already is to you — on the shelf, opened before, judged — which is the
+            // one question a printed menu can never answer and this app can.
+            val cellarNow by AppGraph.cellar.data.collectAsStateWithLifecycle()
+            val drankNow by AppGraph.drinks.drinks.collectAsStateWithLifecycle()
+            priorFor(result.wine, cellarNow.wines, drankNow)?.let { known ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Pill(known.summary, color = MaterialTheme.colorScheme.primaryContainer)
+                    known.verdict?.let { Pill(it) }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                 val money = result.wine.currency.ifBlank { currency }
                 val bottle = result.wine.price

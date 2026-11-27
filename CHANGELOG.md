@@ -3,6 +3,20 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.28: a menu now says which wines you have had
+
+**Scanning a menu could not tell you that you already knew three of its wines.** The reader matched
+nothing against the cellar unless you pressed a button, so the one question a printed menu can never
+answer — have I had this, and what did I think — was left to memory.
+
+Every wine on the page is now matched by identity, producer, cuvée and vintage folded for case and
+accents, and each card carries the answer before the advice: **In your cellar · 2 bottles**, **You had
+this yesterday** (from the drink log, with the day said the way the question would say it), **On
+record, no bottles** for a wine you finished or kept, and the verdict word when one was ever given —
+the bottle's own word first, then the last night's. A wine the app knows nothing about says nothing,
+because "not in your cellar" under every line on a menu is noise. The advice picks carry the same
+line, so the wines it recommends are the ones you can see you have already loved.
+
 ### 1.2.27: ordering a bottle you already own no longer duplicates it
 
 **"Noted for the glass" put a second row of the same bottle in the cellar.** The order button wrote

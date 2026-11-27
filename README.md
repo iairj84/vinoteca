@@ -32,6 +32,10 @@ Gemini or Groq — with your own key.
   — so you know the pick is one more bottle on that record, not a new one. **Scan the label** and
   **Type it in** are in the same dialog. The cellar's own search box still just narrows the list to
   bottles you own.
+- **Have I had this?** — every wine read off a menu or a shelf is matched against the cellar and
+  the drink log by producer, cuvée and vintage, and the card says so before the advice: "In your
+  cellar · 2 bottles", "You had this yesterday", "On record, no bottles", with the verdict word when
+  one was ever given. A wine the app knows nothing about says nothing.
 - **In a shop or at a restaurant** — photo → the model reads the bottles, the ABV and any visible
   price. A shop shelf gets a buying answer: up to three bottles worth taking, each with the price
   from the photo, why it earns the spot and — when a price is printed — whether that price is good,
