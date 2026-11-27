@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,13 +75,23 @@ private enum class CellarFilter(val label: String) {
     WHITE("White"),
     SPARKLING("Sparkling"),
     READY("Ready now"),
-    LOVED("Loved")
+    LOVED("Loved"),
+    // A wine on record with no bottles: kept off a list, or every bottle drunk. It used to be
+    // reachable only by scrolling to the bottom of the cellar. Label says what it shows, because
+    // a saved wine and a bottle you finished are the same thing to the record.
+    EMPTY("No bottles")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: () -> Unit) {
+fun CellarScreen(
+    onOpenWine: (String) -> Unit,
+    onAddWine: () -> Unit,
+    onScan: () -> Unit,
+    onOpenLists: () -> Unit
+) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
+    val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
     // A candidate the cellar already holds is a second bottle, not a twin: the same identity the
     // add matches on, so a card can say what the tap will do before it is tapped.
     val owned = remember(data) {
@@ -209,6 +220,46 @@ fun CellarScreen(onOpenWine: (String) -> Unit, onAddWine: () -> Unit, onScan: ()
                     ready = stats.readyToDrink,
                     value = formatMoney(stats.invested, stats.currency)
                 )
+            }
+            if (savedLists.isNotEmpty()) {
+                item {
+                    // The lists are a place of their own, not a filter: a list is an evening with
+                    // its prices and its picks, which no cellar row can say.
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenLists),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(
+                                start = 14.dp,
+                                end = 6.dp,
+                                top = 8.dp,
+                                bottom = 8.dp
+                            ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Saved lists", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    (if (savedLists.size == 1) "1 list · " else "${savedLists.size} lists · ") +
+                                        savedLists.first().title,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                Icons.Filled.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
             }
             item {
                 OutlinedTextField(
@@ -664,6 +715,7 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
                 com.wineverdict.app.model.DrinkStatus.PEAK
             )
         CellarFilter.LOVED -> Verdict.liked(wine)
+        CellarFilter.EMPTY -> wine.quantity <= 0
     }
     if (!filterMatch) return false
     if (query.isBlank()) return true

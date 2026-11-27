@@ -49,13 +49,23 @@ Gemini or Groq — with your own key.
   drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters. Every
   bottle with stock carries **Drank one**, which takes it out of the cellar on the tap and then asks
   for the verdict and one line about it; Skip keeps the bottle counted as drunk and says nothing more.
+  A **No bottles** filter shows every wine on record with none left — the wines kept off a list and
+  the bottles you finished — instead of leaving them at the bottom of the list, and a **Saved lists**
+  card above the search opens a wine list you kept.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
   card in the full read does too. It keeps the wine with no bottles: it never counts as stock or
   value, but it gets a page, so the four words and the notes work on a wine that was never in the
   cellar and never will be. A wine already on the shelf is left exactly as it is, and the line says
-  which of the two it found.
+  which of the two it found. Kept wines are found under Cellar's **No bottles** filter, not by
+  scrolling.
+- **Saved lists** — a restaurant wine list is kept when it is read: the wines as the page printed
+  them, the day, the answer's picks and its closing note, under a name you give it (the restaurant,
+  usually; until then it is titled by its date). Open one from Cellar and give any wine on it a
+  verdict — the answer is written on the cellar record when you have kept that wine, and on the
+  list's own copy when you have not. Thirty lists are kept, newest first, and each can be renamed
+  or deleted.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,
@@ -63,8 +73,9 @@ Gemini or Groq — with your own key.
   estimated. A lookup that does not answer is not written off: it is asked again next time, and
   **Look again** re-asks the bottles whose pages had nothing to say.
 - **One reminder** — an hour after a wine list is read, a single notification asks how the wines
-  were and opens the app. A second list replaces the first nudge, the permission is asked for when
-  the list is read rather than at first launch, and nothing else is ever posted.
+  were and **reopens that list**, not the app's front door. A second list replaces the first nudge,
+  the permission is asked for when the list is read rather than at first launch, and nothing else is
+  ever posted.
 - **Ask** — chat with your cellar in context: “Recommend a wine from my cellar to go with chicken
   pot pie”, “What's at its best right now?”, or attach a photo taken in the shop.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a

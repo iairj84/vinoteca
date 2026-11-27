@@ -10,6 +10,7 @@ import com.wineverdict.app.data.PalateFile
 import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.PalateStore
+import com.wineverdict.app.data.SavedListStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.TasteStore
@@ -42,6 +43,8 @@ object AppGraph {
     lateinit var ai: AiClient
         private set
     lateinit var scanQueue: ScanQueue
+        private set
+    lateinit var lists: SavedListStore
         private set
     lateinit var insights: InsightStore
         private set
@@ -79,6 +82,7 @@ object AppGraph {
             )
         }
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
+        lists = SavedListStore(app)
         // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
         insights = InsightStore(app, ai, cellar) { taste.brief() }
         // One job for everything a bottle is missing: published notes, flavour words and the ABV
@@ -103,6 +107,7 @@ object AppGraph {
             taste.load()
             insights.load()
             scanQueue.load()
+            lists.load()
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
             // mytaste.md is a projection of the stored answers, and Ask sends that file. An upgrade

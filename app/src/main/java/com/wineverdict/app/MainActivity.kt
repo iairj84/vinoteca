@@ -1,10 +1,14 @@
 package com.wineverdict.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import com.wineverdict.app.data.CrashLog
+import com.wineverdict.app.data.Reminders
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -37,6 +41,8 @@ import com.wineverdict.app.ui.AdvancedTasteScreen
 import com.wineverdict.app.ui.CellarScreen
 import com.wineverdict.app.ui.ChatScreen
 import com.wineverdict.app.ui.QuickStartScreen
+import com.wineverdict.app.ui.SavedListScreen
+import com.wineverdict.app.ui.SavedListsScreen
 import com.wineverdict.app.ui.ScanScreen
 import com.wineverdict.app.ui.SettingsScreen
 import com.wineverdict.app.ui.TasteScreen
@@ -45,16 +51,35 @@ import com.wineverdict.app.ui.WineEditorScreen
 import com.wineverdict.app.ui.theme.WineVerdictTheme
 
 class MainActivity : ComponentActivity() {
+    /**
+     * The list a reminder asked for, read from the intent that opened the screen.
+     *
+     * A notification that opened the cellar left the user to find their own way back to the list
+     * they had just photographed, an hour earlier and in the middle of a meal. The id travels with
+     * the intent instead, and the graph opens that list once it is up.
+     */
+    private val askedForList = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Before anything else: an error during start-up is exactly the kind nobody can reproduce.
         CrashLog.install(applicationContext)
         AppGraph.init(applicationContext)
+        askedForList.value = intent?.getStringExtra(Reminders.EXTRA_LIST)
         setContent {
             WineVerdictTheme {
-                AppRoot()
+                AppRoot(
+                    askedForList = askedForList.value,
+                    onListOpened = { askedForList.value = null }
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        askedForList.value = intent.getStringExtra(Reminders.EXTRA_LIST)
     }
 }
 
@@ -69,11 +94,16 @@ private val tabs = listOf(
 )
 
 @Composable
-private fun AppRoot() {
+private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = tabs.any { it.route == currentRoute }
+    LaunchedEffect(askedForList) {
+        val id = askedForList ?: return@LaunchedEffect
+        navController.navigate("list/$id")
+        onListOpened()
+    }
 
     Scaffold(
         bottomBar = {
@@ -145,7 +175,23 @@ private fun AppRoot() {
                             launchSingleTop = true
                             restoreState = true
                         }
-                    }
+                    },
+                    onOpenLists = { navController.navigate("lists") }
+                )
+            }
+            composable("lists") {
+                SavedListsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenList = { id -> navController.navigate("list/$id") }
+                )
+            }
+            composable(
+                route = "list/{listId}",
+                arguments = listOf(navArgument("listId") { type = NavType.StringType })
+            ) { entry ->
+                SavedListScreen(
+                    listId = entry.arguments?.getString("listId"),
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable("scan") {

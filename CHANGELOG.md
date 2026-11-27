@@ -3,6 +3,29 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.17: the list is kept, and the reminder reopens it
+
+**The list was the one thing the scan did not keep.** A restaurant's menu was read, the picks were
+made, and an hour later the only trace was a notification that opened the cellar — with the wines
+never recorded and no way back to the page they came from. A list is now kept when it is read: its
+wines as the page printed them, the day, the answer's picks and its closing note.
+
+**It has a place of its own.** Cellar carries a **Saved lists** card above the search, and each list
+opens to its wines, each tapping to the four words and one line. The verdict is written where the
+wine lives: on the cellar record when you have kept that wine, on the list's own copy when you
+have not — so one wine never ends up with two answers that disagree. A list starts titled by its
+date; naming it after the restaurant is one tap from the list index, which is also where it is
+deleted. Thirty are kept, newest first.
+
+**The reminder now opens that list.** The nudge carries the kept list's id into the activity, so a
+tap lands on that evening's wines instead of the cellar. Keeping is idempotent for one day — the
+same page read twice (the phone's pass, then the model's answer on top) is one record — so the
+reminder always has a single list to point at.
+
+**Saved wines are no longer buried.** They sorted to the bottom by design, which left them findable
+only by scrolling past every bottle, so Cellar gains a **No bottles** filter: the wines kept off a
+list and the bottles you finished, in one place.
+
 ### 1.2.16: an hour after the list, one reminder
 
 **The wines were photographed and then never recorded.** A list is read at a table, the wines are

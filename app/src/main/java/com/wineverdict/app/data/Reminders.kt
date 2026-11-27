@@ -15,6 +15,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.wineverdict.app.MainActivity
 import com.wineverdict.app.R
 import java.util.concurrent.TimeUnit
@@ -40,16 +41,26 @@ object Reminders {
     private const val WORK = "list-review"
     private const val NOTIFICATION_ID = 1201
 
+    /** The intent extra that turns the tap into that evening's list rather than the cellar. */
+    const val EXTRA_LIST = "com.wineverdict.app.extra.LIST"
+
+    /** Work input: which list the nudge is about. Internal so the worker can read it back. */
+    internal const val KEY_LIST = "list"
+
     /** How long after a list is read the nudge arrives. */
     const val DELAY_MINUTES = 60L
 
     /**
-     * Books the nudge. A second list replaces the first one's reminder: two notifications for one
-     * evening is noise, and the newest list is the one whose wines are still in reach.
+     * Books the nudge for one kept list. A second list replaces the first one's reminder: two
+     * notifications for one evening is noise, and the newest list is the one whose wines are still
+     * in reach. The list's id travels with the work, so the notification opens that list.
      */
-    fun scheduleListReview(context: Context) {
+    fun scheduleListReview(context: Context, listId: String?) {
         val request = OneTimeWorkRequestBuilder<ListReviewWorker>()
             .setInitialDelay(DELAY_MINUTES, TimeUnit.MINUTES)
+            .setInputData(
+                if (listId.isNullOrBlank()) workDataOf() else workDataOf(KEY_LIST to listId)
+            )
             .build()
         WorkManager.getInstance(context)
             .enqueueUniqueWork(WORK, ExistingWorkPolicy.REPLACE, request)
@@ -71,7 +82,7 @@ object Reminders {
             true
         }
 
-    fun post(context: Context) {
+    fun post(context: Context, listId: String?) {
         // The worker can run after the permission was revoked: the reminder is then dropped rather
         // than thrown, because a notification nobody allowed is not worth a crash report.
         if (!canNotify(context)) return
@@ -91,6 +102,7 @@ object Reminders {
             0,
             Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                if (!listId.isNullOrBlank()) putExtra(EXTRA_LIST, listId)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -98,13 +110,24 @@ object Reminders {
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("How was the wine?")
             .setContentText(
-                "You scanned a wine list an hour ago. Give what you drank a verdict while you " +
-                    "still remember it."
+                if (listId.isNullOrBlank()) {
+                    "You read a wine list an hour ago. Give what you drank a verdict while you " +
+                        "still remember it."
+                } else {
+                    "The list you kept is an hour old. Open it and say what the wines were like " +
+                        "while you still remember."
+                }
             )
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(
-                    "You scanned a wine list an hour ago. Give what you drank a verdict while you " +
-                        "still remember it — the wines you kept are in Cellar with no bottles."
+                    if (listId.isNullOrBlank()) {
+                        "You read a wine list an hour ago. Give what you drank a verdict while " +
+                            "you still remember it."
+                    } else {
+                        "The list you kept is an hour old. Tap to reopen it and say what the " +
+                            "wines were like — every wine on it can be given a verdict, and the " +
+                            "ones you want to remember can be kept with no bottles."
+                    }
                 )
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -119,7 +142,7 @@ object Reminders {
 /** Runs an hour after a list was read, even if the app has been closed since. */
 class ListReviewWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result {
-        Reminders.post(applicationContext)
+        Reminders.post(applicationContext, inputData.getString(Reminders.KEY_LIST))
         return Result.success()
     }
 }

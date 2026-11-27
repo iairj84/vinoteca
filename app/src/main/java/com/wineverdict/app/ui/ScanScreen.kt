@@ -211,7 +211,12 @@ fun ScanScreen(onReview: () -> Unit) {
     LaunchedEffect(scan) {
         val read = scan ?: return@LaunchedEffect
         if (read.scene != Scene.LIST || read.bottles.isEmpty()) return@LaunchedEffect
-        Reminders.scheduleListReview(context)
+        // Kept first, then reminded: the nudge carries the list's id, so the tap lands on that
+        // evening's wines instead of on the cellar. Keeping is idempotent for one day, so the
+        // second read of the same page (the model's answer on top of the phone's) is the same
+        // record rather than a duplicate.
+        val kept = AppGraph.lists.keep(read)
+        Reminders.scheduleListReview(context, kept?.id)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             !Reminders.canNotify(context)
         ) {
@@ -1277,6 +1282,16 @@ fun ScanScreen(onReview: () -> Unit) {
                     (restaurant || result.scene == Scene.SHELF)
                 ) {
                     AdviceBlock(advice = advice, bottles = result.bottles, shop = !restaurant)
+                }
+                if (restaurant && result.bottles.isNotEmpty()) {
+                    // Said plainly, because a list that quietly keeps itself is a list nobody looks
+                    // for again. This is where the reminder will land.
+                    Text(
+                        "Kept with today's date — reopen it any time from Cellar › Saved lists, " +
+                            "and name it after the restaurant if you want it findable.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
                 }
                 if (ranking != null) {
                     // The older per-wine judgement looks the same on screen, so say which one this
