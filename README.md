@@ -76,9 +76,10 @@ Gemini or Groq — with your own key.
   OpenStreetMap through komoot's Photon, with the places you have saved first in the list and the
   phone's own geocoder answering with an address when Photon has nothing. The location icon takes
   one fix and tags what is there: a saved place's circle first (*Home*, a friend's house), then a
-  named business within about eighty metres, and **nothing** for a house — a street number is not a
+  named business within about a hundred yards, and **nothing** for a house — a street number is not a
   place anybody said. Somewhere with no name offers **Save this spot**, which names it and gives it
-  a circle of its own: 45 m by default, adjustable per place, and renamed or re-cut in
+  a circle of its own: 50 yards by default, and 25, 50, 100, 200 or 500 yards per place, renamed or
+  re-cut in
   **Settings → Saved places**. Location is asked for the first time anything is typed in the box,
   because half a name needs to know the town before it can find the branch down the road; the icon
   asks too, for a place that was never typed. Refused, the box is exactly what it was before — the

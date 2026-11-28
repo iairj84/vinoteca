@@ -3,6 +3,20 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.56: the circle is drawn in yards
+
+**The radius picker said metres.** Twenty-five metres, forty-five, three hundred — numbers nobody
+chose, on a screen whose whole job is to ask how far from the pin still counts as here.
+
+- **The circles are 25, 50, 100, 200 and 500 yards**, and a new place starts on the fifty. Every
+  one of them reads as a round number, because a circle is drawn by eye and "49 yd" would be
+  precision nobody asked for.
+- **Everything that says a distance says it the same way**: the sentence under the picker ("A circle
+  of about 50 yd around the spot"), the line beside each saved place in Settings, and the reach for
+  naming a business from a fix — a hundred yards, which is what eighty metres was.
+- **Nothing stored changed.** A radius is still one integer of metres, so places saved by 1.2.54 and
+  1.2.55 read naturally (150 m is 165 yd) and the backup format did not move.
+
 ### 1.2.55: a half-typed place finds the one down the road
 
 **Typing "Loyal L" on a phone that had never been asked found a town in Kentucky.** The search is
