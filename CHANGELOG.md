@@ -3,6 +3,42 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.59: the place answer is proved, not promised
+
+**The research path had never actually run.** 1.2.58 added the lookup, but its confirmation pass met
+a search engine that throttles this host, so the composed reply had only ever been exercised against
+test data. Asked the question that started it — *where should I go for dinner tonight in Portland
+with good wine?* — the app now answers from pages it read during that question, and the release was
+built with the transcript of that run.
+
+- **The map, not a search engine.** The town's wine places come from OpenStreetMap: Nominatim first,
+  asked for *wine bar*, *winery* and *wine* inside the town's own bounding box, with addresses,
+  opening hours and websites. Overpass is the second opinion for the bars whose name says wine. Both
+  are keyless, both answer for the town asked about, and neither hands a burst of questions to a
+  search engine that can refuse the phone.
+- **The address is the town check.** A Portland, Oregon question keeps only entries whose own
+  address is in Oregon: the live run's own reply included a Vancouver, Washington winery and a
+  Portland Wine Storage *company*, and both are now dropped before the model is asked.
+- **The page is the evidence.** A venue is only numbered for the model after its own site loaded,
+  named the place, used a wine word, said nothing about being closed, and agreed it is in the town.
+  A lapsed domain that now serves something else — one Portland merchant's site answered with a
+  crypto-casino page — is not evidence and disappears. Two records of the same winery are one
+  recommendation: the second page is the same page.
+- **Hours are read, and places with them come first.** The page budget is four, so the order
+  decides what the model sees: somewhere to sit down that says when it is open is read before a
+  shop that does not.
+- **Busy is a reply, not a red card.** When neither map source answers, the assistant says it could
+  not check anywhere just now, that nothing was guessed, and to ask again in a minute — in the
+  conversation, not as an error banner. No venue is named from memory.
+- **A town's answer is reused for twenty minutes** and the map is asked once, so a second question
+  at the same table ("what about something cheaper?") costs no requests; Nominatim calls are spaced
+  a second apart, which is its published policy.
+- **Proved live.** The instrument in the app's own test set runs the production research path for
+  the failed question end to end and keeps its transcript: the query, all 22 places with their
+  addresses and hours, each page's length and closure verdict, the numbered evidence, the model's
+  raw pick, and the reply a user reads — two places, each with a page fetched in that run, none
+  marked closed, each evidenced in Portland, Oregon.
+
 ### 1.2.58: the sommelier looks places up, and checks them
 
 **Three closed restaurants in a row.** Asked “Where should I go for dinner tonight in Portland with

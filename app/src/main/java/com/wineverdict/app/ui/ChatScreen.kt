@@ -59,6 +59,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
+import com.wineverdict.app.ai.AiException
 import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.ProposalParsing
 import com.wineverdict.app.ai.PlaceScout
@@ -153,8 +154,18 @@ fun ChatScreen() {
                             val reply = if (resolved == null) {
                                 PlaceScout.askWhere(ask)
                             } else {
-                                AppGraph.ai.scout(resolved, AppGraph.taste.brief())?.text()
-                                    ?: PlaceScout.noEvidence(resolved)
+                                // A lookup that is refused is an answer too: "cannot check right now"
+                                // belongs in the conversation, not in the red error card, and it
+                                // must never turn into a place named from memory.
+                                try {
+                                    AppGraph.ai.scout(resolved, AppGraph.taste.brief()).text()
+                                } catch (e: AiException) {
+                                    if (!e.retryable) throw e
+                                    PlaceScout.cannotConfirm(
+                                        resolved,
+                                        e.message.orEmpty().replace(Regex("\\s+"), " ").take(200)
+                                    )
+                                }
                             }
                             AppGraph.chat.append(ChatMessage(role = "assistant", text = reply))
                             return@launch
@@ -474,20 +485,14 @@ private suspend fun locatePlace(ask: PlaceScout.Ask, context: Context): PlaceSco
         // would only delay the searches.
         if (ask.where.contains(',')) return ask
         val here = townOnThisPhone(context) ?: return ask
-        return if (sameTown(here.city, ask.where)) ask.copy(where = withRegion(here)) else ask
+        return if (PlaceScout.sameTown(here.city, ask.where)) {
+            ask.copy(where = PlaceScout.townWithRegion(here.city, here.region))
+        } else {
+            ask
+        }
     }
     val here = townOnThisPhone(context) ?: return null
-    return ask.copy(where = withRegion(here))
-}
-
-private fun withRegion(hit: PlaceHit): String =
-    if (hit.region.isBlank()) hit.city else "${hit.city}, ${hit.region}"
-
-private fun sameTown(city: String, asked: String): Boolean {
-    val here = Search.fold(city)
-    val there = Search.fold(asked)
-    if (here.isBlank() || there.isBlank()) return false
-    return here == there || here.startsWith("$there ") || there.startsWith("$here ")
+    return ask.copy(where = PlaceScout.townWithRegion(here.city, here.region))
 }
 
 /** The business the phone is standing in, which is also the town it is in. */

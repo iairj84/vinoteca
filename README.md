@@ -173,15 +173,19 @@ Gemini or Groq — with your own key.
   offered again.
 - **Ask looks places up instead of remembering them** — “Where should I go for dinner in Portland
   with good wine?” used to come back as three restaurants that had been closed for years, because
-  the answer was the model's memory of a city it has never been to. Now the app does the looking:
-  it searches for names, gives each name its own confirmation search, drops any place a page marks
-  closed (*permanently closed*, *closed for good*, *closed in 2023* — but not *closed Sundays*),
-  opens the pages, and only then asks the sommelier which of those numbered places to pick and why.
-  The reply is written by the app from the fetched record — the name, the source and what the page
-  actually says — so a restaurant the model remembers cannot reach the screen. A town with a twin
-  (Portland, Oregon and Portland, Maine) is settled by the phone's own state when it is standing in
-  the town being asked about. When the pages confirm nothing, or the search engine is busy, the
-  answer says that plainly rather than falling back to a guess.
+  the answer was the model's memory of a city it has never been to. Now the app does the looking,
+  from the map rather than from a search engine: OpenStreetMap entries inside the town's own
+  boundary (Nominatim, with Overpass as the second opinion), each carrying the address, hours and
+  website that make it a fact. A place is only offered to the sommelier after its own page loaded,
+  named the place, used a wine word, said nothing about being closed, and agreed it is in the town
+  asked about — a lapsed domain that now serves something else is not evidence. A page that says
+  *permanently closed*, *closed for good* or *closed in 2023* removes the place (but *closed
+  Sundays* does not). The reply is written by the app from the fetched record — the name, the host
+  and what the page actually says — so a restaurant the model remembers cannot reach the screen. A
+  town with a twin (Portland, Oregon and Portland, Maine) is settled by the phone's own state when
+  it is standing in the town being asked about, and other states' addresses are dropped. When the
+  pages confirm nothing, or the map is at capacity, the answer says it could not check right now
+  rather than falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

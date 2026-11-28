@@ -1,5 +1,6 @@
 package com.wineverdict.app.ai
 
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -225,6 +226,129 @@ class PlaceScoutTest {
         val text = report.text(on = "2026-11-28")
         assertTrue(text.contains("Coquine"))
         assertTrue(text.contains("coquine.com"))
+    }
+
+    @Test
+    fun thePipelineDropsAClosedVenueAndOneInAnotherTown() = runBlocking {
+        val ask = place("Where should I go for dinner in Portland, Oregon with good wine?")!!
+        val venues = listOf(
+            PlaceScout.Venue("Bar Diane", "https://bardiane.com/", address = "Powell Blvd, Portland, OR"),
+            PlaceScout.Venue("Closed Room", "https://closed.example/", address = "1 SW A St, Portland, OR"),
+            PlaceScout.Venue("Maine Bar", "https://maine.example/", address = "1 Main St, Portland, ME"),
+            PlaceScout.Venue("Stem", "https://stem.example/", address = "N Mississippi Ave, Portland, OR")
+        )
+        val pages = mapOf(
+            "https://bardiane.com/" to "Bar Diane is a natural wine bar in Portland, Oregon. Open nightly.",
+            "https://closed.example/" to "This bar has permanently closed. Thank you for 20 years.",
+            "https://maine.example/" to "A wine bar in Portland, Maine, with a long list.",
+            "https://stem.example/" to "Stem Wine Bar on N Mississippi in Portland, by the glass."
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask) = venues
+            override suspend fun page(url: String) = pages[url].orEmpty()
+            override suspend fun pick(system: String, evidence: String): String {
+                assertTrue(evidence.indexOf("Bar Diane") < evidence.indexOf("Stem"))
+                assertTrue(evidence.contains("address: Powell Blvd, Portland, OR"))
+                assertFalse(evidence.contains("Closed Room"))
+                assertFalse(evidence.contains("Maine Bar"))
+                return """{"picks":[{"line":1,"why":"a natural-wine bar on Powell"},""" +
+                    """{"line":2,"why":"by the glass on Mississippi"}],"note":"both open late"}"""
+            }
+        }
+        val report = PlaceScout.research(ask, "I like restrained oak", sources)
+        assertEquals(listOf("Bar Diane", "Stem"), report.venues.map { it.name })
+        val text = report.text(on = "2026-11-28")
+        assertTrue(text.contains("Bar Diane (bardiane.com)"))
+        assertTrue(text.contains("Stem (stem.example)"))
+        assertFalse(text.contains("Closed Room"))
+        assertFalse(text.contains("Maine Bar"))
+    }
+
+    @Test
+    fun aVenueWithNoReadablePageIsNotRecommended() = runBlocking {
+        val ask = place("Where should I go for dinner in Portland with good wine?")!!
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask) = listOf(
+                PlaceScout.Venue("Bar Diane", "https://bardiane.com/", address = "Portland, OR")
+            )
+            override suspend fun page(url: String) = ""
+            override suspend fun pick(system: String, evidence: String) = error("the model must not be asked")
+        }
+        val report = PlaceScout.research(ask, "", sources)
+        assertTrue(report.venues.isEmpty())
+        assertTrue(report.text().contains("found no place I could confirm"))
+    }
+
+    @Test
+    fun aRefusedLookupSaysSoWithoutNamingAnywhere() {
+        val ask = place("Where should I go for dinner in Portland, Oregon with good wine?")!!
+        val text = PlaceScout.cannotConfirm(ask, "The place map is at capacity right now.")
+        assertTrue(text.contains("could not check anywhere in Portland, Oregon"))
+        assertTrue(text.contains("Nothing was guessed"))
+        assertFalse(text.contains("Bar Diane"))
+    }
+
+    @Test
+    fun aHijackedDomainIsNotEvidenceOfAWineBar() {
+        // Seen live: this Portland merchant's domain served a crypto-casino page in Russian while
+        // the map still described a wine bar.
+        val venue = PlaceScout.Venue(
+            "Amphora Wine Merchant",
+            "https://www.amphorawinemerchantpdx.com/",
+            address = "401 Northeast Holladay Street, Portland, Oregon"
+        )
+        val spam = "Крипто-казино в 2026 году: лучшие crypto casinos без KYC. Топ Быстрые выплаты"
+        assertFalse(PlaceScout.pageBelongs(spam, venue))
+        assertTrue(
+            PlaceScout.pageBelongs(
+                "Amphora Wine Merchant is a wine bar and bottle shop on Holladay in Portland.",
+                venue
+            )
+        )
+    }
+
+    @Test
+    fun placesWithHoursAndSomewhereToSitAreReadFirst() {
+        val shop = PlaceScout.Venue("E&R Wine Shop", "https://www.erwineshop.com/", snippet = "shop/wine")
+        val bar = PlaceScout.Venue(
+            "Stem Wine Bar PDX",
+            "https://www.stemwinebarpdx.com/",
+            snippet = "amenity/bar · Mo,Tu 17:00-22:00",
+            hours = "Mo,Tu 17:00-22:00"
+        )
+        assertEquals(listOf(bar, shop), PlaceScout.rank(listOf(shop, bar)))
+    }
+
+    @Test
+    fun aHalfReadPhoneNumberNeverReachesTheReply() {
+        // Seen live: the page text was cut mid-number and the note said "call (503)-4".
+        val note = "For Wine & Growl, you can call (503)-4 to make a reservation."
+        assertEquals("", PlaceScout.cleanNote(note))
+        assertEquals(
+            "Stem is open until 22:00 most nights. Check the schedule before you go.",
+            PlaceScout.cleanNote(
+                "Stem is open until 22:00 most nights. For Pairings, call (503) 555-1212. " +
+                    "Check the schedule before you go."
+            )
+        )
+    }
+
+    @Test
+    fun aTownsAnswerIsReusedUntilItExpires() {
+        var now = 1_000L
+        val cache = PlaceScout.Cache<String>(ttlMs = 20 * 60_000L, clock = { now })
+        cache.put("BAR|portland oregon", "Stem")
+        assertEquals("Stem", cache.get("BAR|portland oregon"))
+        now += 19 * 60_000L
+        assertEquals("Stem", cache.get("BAR|portland oregon"))
+        now += 2 * 60_000L
+        assertNull(cache.get("BAR|portland oregon"))
+    }
+
+    @Test
+    fun theCacheKeyIsTheTownAndTheKind() {
+        val ask = place("Any good wine bar in Portland, Oregon?")!!
+        assertEquals("BAR|portland oregon", PlaceScout.cacheKey(ask))
     }
 
     @Test

@@ -96,8 +96,12 @@ class AiClient(
 
     private val web = WebLookup()
 
-    /** Pages opened for a place question: enough to catch a closure, few enough for a table. */
-    private val PAGES_TO_OPEN = 4
+    /** How long one town's map answer and pages are reused: an evening, not a month. */
+    private val PLACE_CACHE_MS = 20 * 60_000L
+
+    private val placeCache = PlaceScout.Cache<List<PlaceScout.Venue>>(PLACE_CACHE_MS)
+
+    private val pageCache = PlaceScout.Cache<String>(PLACE_CACHE_MS)
 
     suspend fun complete(
         system: String,
@@ -272,10 +276,84 @@ class AiClient(
      * to pick and why. The reply is then written by [PlaceScout.answer] from the fetched record, so a
      * restaurant the model remembers cannot reach the screen.
      *
-     * A search that cannot be reached throws: "the phone is offline" and "the pages named nothing"
-     * are different answers, and only the second one is worth wording as an empty result.
+     * A source that cannot be reached throws: "the phone is offline" and "the town has no wine
+     * bar" are different answers, and only the second one is worth wording as an empty result.
      */
-    suspend fun scout(ask: PlaceScout.Ask, brief: String): PlaceScout.Report? =
+    suspend fun scout(ask: PlaceScout.Ask, brief: String): PlaceScout.Report =
+        PlaceScout.research(ask, brief, sources(ask))
+
+    /**
+     * The three sources the chat uses: the map, the page reader, and the provider.
+     *
+     * Two short caches sit here rather than in [PlaceScout] because they are a property of this
+     * phone's network, not of the reasoning: a second question about the same town this evening
+     * should not re-ask the map or re-read four pages. Twenty minutes is short enough that a
+     * closure published this afternoon is still picked up, and long enough that a table's follow-up
+     * question ("what about something cheaper?") costs nothing.
+     */
+    private fun sources(ask: PlaceScout.Ask): PlaceScout.Sources = object : PlaceScout.Sources {
+
+        override suspend fun discover(ask: PlaceScout.Ask): List<PlaceScout.Venue> {
+            val key = PlaceScout.cacheKey(ask)
+            placeCache.get(key)?.let { return it }
+
+            // The map first: it is not a search engine, so a burst of place questions cannot get
+            // the phone refused, and its address is what proves the town. The search path stays as
+            // the fallback for a town the map has no boundary for, or for categories the map lacks.
+            var refusal: AiException? = null
+            val mapped = try {
+                mapVenues(ask)
+            } catch (e: AiException) {
+                refusal = e
+                emptyList()
+            } catch (e: Exception) {
+                refusal = AiException(OsmPlaces.BUSY, retryable = true)
+                emptyList()
+            }
+            val found = if (mapped.isNotEmpty()) mapped else try {
+                searchVenues(ask)
+            } catch (e: AiException) {
+                throw refusal ?: e
+            }
+            if (found.isEmpty() && refusal != null) throw refusal
+            if (found.isNotEmpty()) placeCache.put(key, found)
+            return found
+        }
+
+        override suspend fun page(url: String): String {
+            pageCache.get(url)?.let { return it }
+            val text = withTimeoutOrNull(8_000) {
+                runCatching { web.pageText(url, 2_000) }.getOrNull()
+            }.orEmpty()
+            if (text.isNotBlank()) pageCache.put(url, text)
+            return text
+        }
+
+        override suspend fun pick(system: String, evidence: String): String = complete(
+            system = system,
+            turns = listOf(ChatMessage(role = "user", text = evidence)),
+            job = AiJob.CHAT,
+            jsonMode = true,
+            // Choosing between a few numbered places is not a reasoning problem; the reasoning in
+            // this feature was the app's, and it already happened.
+            thinking = Thinking.LOW,
+            temperature = 0.2,
+            maxTokens = 900
+        )
+    }
+
+    /** The map's places, as venues whose address can prove the town. */
+    private suspend fun mapVenues(ask: PlaceScout.Ask): List<PlaceScout.Venue> =
+        OsmPlaces.find(ask).map(OsmPlaces::asVenue)
+
+    /**
+     * The search-engine path, kept for towns the map cannot answer for.
+     *
+     * Discovery only produces names, and each one is searched for on its own: that is where a
+     * closure shows up, and a name no page confirms is not a place. Pages are read by the research
+     * itself, so nothing is fetched twice here.
+     */
+    private suspend fun searchVenues(ask: PlaceScout.Ask): List<PlaceScout.Venue> =
         withContext(Dispatchers.IO) {
             val hits = mutableListOf<WebLookup.Hit>()
             var failure: Exception? = null
@@ -288,11 +366,8 @@ class AiClient(
             }
             if (hits.isEmpty()) {
                 failure?.let { throw it }
-                return@withContext null
+                return@withContext emptyList()
             }
-            // Discovery only produces names. Each one is searched for on its own, because that is
-            // where a closure shows up — a business page that says CLOSED, or the story about it
-            // shutting — and a name no page confirms is not a place.
             val confirmed = mutableListOf<PlaceScout.Venue>()
             var refused: Exception? = null
             for (name in PlaceScout.candidates(hits, ask).take(PlaceScout.MAX_CANDIDATES)) {
@@ -303,44 +378,12 @@ class AiClient(
                     emptyList()
                 }
                 PlaceScout.confirmed(name, own, ask)?.let { confirmed += it }
-                // Politeness to a keyless endpoint that throttles: four searches in a burst is how
-                // a working lookup starts returning nothing for the rest of the minute.
+                // Politeness to a keyless endpoint that throttles: a burst is how a working lookup
+                // starts returning nothing for the rest of the minute.
                 delay(200)
             }
             if (confirmed.isEmpty() && refused != null) throw refused
-            var venues = PlaceScout.ranked(confirmed)
-            if (venues.isEmpty()) return@withContext null
-            // The snippets are the index; a few pages are what catch a closure the snippet omits
-            // and what says whether the place talks about wine at all. Bounded on purpose: this is
-            // a question asked at a table, not a crawl.
-            venues = venues.mapIndexed { index, venue ->
-                if (index >= PAGES_TO_OPEN || !PlaceScout.readable(venue.url)) {
-                    return@mapIndexed venue
-                }
-                val text = withTimeoutOrNull(8_000) {
-                    runCatching { web.pageText(venue.url, 1_600) }.getOrNull()
-                }.orEmpty()
-                if (text.isBlank()) return@mapIndexed venue
-                venue.copy(
-                    text = PlaceScout.pageDigest(text, venue.name),
-                    closed = PlaceScout.closedReason(text).ifBlank { venue.closed }
-                )
-            }
-            if (venues.none { it.closed.isBlank() }) {
-                return@withContext PlaceScout.Report(ask, venues, PlaceScout.Picks())
-            }
-            val answer = complete(
-                system = PlaceScout.prompt(brief),
-                turns = listOf(ChatMessage(role = "user", text = PlaceScout.evidence(ask, venues))),
-                job = AiJob.CHAT,
-                jsonMode = true,
-                // Choosing between ten numbered lines is not a reasoning problem; the reasoning in
-                // this feature was the app's, and it already happened.
-                thinking = Thinking.LOW,
-                temperature = 0.2,
-                maxTokens = 900
-            )
-            PlaceScout.Report(ask, venues, PlaceScout.parse(answer, venues))
+            PlaceScout.ranked(confirmed)
         }
 
     /**

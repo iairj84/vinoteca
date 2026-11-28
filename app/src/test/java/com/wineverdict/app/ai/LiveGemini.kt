@@ -35,13 +35,14 @@ internal object LiveGemini {
         turn: String,
         maxTokens: Int,
         thinking: Thinking,
-        temperature: Double = 0.4
+        temperature: Double = 0.4,
+        jsonMode: Boolean = false
     ): String = chatPayload(
         target = Target(AiProvider.GEMINI, AiProvider.GEMINI.defaultBaseUrl, "", model),
         system = system,
         turns = listOf(ChatMessage(role = "user", text = turn)),
         images = emptyList(),
-        jsonMode = false,
+        jsonMode = jsonMode,
         thinking = thinking,
         temperature = temperature,
         maxTokens = maxTokens
