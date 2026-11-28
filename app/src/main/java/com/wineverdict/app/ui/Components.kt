@@ -286,14 +286,21 @@ fun ZoomDialog(
  *
  * The bottle has already left the inventory by the time this opens, on the cellar's card and on the
  * bottle's own page alike: that tap is the fact, and the count must not wait on a dialog nobody may
- * finish. What is asked here is the part only the drinker knows — the four words and one line — and
- * closing it says nothing about the bottle, which is an answer too: it was drunk, and that is
- * recorded.
+ * finish. What is asked here is the part only the drinker knows — the four words, one line, and
+ * where it was drunk — and closing it says nothing about the bottle, which is an answer too: it was
+ * drunk, and that is recorded.
  */
 @Composable
-fun DrankDialog(wine: Wine, onSave: (Int?, String) -> Unit, onClose: () -> Unit) {
+fun DrankDialog(
+    wine: Wine,
+    onSave: (rating: Int?, note: String, venue: String) -> Unit,
+    onClose: () -> Unit
+) {
     var rating by remember(wine.id) { mutableStateOf(wine.rating) }
     var note by remember(wine.id) { mutableStateOf("") }
+    // Asked here because this is the one moment the app watches a bottle leave the shelf, and a
+    // restaurant is the usual answer. Blank is a real answer, so nothing is filled in.
+    var venue by remember(wine.id) { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onClose,
         title = { Text("How was it?") },
@@ -323,10 +330,19 @@ fun DrankDialog(wine: Wine, onSave: (Int?, String) -> Unit, onClose: () -> Unit)
                     placeholder = { Text("Strawberry, cold, worth it") },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                 )
+                OutlinedTextField(
+                    value = venue,
+                    onValueChange = { venue = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Where (optional)") },
+                    placeholder = { Text("A restaurant, the kitchen table…") },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                )
             }
         },
         confirmButton = {
-            TextButton(onClick = { onSave(rating, note) }) { Text("Save") }
+            TextButton(onClick = { onSave(rating, note, venue) }) { Text("Save") }
         },
         dismissButton = {
             TextButton(onClick = onClose) { Text("Skip") }

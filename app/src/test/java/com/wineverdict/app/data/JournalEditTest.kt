@@ -50,7 +50,8 @@ class JournalEditTest {
             rating = Verdict.LOVED.rating,
             note = "  tar and roses, opened early  ",
             flavors = listOf("Cherry", "  Tar ", "Cherry"),
-            again = true
+            again = true,
+            venue = "Osteria Francescana"
         )
 
         assertEquals(day(night(6)), day(after.at))
@@ -58,6 +59,8 @@ class JournalEditTest {
         assertEquals("tar and roses, opened early", after.note)
         assertEquals(listOf("Cherry", "Tar"), after.flavors)
         assertEquals(true, after.again)
+        // The place travels with the rest of the night rather than being reset by a correction.
+        assertEquals("Osteria Francescana", after.venue)
     }
 
     @Test
@@ -71,7 +74,7 @@ class JournalEditTest {
             rating = Verdict.FINE.rating,
             via = Drink.DRANK
         )
-        val after = before.corrected(night(5), Verdict.GOOD.rating, "", emptyList(), null)
+        val after = before.corrected(night(5), Verdict.GOOD.rating, "", emptyList(), null, "")
 
         assertEquals("a", after.id)
         assertEquals("w", after.wineId)
@@ -82,9 +85,9 @@ class JournalEditTest {
     fun aVerdictTypedOntoACountAdjustmentMakesItANight() {
         // The minus button asked nothing, so an entry that carries a word now is one the user gave.
         val count = Drink(id = "c", at = night(1), via = Drink.COUNT)
-        assertEquals(Drink.MANUAL, count.corrected(night(1), Verdict.GOOD.rating, "", emptyList(), null).via)
+        assertEquals(Drink.MANUAL, count.corrected(night(1), Verdict.GOOD.rating, "", emptyList(), null, "").via)
         // Still nothing said is still a corrected count, not a silent verdict.
-        assertEquals(Drink.COUNT, count.corrected(night(1), null, "", emptyList(), null).via)
+        assertEquals(Drink.COUNT, count.corrected(night(1), null, "", emptyList(), null, "").via)
     }
 
     @Test
@@ -104,7 +107,8 @@ class JournalEditTest {
             rating = Verdict.LOVED.rating,
             note = "tar, roses, still tannic",
             flavors = listOf("Cherry"),
-            again = true
+            again = true,
+            venue = before.venue
         )
 
         val fixed = correctBottle(wine, before, after, zone)
@@ -121,7 +125,7 @@ class JournalEditTest {
         // first night's line must not pull the heart back to the older answer.
         val before = Drink(id = "a", wineId = "w", at = night(30), rating = Verdict.FINE.rating)
         val wine = bottle(rating = Verdict.LOVED.rating)
-        val after = before.corrected(night(30), Verdict.GOOD.rating, "", emptyList(), null)
+        val after = before.corrected(night(30), Verdict.GOOD.rating, "", emptyList(), null, "")
 
         val fixed = correctBottle(wine, before, after, zone)
 
@@ -133,10 +137,10 @@ class JournalEditTest {
     fun takingTheVerdictBackClearsTheBottleOnlyWhenItStillHoldsIt() {
         val before = Drink(id = "a", wineId = "w", at = night(4), rating = Verdict.NOT_FOR_ME.rating)
 
-        val cleared = correctBottle(bottle(rating = Verdict.NOT_FOR_ME.rating), before, before.corrected(night(4), null, "", emptyList(), null), zone)
+        val cleared = correctBottle(bottle(rating = Verdict.NOT_FOR_ME.rating), before, before.corrected(night(4), null, "", emptyList(), null, ""), zone)
         assertNull(cleared.rating)
 
-        val kept = correctBottle(bottle(rating = Verdict.LOVED.rating), before, before.corrected(night(4), null, "", emptyList(), null), zone)
+        val kept = correctBottle(bottle(rating = Verdict.LOVED.rating), before, before.corrected(night(4), null, "", emptyList(), null, ""), zone)
         assertEquals(Verdict.LOVED.rating, kept.rating)
     }
 
@@ -146,7 +150,7 @@ class JournalEditTest {
         // is the correction's to replace, and a second copy would read as a second tasting.
         val before = Drink(id = "a", wineId = "w", at = night(3), note = "tar and roses", via = Drink.MANUAL)
         val wine = bottle(notes = "${day(before.at)} — tar, roses, still tannic")
-        val after = before.corrected(night(3), null, "opened too late", emptyList(), null)
+        val after = before.corrected(night(3), null, "opened too late", emptyList(), null, "")
 
         val fixed = correctBottle(wine, before, after, zone)
 
@@ -156,7 +160,7 @@ class JournalEditTest {
     @Test
     fun aNightThatHadNoLineGainsOne() {
         val before = Drink(id = "a", wineId = "w", at = night(2), rating = Verdict.GOOD.rating)
-        val after = before.corrected(night(2), Verdict.GOOD.rating, "second glass was better", emptyList(), null)
+        val after = before.corrected(night(2), Verdict.GOOD.rating, "second glass was better", emptyList(), null, "")
 
         val fixed = correctBottle(bottle(notes = ""), before, after, zone)
 
@@ -167,7 +171,7 @@ class JournalEditTest {
     fun aClearedLineIsTakenOffTheBottle() {
         val before = Drink(id = "a", wineId = "w", at = night(2), note = "wrong bottle entirely", via = Drink.MANUAL)
         val wine = bottle(notes = "notes from a page\n${day(before.at)} — wrong bottle entirely")
-        val after = before.corrected(night(2), null, "", emptyList(), null)
+        val after = before.corrected(night(2), null, "", emptyList(), null, "")
 
         val fixed = correctBottle(wine, before, after, zone)
 

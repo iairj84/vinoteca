@@ -118,8 +118,12 @@ Gemini or Groq — with your own key.
   night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the
   verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it
-  again. **Tap a night to correct it** — the date, the verdict, the taste words, would-you-buy-it-again
-  and the line — or **Delete this night** to take it out after asking. A correction to a night that
+  again. **Where** is an optional line on every night — the restaurant, a friend's table — asked
+  beside the date on a hand-written night and on **Drank one**, shown on the row as *At Osteria
+  Francescana*, matched by the book's search, and given to Ask, so “what did I drink at that place”
+  is answerable. **Tap a night to correct it** — the date, the verdict, the taste words,
+  would-you-buy-it-again, the line and the place — or **Delete this night** to take it out after
+  asking. A correction to a night that
   wrote onto its bottle (**Drank one**, or one you added by hand) is carried to the bottle's verdict
   and its dated line, leaving a later verdict of your own alone. A wine you do not own becomes a
   record with no bottles, so the answer lives under Cellar's

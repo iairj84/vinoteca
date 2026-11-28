@@ -3,6 +3,25 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.50: where the bottle was drunk
+
+**A night in the book had a date and no place.** The line about it might say *the second bottle was
+better*, and the bottle's own record knows its region, but the one fact that makes a night easy to
+remember — the restaurant, the friend's table — had nowhere to go. "What did I drink at that place"
+could not be answered from the record the app keeps.
+
+- **Where, on any night.** **Add a night** and **Drank one** both ask for it, one optional line
+  under the date, and **Correct this night** opens it filled in, so a place typed wrong is fixed
+  with the rest of the entry. Nothing is guessed: a night with no place says nothing rather than
+  "at home".
+- **It belongs to the night, not the bottle.** The same wine opened twice can be drunk in two
+  places, and where a bottle is stored is already the cellar's own shelf — so the place rides on the
+  entry and moves with it when the night is corrected.
+- **The row says it, the search finds it, Ask is told it.** The entry reads *At Osteria
+  Francescana*; the book's search box matches the place with the accents folded like every other
+  word; and the record Ask reads names it, so "what did I drink at Osteria" has an answer. A night
+  with no place adds no words at all.
+
 ### 1.2.49: the bottles that want drinking
 
 **The cellar knew a bottle was past its window and never said so.** Every row carried a badge and

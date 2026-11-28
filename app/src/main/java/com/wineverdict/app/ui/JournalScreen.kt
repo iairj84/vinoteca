@@ -171,6 +171,7 @@ fun JournalScreen() {
                 note = entry.note,
                 flavors = entry.flavors,
                 again = entry.again,
+                venue = entry.venue,
                 at = entry.at
             )
             AppGraph.cellar.applyJournalTaste(
@@ -200,9 +201,11 @@ fun JournalScreen() {
         rating: Int?,
         flavors: List<String>,
         again: Boolean?,
-        note: String
+        note: String,
+        venue: String
     ) {
-        val after = AppGraph.drinks.update(entry.id, at, rating, note, flavors, again) ?: return
+        val after = AppGraph.drinks.update(entry.id, at, rating, note, flavors, again, venue)
+            ?: return
         val onBottle = entry.wineId.isNotBlank() &&
             (entry.via == Drink.MANUAL || entry.via == Drink.DRANK)
         if (onBottle) {
@@ -333,7 +336,7 @@ fun JournalScreen() {
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Search a bottle, region, note…") },
+                    placeholder = { Text("Search a bottle, place, note…") },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = if (query.isBlank()) {
                         null
@@ -443,9 +446,9 @@ fun JournalScreen() {
         JournalEditDialog(
             drink = entry,
             onDismiss = { editing = null },
-            onSave = { at, rating, flavors, again, note ->
+            onSave = { at, rating, flavors, again, note, venue ->
                 editing = null
-                correct(entry, at, rating, flavors, again, note)
+                correct(entry, at, rating, flavors, again, note, venue)
             },
             onDelete = {
                 editing = null
@@ -637,6 +640,13 @@ private fun DrinkRow(drink: Drink, zone: ZoneId, onEdit: () -> Unit) {
             if (drink.note.isNotBlank()) {
                 Text("“${drink.note}”", style = MaterialTheme.typography.bodySmall)
             }
+            if (drink.venue.isNotBlank()) {
+                Text(
+                    "At ${drink.venue}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             val survey = buildList {
                 when (drink.again) {
                     true -> add("would buy again")
@@ -713,6 +723,7 @@ private data class JournalEntry(
     val flavors: List<String>,
     val again: Boolean?,
     val note: String,
+    val venue: String,
     val at: Long
 )
 
@@ -753,6 +764,7 @@ private fun JournalEntryDialog(
     var flavors by remember { mutableStateOf<List<String>>(emptyList()) }
     var again by remember { mutableStateOf<Boolean?>(null) }
     var note by remember { mutableStateOf("") }
+    var venue by remember { mutableStateOf("") }
     var pickingDate by remember { mutableStateOf(false) }
 
     val matches = remember(name, wines, picked) {
@@ -907,6 +919,15 @@ private fun JournalEntryDialog(
                         TextButton(onClick = { pickingDate = true }) { Text("Change") }
                     }
 
+                    OutlinedTextField(
+                        value = venue,
+                        onValueChange = { venue = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Where (optional)") },
+                        placeholder = { Text("A restaurant, a friend's house…") }
+                    )
+
                     Text("How was it?", style = MaterialTheme.typography.labelLarge)
                     VerdictChips(rating) { rating = it }
 
@@ -979,6 +1000,7 @@ private fun JournalEntryDialog(
                                     flavors = flavors,
                                     again = again,
                                     note = note,
+                                    venue = venue,
                                     at = night
                                 )
                             )
@@ -1066,7 +1088,14 @@ private fun NightPickerDialog(night: Long, onDismiss: () -> Unit, onNight: (Long
 private fun JournalEditDialog(
     drink: Drink,
     onDismiss: () -> Unit,
-    onSave: (at: Long, rating: Int?, flavors: List<String>, again: Boolean?, note: String) -> Unit,
+    onSave: (
+        at: Long,
+        rating: Int?,
+        flavors: List<String>,
+        again: Boolean?,
+        note: String,
+        venue: String
+    ) -> Unit,
     onDelete: () -> Unit
 ) {
     var night by remember(drink.id) { mutableStateOf(drink.at) }
@@ -1076,6 +1105,7 @@ private fun JournalEditDialog(
     var flavors by remember(drink.id) { mutableStateOf(drink.flavors) }
     var again by remember(drink.id) { mutableStateOf(drink.again) }
     var note by remember(drink.id) { mutableStateOf(drink.note) }
+    var venue by remember(drink.id) { mutableStateOf(drink.venue) }
     var pickingDate by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
     val onBottle = drink.wineId.isNotBlank() &&
@@ -1150,6 +1180,15 @@ private fun JournalEditDialog(
                         TextButton(onClick = { pickingDate = true }) { Text("Change") }
                     }
 
+                    OutlinedTextField(
+                        value = venue,
+                        onValueChange = { venue = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Where (optional)") },
+                        placeholder = { Text("A restaurant, a friend's house…") }
+                    )
+
                     Text("How was it?", style = MaterialTheme.typography.labelLarge)
                     VerdictChips(rating) { rating = it }
 
@@ -1218,7 +1257,7 @@ private fun JournalEditDialog(
                         Text("Cancel")
                     }
                     Button(
-                        onClick = { onSave(night, rating, flavors, again, note) },
+                        onClick = { onSave(night, rating, flavors, again, note, venue) },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text("Save")

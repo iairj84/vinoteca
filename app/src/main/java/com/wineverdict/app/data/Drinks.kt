@@ -42,6 +42,15 @@ data class Drink(
     /** The four-word answer at the time, not the bottle's rating now. Null when Skip was tapped. */
     val rating: Int? = null,
     val note: String = "",
+    /**
+     * Where the bottle was drunk, in the user's own words — a restaurant, a friend's table, the
+     * garden. Optional, and never guessed: a night with no place says nothing rather than "home".
+     *
+     * It lives on the night rather than on the bottle, because the bottle is one thing and the
+     * evening is another: the same wine opened twice can be drunk in two places, and where a bottle
+     * is kept is already the cellar's own shelf field.
+     */
+    val venue: String = "",
     val at: Long = System.currentTimeMillis(),
     /**
      * The taste words the quick survey collected, if it was answered. They are added to the wine
@@ -99,7 +108,8 @@ class DrinkLog(context: Context) {
      * Records the bottle, with whatever the sheet collected. Written even when the sheet was skipped:
      * the drink happened, and "no verdict" is a real answer rather than a missing entry.
      */
-    fun log(wine: Wine, rating: Int?, note: String): Drink = record(wine, rating, note, Drink.DRANK)
+    fun log(wine: Wine, rating: Int?, note: String, venue: String = ""): Drink =
+        record(wine, rating, note, venue, Drink.DRANK)
 
     /**
      * A bottle taken out with the minus button.
@@ -108,7 +118,7 @@ class DrinkLog(context: Context) {
      * which is the whole of what happened. Nothing is returned when there was nothing to remove.
      */
     fun logCount(wine: Wine): Drink? =
-        if (wine.quantity <= 0) null else record(wine, null, "", Drink.COUNT)
+        if (wine.quantity <= 0) null else record(wine, null, "", "", Drink.COUNT)
 
     /**
      * The book catches up with what the bottles already know.
@@ -156,7 +166,8 @@ class DrinkLog(context: Context) {
         rating: Int? = null,
         note: String = "",
         flavors: List<String> = emptyList(),
-        again: Boolean? = null
+        again: Boolean? = null,
+        venue: String = ""
     ): Drink {
         val drink = Drink(
             wineId = wineId,
@@ -170,6 +181,7 @@ class DrinkLog(context: Context) {
             flavors = flavors.map { it.trim() }.filter { it.isNotBlank() }
                 .distinctBy { it.lowercase() }.take(MAX_FLAVORS),
             again = again,
+            venue = venue.trim(),
             at = at,
             via = Drink.MANUAL
         )
@@ -180,10 +192,11 @@ class DrinkLog(context: Context) {
     /**
      * Rewrites one entry, for a night that was written down wrong.
      *
-     * The date, the verdict, the words and the line are the four things a remembered evening gets
-     * wrong; the id, the wine and how the bottle left the shelf are not among them, because a
-     * correction says what was written was wrong, not that a different bottle was opened. The entry
-     * comes back so the caller can carry the same correction to the bottle it was written from.
+     * The date, the verdict, the words, the line and the place are the five things a remembered
+     * evening gets wrong; the id, the wine and how the bottle left the shelf are not among them,
+     * because a correction says what was written was wrong, not that a different bottle was opened.
+     * The entry comes back so the caller can carry the same correction to the bottle it was written
+     * from.
      */
     fun update(
         id: String,
@@ -191,10 +204,11 @@ class DrinkLog(context: Context) {
         rating: Int?,
         note: String,
         flavors: List<String>,
-        again: Boolean?
+        again: Boolean?,
+        venue: String
     ): Drink? {
         val before = _drinks.value.firstOrNull { it.id == id } ?: return null
-        val after = before.corrected(at, rating, note, flavors, again)
+        val after = before.corrected(at, rating, note, flavors, again, venue)
         write(
             _drinks.value.map { if (it.id == id) after else it }
                 .sortedByDescending { it.at }
@@ -217,7 +231,7 @@ class DrinkLog(context: Context) {
         write(others.sortedByDescending { it.at }.take(MAX_DRINKS))
     }
 
-    private fun record(wine: Wine, rating: Int?, note: String, via: String): Drink {
+    private fun record(wine: Wine, rating: Int?, note: String, venue: String, via: String): Drink {
         val drink = Drink(
             wineId = wine.id,
             title = wine.title,
@@ -227,6 +241,7 @@ class DrinkLog(context: Context) {
             currency = wine.currency,
             rating = rating,
             note = note.trim(),
+            venue = venue.trim(),
             via = via
         )
         append(drink)
@@ -265,7 +280,7 @@ class DrinkLog(context: Context) {
 private const val MAX_FLAVORS = 6
 
 /**
- * The same entry, with the night, the verdict, the words and the line replaced.
+ * The same entry, with the night, the verdict, the words, the line and the place replaced.
  *
  * The id, the wine and how the bottle left the shelf are kept: a correction is about what was
  * written down, not about which bottle was opened. A verdict typed onto a count adjustment makes it
@@ -276,11 +291,13 @@ fun Drink.corrected(
     rating: Int?,
     note: String,
     flavors: List<String>,
-    again: Boolean?
+    again: Boolean?,
+    venue: String
 ): Drink = copy(
     at = at,
     rating = rating,
     note = note.trim(),
+    venue = venue.trim(),
     flavors = flavors.map { it.trim() }.filter { it.isNotBlank() }
         .distinctBy { it.lowercase() }.take(MAX_FLAVORS),
     again = again,
@@ -429,6 +446,9 @@ internal fun drinkDigest(drinks: List<Drink>, now: Long, limit: Int = 20): Strin
                 .filter { it.isNotBlank() }
                 .joinToString(", ")
             if (where.isNotBlank()) append(" (").append(where).append(")")
+            // Said only when the user said it: a night with no place adds no words at all, rather
+            // than reading as a bottle drunk at home.
+            if (drink.venue.isNotBlank()) append(" at ").append(drink.venue.trim())
             if (drink.via == Drink.COUNT) {
                 // Said here rather than left to be read as a verdict the user never gave.
                 append(" — count adjusted, no verdict")
@@ -491,12 +511,19 @@ fun dayWords(
  * Whether a night answers a search.
  *
  * Every word typed has to appear somewhere in what the row shows — the label, where it came from,
- * the note, the taste words — so a second word narrows the book instead of widening it. The words go
+ * the place, the note, the taste words — so a second word narrows the book instead of widening it. The words go
  * through [Search], the same matcher the cellar uses, so an accent or a full stop typed differently
  * is the same search in both boxes. Keeping it here rather than inside the screen is what makes it
  * testable without a phone.
  */
 fun matchesWords(drink: Drink, query: String): Boolean = Search.matches(
-    listOf(drink.title, drink.type, drink.region, drink.note, drink.flavors.joinToString(" ")),
+    listOf(
+        drink.title,
+        drink.type,
+        drink.region,
+        drink.venue,
+        drink.note,
+        drink.flavors.joinToString(" ")
+    ),
     query
 )

@@ -462,8 +462,8 @@ fun CellarScreen(
      * number means nothing. The answer given in the sheet is part of the entry — a drink with no
      * verdict is still a drink.
      */
-    fun recordDrank(wine: Wine, rating: Int?, note: String) {
-        val drink = AppGraph.drinks.log(wine, rating, note)
+    fun recordDrank(wine: Wine, rating: Int?, note: String, venue: String = "") {
+        val drink = AppGraph.drinks.log(wine, rating, note, venue)
         offerUndo(drink.id, wine.id)
     }
 
@@ -471,9 +471,9 @@ fun CellarScreen(
     if (drank != null) {
         DrankDialog(
             wine = drank,
-            onSave = { rating, note ->
+            onSave = { rating, note, venue ->
                 drankId = null
-                recordDrank(drank, rating, note)
+                recordDrank(drank, rating, note, venue)
                 scope.launch {
                     // Only when the word changed: an untouched sheet must not overwrite a verdict,
                     // and setting a null rating would clear a heart the bottle still earns.

@@ -189,8 +189,8 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
      * The night, written down as it happens — the same record the cellar's cards write, so the
      * answer does not depend on where the bottle was opened from.
      */
-    fun recordDrank(wine: Wine, rating: Int?, note: String) {
-        val drink = AppGraph.drinks.log(wine, rating, note)
+    fun recordDrank(wine: Wine, rating: Int?, note: String, venue: String = "") {
+        val drink = AppGraph.drinks.log(wine, rating, note, venue)
         offerUndo(drink.id, wine.id)
     }
 
@@ -679,9 +679,9 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
         val after = data.wines.firstOrNull { it.id == wine.id } ?: wine
         DrankDialog(
             wine = after,
-            onSave = { rating, note ->
+            onSave = { rating, note, venue ->
                 drankOpen = false
-                recordDrank(wine, rating, note)
+                recordDrank(wine, rating, note, venue)
                 scope.launch {
                     if (rating != wine.rating) AppGraph.cellar.setRating(wine.id, rating)
                     if (note.isNotBlank()) AppGraph.cellar.addTastingNote(wine.id, note)
