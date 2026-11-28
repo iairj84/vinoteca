@@ -527,3 +527,35 @@ fun matchesWords(drink: Drink, query: String): Boolean = Search.matches(
     ),
     query
 )
+
+/**
+ * The nights from the same date a year earlier, when there are any.
+ *
+ * The calendar answers "what did I drink that evening"; an anniversary is the question a book is
+ * most likely to be read for a year later. It is the same date last year rather than 365 days ago,
+ * so February the twenty-ninth goes back to the twenty-eighth — the day it was — instead of to the
+ * first of March.
+ */
+fun yearAgo(
+    drinks: List<Drink>,
+    day: LocalDate,
+    zone: ZoneId = ZoneId.systemDefault()
+): List<Drink> {
+    val then = day.minusYears(1)
+    return drinks.filter { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() == then }
+}
+
+/**
+ * Those entries as one line: each wine with the word it was given, up to [limit], and a count for
+ * the rest rather than a line nobody finishes. A count adjustment has no verdict, so it is named
+ * without one instead of reading as a bottle nobody answered for.
+ */
+fun yearAgoWords(entries: List<Drink>, limit: Int = 3): String {
+    if (entries.isEmpty()) return ""
+    val named = entries.take(limit).joinToString(" · ") { drink ->
+        val word = Verdict.label(drink.rating)
+        if (word == null) drink.title else "${drink.title} — $word"
+    }
+    val rest = entries.size - limit
+    return if (rest > 0) "$named and $rest more" else named
+}

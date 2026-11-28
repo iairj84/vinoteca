@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowLeft
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.AlertDialog
@@ -79,6 +81,8 @@ import com.wineverdict.app.data.bottleTastings
 import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.matchesWords
 import com.wineverdict.app.data.dayWords
+import com.wineverdict.app.data.yearAgo
+import com.wineverdict.app.data.yearAgoWords
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.model.WineType
@@ -251,6 +255,13 @@ fun JournalScreen() {
         drinks.groupBy { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }
             .mapValues { it.value.size }
     }
+    // "A year ago tonight" is about the evening the calendar points at: the picked day when one is
+    // picked, today otherwise. Derived, so it follows the pick without a second piece of state.
+    val calendarNight = picked ?: LocalDate.now(zone)
+    val yearAgoNight = calendarNight.minusYears(1)
+    val yearAgoEntries = remember(drinks, calendarNight, zone) {
+        yearAgo(drinks, calendarNight, zone)
+    }
 
     Scaffold(
         topBar = {
@@ -359,6 +370,20 @@ fun JournalScreen() {
                         onPick = { pickedKey = it?.toString() }
                     )
                 }
+                if (yearAgoEntries.isNotEmpty()) {
+                    item(key = "year-ago") {
+                        YearAgoCard(
+                            day = yearAgoNight,
+                            entries = yearAgoEntries,
+                            // The tap moves the calendar onto that night, so the whole record —
+                            // the row, its words, its correction — is one step away.
+                            onOpen = {
+                                monthKey = YearMonth.from(yearAgoNight).toString()
+                                pickedKey = yearAgoNight.toString()
+                            }
+                        )
+                    }
+                }
             }
             val selectedDay = picked
             if (selectedDay != null) {
@@ -464,6 +489,10 @@ fun JournalScreen() {
  * Days that carry an entry are marked and can be tapped; tapping one narrows the list below to that
  * night, and tapping it again lets go. Weeks start on the locale's first day, because a calendar
  * that begins on the wrong day is read wrongly before it is read at all.
+ *
+ * A book spans years, so a month at a time is not always enough: **Today** comes back to the month
+ * the phone is in and the double arrows move a year for each tap, with the title saying where the
+ * month landed.
  */
 @Composable
 private fun CalendarCard(
@@ -475,6 +504,7 @@ private fun CalendarCard(
 ) {
     val weekStart = remember { WeekFields.of(Locale.getDefault()).firstDayOfWeek }
     val today = LocalDate.now()
+    val thisMonth = YearMonth.now()
     SectionCard(title = null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -482,6 +512,19 @@ private fun CalendarCard(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(1f)
             )
+            // Back to the month the phone is in, and off when it is already there with nothing
+            // picked: a button that can only do nothing is worse than no button. A night picked in
+            // another decade is let go as well — "today" is the month and the whole book, and
+            // Show all is one more tap this can save.
+            TextButton(
+                onClick = {
+                    onMonth(thisMonth)
+                    onPick(null)
+                },
+                enabled = month != thisMonth || picked != null
+            ) {
+                Text("Today")
+            }
             IconButton(onClick = { onMonth(month.minusMonths(1)) }) {
                 Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous month")
             }
@@ -490,15 +533,26 @@ private fun CalendarCard(
             }
         }
         val nights = counts.keys.count { YearMonth.from(it) == month }
-        Text(
-            when (nights) {
-                0 -> "Nothing written this month."
-                1 -> "1 night written this month."
-                else -> "$nights nights written this month."
-            },
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                when (nights) {
+                    0 -> "Nothing written this month."
+                    1 -> "1 night written this month."
+                    else -> "$nights nights written this month."
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            // Twelve months is a long way through a five-year book; these move a year per tap and
+            // the title above says which one the month landed in.
+            IconButton(onClick = { onMonth(month.minusYears(1)) }) {
+                Icon(Icons.Filled.KeyboardDoubleArrowLeft, contentDescription = "Previous year")
+            }
+            IconButton(onClick = { onMonth(month.plusYears(1)) }) {
+                Icon(Icons.Filled.KeyboardDoubleArrowRight, contentDescription = "Next year")
+            }
+        }
         Row(Modifier.fillMaxWidth()) {
             repeat(7) { index ->
                 Text(
@@ -535,6 +589,33 @@ private fun CalendarCard(
                 repeat(7 - week.size) { Spacer(Modifier.weight(1f)) }
             }
         }
+    }
+}
+
+/**
+ * The night a year earlier, when the calendar is looking at a day that has one.
+ *
+ * The book already knows which evening is being read, so its anniversary costs no searching: the
+ * wines with the words they were given, the date, and a tap that moves the calendar onto that night
+ * so it can be read and corrected like any other.
+ */
+@Composable
+private fun YearAgoCard(day: LocalDate, entries: List<Drink>, onOpen: () -> Unit) {
+    SectionCard(
+        title = "A year ago tonight",
+        modifier = Modifier.clickable(onClick = onOpen)
+    ) {
+        Text(
+            day.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.getDefault())),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(yearAgoWords(entries), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Tap to open that night.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.outline
+        )
     }
 }
 

@@ -3,6 +3,25 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.51: a calendar that reaches the years, and a night a year old
+
+**The calendar walked a month at a time and nothing else.** A book that spans five years needed
+sixty taps to reach its first evening, and there was no way home to this month except tapping the
+same distance back. And the one evening the book knows best — the same date a year earlier — was
+never mentioned.
+
+- **Today, and a year at a time.** **Today** beside the month stepper comes back to the month the
+  phone is in, and is off while it is already showing it so it is never a dead tap. Two double
+  arrows move the calendar a year for each tap, and the title says which year the month landed in.
+- **A year ago tonight.** When the calendar is pointing at a day whose date a year earlier carries
+  entries, a card under it says so: the wines with the words they were given — up to three, then a
+  count — under the date. Tapping it opens that night, so an anniversary is read, and corrected, in
+  one step instead of a search.
+- **The anniversary is the date, not 365 days.** February the twenty-ninth of a leap year goes back
+  to February the twenty-eighth, which is the day it was, rather than to the first of March.
+- **With nothing a year earlier, nothing is said.** The card is absent rather than empty, and the
+  calendar is exactly as it was.
+
 ### 1.2.50: where the bottle was drunk
 
 **A night in the book had a date and no place.** The line about it might say *the second bottle was

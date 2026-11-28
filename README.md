@@ -114,7 +114,10 @@ Gemini or Groq — with your own key.
   word, its survey words and the time — so your own record is readable without a model in between.
   A search box finds a bottle by its words — accents and punctuation folded, so `rose` finds *Rosé*
   — and a calendar marks every night that has an entry, so
-  an evening can be found by its date when the name is the part that is forgotten. **Add** writes a
+  an evening can be found by its date when the name is the part that is forgotten. **Today**
+  comes back to this month and two double arrows move the calendar a year at a time; when the day
+  being looked at has entries from the same date a year earlier, **A year ago tonight** names them
+  under their date, and a tap opens that night. **Add** writes a
   night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the
   verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it
