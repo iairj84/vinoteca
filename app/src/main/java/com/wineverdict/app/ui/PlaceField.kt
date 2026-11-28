@@ -89,7 +89,15 @@ fun PlaceField(
     var note by remember { mutableStateOf<String?>(null) }
     var locating by remember { mutableStateOf(false) }
     var saveAt by remember { mutableStateOf<LatLng?>(null) }
-    var fixTried by remember { mutableStateOf(false) }
+    // Once per sheet: a refusal is not asked again for this night's place, and a grant is not asked
+    // for at all.
+    var locatedAsked by remember { mutableStateOf(false) }
+    // Bumped when a fix arrives after the permission dialog, so the search that ran while the
+    // question was on screen is asked again with somewhere to be near.
+    var fixTick by remember { mutableStateOf(0) }
+    // Which of the two taps asked for the permission: the icon (name where I am) or a keystroke
+    // (find places nearby). The grant does a different thing for each.
+    var grantForIcon by remember { mutableStateOf(false) }
 
     fun locate() {
         scope.launch {
@@ -132,26 +140,57 @@ fun PlaceField(
     val askLocation = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) locate() else note = "Location stays off, so the place has to be typed."
+        if (!granted) {
+            note = "Location is off, so this search is not nearby. Allow it in Android's settings, " +
+                "or type the whole name."
+            return@rememberLauncherForActivityResult
+        }
+        if (grantForIcon) {
+            locate()
+        } else {
+            // Typing asked. The words stay as they are; the list is asked again from the fix.
+            scope.launch {
+                near = WhereAmI.fix(context)
+                // Said rather than left as "asking…": a phone with no fix would otherwise sit
+                // there looking like it was still trying.
+                if (near == null) {
+                    note = "No location fix, so this search is not nearby. Type the whole name."
+                }
+                fixTick++
+            }
+        }
     }
 
     // A pause, not a keystroke: Photon answers in about a second, and firing on every letter would
     // send five requests for one word.
-    LaunchedEffect(value, typing) {
+    LaunchedEffect(value, typing, fixTick) {
         if (!typing || value.trim().length < 2) {
             hits = emptyList()
             return@LaunchedEffect
         }
         delay(450)
-        // Nearby is what tells four branches apart: uninterrupted "Loyal Legion" finds all four,
-        // but half a name needs to know the town. One fix is asked for while a place is being typed,
-        // and only when the permission is already there — the field never prompts on a keystroke.
-        if (near == null && !fixTried) {
-            fixTried = true
-            if (WhereAmI.allowed(context)) near = WhereAmI.fix(context)
+        // Half a name searched from nowhere finds a town in Kentucky, not the branch down the road:
+        // the town is what tells four Loyal Legions apart. So the first search in this sheet is what
+        // asks the phone where it is — the icon names where you are standing, and nobody types
+        // "Loyal L" wanting an address three states away. Asked once, and a refusal leaves the
+        // search exactly as it was.
+        if (near == null && !locatedAsked) {
+            locatedAsked = true
+            if (WhereAmI.allowed(context)) {
+                near = WhereAmI.fix(context)
+                if (near == null) {
+                    note = "No location fix, so this search is not nearby. Type the whole name."
+                }
+            } else {
+                grantForIcon = false
+                note = "Asking where you are, so the nearest branches come first…"
+                askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
         }
         hits = runCatching { AppGraph.placeFinder.suggestions(value, near) }
             .getOrDefault(emptyList())
+        // The question has been answered by the list itself.
+        if (hits.isNotEmpty()) note = null
     }
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -173,6 +212,7 @@ fun PlaceField(
                         if (WhereAmI.allowed(context)) {
                             locate()
                         } else {
+                            grantForIcon = true
                             askLocation.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                         }
                     },
