@@ -3,6 +3,38 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.54: a night that knows where it happened
+
+**A place was a line to retype every time, and "home" was typed home.** The book kept *where* as
+free text and nothing else: no way to pick the restaurant you were sitting in, no way to say that
+this pin is Home and have the next night say so by itself.
+
+- **Typing finds the place.** The *Where* box offers nearby businesses by name and town as you type —
+  *Loyal Legion — Beaverton*, *… — Portland*, *… — Vancouver*, each with its street beneath — so four
+  branches are four rows rather than four identical ones. Measured on the emulator: half a name
+  (`Loyal L`) returns the four, and a full one (`Loyal Legion`) returns them without needing a fix.
+  The text goes to komoot's Photon, an OpenStreetMap search: no key, no account.
+- **The location icon tags what is there.** One fix, then: a saved place's circle first, so *Home* is
+  *Home* with no lookup at all; otherwise a named business within about eighty metres; otherwise
+  nothing — a house answered with its street number is not a place anybody said, and it offers
+  **Save this spot** instead.
+- **Saved places.** A name, a pin and a circle, 45 m by default and adjustable per place. They are
+  chips under the box for one tap, and **Settings → Saved places** is where one is renamed or its
+  circle re-cut. They travel in the backup with the nights, because a circle drawn on this phone
+  cannot be looked up again anywhere.
+- **Three fallbacks, in order.** Photon for the names, the phone's own geocoder for an address when
+  Photon is silent, and your own typing after both. Refuse the permission and the box is what it was.
+- **What it costs.** Photon's terms promise no availability and throttle heavy use, so an empty
+  answer, a timeout and a failure all mean the same thing here: no suggestions, and the address or
+  your words behind them. The search bias sends a position rounded to about a kilometre; the tag
+  sends the pin itself.
+
+**Two things only the device showed.** The reverse lookup was being sent with the same rounded
+position as the search bias, so asking about the pub's own pin answered with a house down the road —
+it now sends full precision. And a fix from two days earlier was being used as "where I am"; a fix
+older than ten minutes is now refused rather than guessed with, because a stale pin tags the wrong
+place.
+
 ### 1.2.53: a grid a screen reader can walk, and a list for the next shop
 
 **The calendar's days said the right thing but could not be reached.** Each day carried its

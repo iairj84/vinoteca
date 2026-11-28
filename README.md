@@ -70,6 +70,17 @@ Gemini or Groq — with your own key.
   the bottles flagged for the next shop: a bottle's page carries a **To buy** chip that names its own
   state, and a flagged bottle says **To buy** on its row. The flag is its own — no verdict is needed
   to want a bottle again, and it travels in the backup with everything else.
+- **Where a night happened** — the *Where* box, on **Drank one**, on a night written in by hand and
+  on a corrected night, is a place rather than a line of text. Typing offers nearby businesses by
+  name and town — *Loyal Legion — Beaverton*, *… — Portland*, *… — Vancouver* — read from
+  OpenStreetMap through komoot's Photon, with the places you have saved first in the list and the
+  phone's own geocoder answering with an address when Photon has nothing. The location icon takes
+  one fix and tags what is there: a saved place's circle first (*Home*, a friend's house), then a
+  named business within about eighty metres, and **nothing** for a house — a street number is not a
+  place anybody said. Somewhere with no name offers **Save this spot**, which names it and gives it
+  a circle of its own: 45 m by default, adjustable per place, and renamed or re-cut in
+  **Settings → Saved places**. Location is asked for on the first tap of the icon and never on a
+  keystroke; refused, the box is exactly what it was before.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
@@ -496,6 +507,7 @@ them are written into the file.
 | Label pictures | `files/label-photos/` |
 | Chat transcript (text only, no photos) | `files/chat.json` |
 | Cellar book (nights and tastings from bottles) | `files/drinks.json` |
+| Saved places (Home, a friend's house) | `files/places.json` |
 | Taste profile | `files/mytaste.md` |
 | Quick-start answers | private `SharedPreferences` (`wineverdict_palate`) |
 | Pending batch scans + their photos | `files/scan-queue.json`, `files/scan-queue/` |
@@ -504,8 +516,9 @@ them are written into the file.
 | Captured photos | app cache, deleted by the system |
 
 Uninstalling the app deletes all of it, which is what **Settings → Backup and import → Export
-backup** is for: one JSON file with the cellar, the locations, `mytaste.md`, the cellar book and the
-label pictures. `cellar.json` and `drinks.json` are written whole and swapped in, with the previous
+backup** is for: one JSON file with the cellar, the locations, `mytaste.md`, the cellar book, the
+saved places and the label pictures. `cellar.json`, `drinks.json` and `places.json` are written whole
+and swapped in, with the previous
 version kept as `.bak` and read when the file cannot be; Android's own backup carries the files but
 not `wineverdict_settings`, where the keys are.
 
