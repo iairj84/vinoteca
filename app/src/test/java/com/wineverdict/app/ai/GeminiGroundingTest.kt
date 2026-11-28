@@ -3,6 +3,7 @@ package com.wineverdict.app.ai
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -95,11 +96,43 @@ class GeminiGroundingTest {
     }
 
     @Test
-    fun noGroundingIsNoAnswerRatherThanAMemoryList() = runBlocking {
-        // A response with prose but no citations is the model remembering; it must yield nothing.
+    fun proseThatIsNotAListIsNoAnswerRatherThanAMemoryList() = runBlocking {
+        // No citations and no list shape: the model is remembering, and a sentence read as a list
+        // would invent one place called "Try Le Pigeon and Nostrana".
         val memory = """{"candidates":[{"content":{"parts":[{"text":"Try Le Pigeon and Nostrana."}]}}]}"""
         assertTrue(GeminiGrounding.citations(memory).isEmpty())
+        assertTrue(GeminiGrounding.list(memory).isEmpty())
         assertTrue(GeminiGrounding("k", transport = Fake(memory)).find(ask).isEmpty())
+    }
+
+    @Test
+    fun aListShapedNameIsACandidateEvenWithNoCitation() = runBlocking {
+        // The town's one wine bar has no website, so a prompt that demanded one hid it. A name is
+        // enough to search for; the research confirms it with a page before anyone sees it.
+        val answer = """{"candidates":[{"content":{"parts":[{"text":"1. Sip D'Vine | Tigard, Oregon\n2. Beaverton Wine Bar | Beaverton, Oregon"}]}}]}"""
+        val found = GeminiGrounding("k", transport = Fake(answer)).find(ask)
+        assertEquals(listOf("Sip D'Vine", "Beaverton Wine Bar"), found.map { it.name })
+        assertEquals("Tigard, Oregon", found[0].town)
+        assertTrue(found.all { it.url.isBlank() })
+    }
+
+    @Test
+    fun theTownOneOverIsAskedForWhenTheTownHasNothing() = runBlocking {
+        // Asked `Town | Venue` rather than `Venue | Town`: the town is what the research needs.
+        val answer = """{"candidates":[{"content":{"parts":[{"text":"Beaverton, Oregon | Bar Diane"}]}}]}"""
+        val transport = Fake(answer)
+        assertEquals(listOf("Beaverton, Oregon"), GeminiGrounding("k", transport = transport).nearby(ask))
+        assertTrue(transport.lastBody.contains("google_search"))
+        assertTrue(transport.lastBody.contains("Portland, Oregon"))
+    }
+
+    @Test
+    fun aGuideOrANumberedParagraphIsNotAPlace() {
+        assertEquals("Sip D'Vine", GeminiGrounding.lineOf("- Sip D'Vine | Tigard")?.name)
+        assertEquals("Sip D'Vine", GeminiGrounding.lineOf("Sip D'Vine — Tigard")?.name)
+        assertNull(GeminiGrounding.lineOf("The 10 Best Wine Bars in Portland (Updated 2026)"))
+        assertNull(GeminiGrounding.lineOf("Here are a few places you might like."))
+        assertNull(GeminiGrounding.lineOf("https://example.com | Portland"))
     }
 
     @Test

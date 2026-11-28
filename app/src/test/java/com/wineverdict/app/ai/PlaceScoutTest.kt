@@ -278,7 +278,118 @@ class PlaceScoutTest {
         }
         val report = PlaceScout.research(ask, "", sources)
         assertTrue(report.venues.isEmpty())
-        assertTrue(report.text().contains("found no place I could confirm"))
+        assertTrue(report.text().contains("could not confirm anywhere open with wine"))
+    }
+
+    @Test
+    fun aTownWithNothingOffersOneATownOver() = runBlocking {
+        // The complaint that started this: Tigard has a wine bar, and the reply said "nowhere",
+        // which sends a reader to a search engine. One town over is an answer.
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val beaverton = PlaceScout.Venue(
+            "Bar Diane",
+            "https://bardiane.example/",
+            address = "123 SW Broadway, Beaverton, Oregon"
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) =
+                if (ask.where.startsWith("Beaverton")) listOf(beaverton) else emptyList()
+            override suspend fun page(url: String) =
+                "Bar Diane is a natural wine bar in Beaverton, Oregon, by the glass."
+            override suspend fun pick(system: String, evidence: String): String {
+                assertTrue(evidence.contains("Bar Diane"))
+                return """{"picks":[{"line":1,"why":"a natural-wine list by the glass"}]}"""
+            }
+            override suspend fun nearby(ask: PlaceScout.Ask) =
+                listOf(ask.copy(where = "Beaverton, Oregon", basis = ""))
+        }
+        val report = PlaceScout.research(ask, "", sources)
+        assertEquals("Beaverton, Oregon", report.elsewhere)
+        val text = report.text(on = "2026-11-28")
+        assertTrue(text, text.contains("Nothing I could confirm open in Tigard, Oregon"))
+        assertTrue(text, text.contains("If you do not mind a short drive, Beaverton, Oregon has:"))
+        assertTrue(text, text.contains("Bar Diane (bardiane.example)"))
+        assertFalse(text, text.contains("Naming the neighbourhood"))
+    }
+
+    @Test
+    fun aListingIsEnoughWhenThePlaceHasNoSiteOfItsOwn() {
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "https://www.yelp.com/biz/sip-dvine-tigard",
+            title = "Sip D'Vine - Tigard, OR - Yelp",
+            snippet = "Sip D'Vine is a wine bar and bottle shop in downtown Tigard, Oregon."
+        )
+        assertTrue(PlaceScout.listingBelongs(venue, ask))
+        assertFalse(PlaceScout.listingBelongs(venue.copy(closed = "permanently closed"), ask))
+        assertFalse(PlaceScout.listingBelongs(venue, ask.copy(where = "Portland, Oregon")))
+        assertFalse(PlaceScout.listingBelongs(venue.copy(snippet = "A bar in Tigard, Oregon."), ask))
+    }
+
+    @Test
+    fun aListingIsQuotedAsAListingRatherThanAsTheSitesWords() = runBlocking {
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "https://www.yelp.com/biz/sip-dvine-tigard",
+            title = "Sip D'Vine - Tigard, OR - Yelp",
+            snippet = "Sip D'Vine is a wine bar and bottle shop in downtown Tigard, Oregon."
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(venue)
+            override suspend fun page(url: String) = error("a directory is never fetched as the venue's page")
+            override suspend fun pick(system: String, evidence: String) =
+                """{"picks":[{"line":1,"why":"a bottle shop with a bar in it"}]}"""
+        }
+        val report = PlaceScout.research(ask, "", sources)
+        assertEquals(1, report.venues.size)
+        assertTrue(report.venues.single().snippetOnly)
+        val text = report.text(on = "2026-11-28")
+        assertTrue(text, text.contains("Listing: “"))
+        assertFalse(text, text.contains("Page: “"))
+    }
+
+    @Test
+    fun aSiteThatAnswersAPhoneWithNothingFallsBackToItsListing() = runBlocking {
+        // A JavaScript site returns no readable text to a phone, which is another way a real wine
+        // bar used to vanish. The listing is still a page that was read today.
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "https://www.sipdvine.example/",
+            title = "Sip D'Vine - Tigard, OR",
+            snippet = "Sip D'Vine is a wine bar and bottle shop in downtown Tigard, Oregon."
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(venue)
+            override suspend fun page(url: String) = ""
+            override suspend fun pick(system: String, evidence: String) =
+                """{"picks":[{"line":1,"why":"a bottle shop with a bar in it"}]}"""
+        }
+        val report = PlaceScout.research(ask, "", sources)
+        assertEquals(1, report.venues.size)
+        assertTrue(report.venues.single().snippetOnly)
+    }
+
+    @Test
+    fun aPageThatIsSomethingElseIsNotRescuedByItsListing() = runBlocking {
+        // The hijacked-domain case stays a drop: a page that loaded and is about crypto is the
+        // evidence, and it says the place is not what the map remembers.
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "https://www.sipdvine.example/",
+            title = "Sip D'Vine - Tigard, OR",
+            snippet = "Sip D'Vine is a wine bar and bottle shop in downtown Tigard, Oregon."
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(venue)
+            override suspend fun page(url: String) =
+                "Крипто-казино в 2026 году: лучшие crypto casinos без KYC. Топ Быстрые выплаты"
+            override suspend fun pick(system: String, evidence: String) = error("nothing to rank")
+        }
+        assertTrue(PlaceScout.research(ask, "", sources).venues.isEmpty())
     }
 
     @Test

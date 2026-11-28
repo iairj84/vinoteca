@@ -175,14 +175,19 @@ Gemini or Groq — with your own key.
   with good wine?” used to come back as three restaurants that had been closed for years, because
   the answer was the model's memory of a city it has never been to. Now the app does the looking.
   With a Gemini key configured, discovery is Google's own search grounding (the native
-  `generateContent` call with the `google_search` tool): the places Google cites for that town are
+  `generateContent` call with the `google_search` tool): the places Google names for that town are
   the candidates, and each citation is resolved past Google's redirect to the venue's own site. It
   finds the restaurants with serious lists that a map cannot, because a map only knows what a
-  volunteer tagged "wine". Without a Gemini key — or when grounding returns nothing — the map is the
-  second opinion: OpenStreetMap entries inside the town's own boundary (Nominatim, with Overpass as
-  the third). A place is only offered to the sommelier after its own page loaded,
-  named the place, used a wine word, said nothing about being closed, and agreed it is in the town
-  asked about — a lapsed domain that now serves something else is not evidence. A page that says
+  volunteer tagged "wine". The prompt asks for names and towns, not websites — a small town's one
+  wine bar often has no site — so a name that arrives without a cited page is searched for on its
+  own and has to be confirmed by that search before it goes any further. Without a Gemini key — or
+  when grounding returns nothing — the map is the second opinion: OpenStreetMap entries inside the
+  town's own boundary (Nominatim, with Overpass as the third). A place is only offered to the
+  sommelier after its own page loaded, named the place, used a wine word, said nothing about being
+  closed, and agreed it is in the town asked about; when it has no site of its own, or its site
+  answers a phone with a script, the listing that named it is the evidence and the reply quotes it
+  under a *Listing:* line rather than *Page:*. A lapsed domain that now serves something else is not
+  evidence. A page that says
   *permanently closed*, *closed for good* or *closed in 2023* removes the place (but *closed
   Sundays* does not). The reply is written by the app from the fetched record — the name, the host
   and what the page actually says, under a *Page:* line quoting the venue's own words — so a
@@ -190,9 +195,12 @@ Gemini or Groq — with your own key.
   phone's own region (a location fix reverse-geocoded by Photon or the platform geocoder, the saved
   place called Home, or the locale country) and every reply says which town it used and why; when
   the phone cannot settle it, the answer lists the candidates and asks instead of guessing. The
-  reader runs on the phone itself in an instrumented test (`:app:connectedDebugAndroidTest`). Other states' addresses are dropped. When the pages
-  confirm nothing, every source is busy, or the town is unknown, the answer says so plainly rather
-  than falling back to a guess.
+  reader runs on the phone itself in an instrumented test (`:app:connectedDebugAndroidTest`). Other states' addresses are dropped. When nothing in the town survives those checks, the app asks Google for
+  the nearest town within a short drive that has somewhere, reads those pages to the same standard,
+  and answers with that town named — *Nothing I could confirm open in Tigard, Oregon. If you do not
+  mind a short drive, Beaverton, Oregon has:* — instead of "nowhere". When the pages confirm nothing
+  in either, every source is busy, or the town is unknown, the answer says so plainly rather than
+  falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

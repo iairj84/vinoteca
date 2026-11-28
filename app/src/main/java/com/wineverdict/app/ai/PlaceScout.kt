@@ -37,6 +37,9 @@ object PlaceScout {
      */
     const val MAX_CANDIDATES = 3
 
+    /** Towns a short drive away that may be tried when the asked town has nothing. */
+    const val MAX_NEARBY = 2
+
     /** Two or three is advice; more is a directory. */
     const val MAX_PICKS = 3
 
@@ -107,7 +110,15 @@ object PlaceScout {
         /** The map's address, which is what proves the town: "526 SW Yamhill St, Portland, OR". */
         val address: String = "",
         /** The map's opening hours, when it has them; never estimated from anything else. */
-        val hours: String = ""
+        val hours: String = "",
+        /**
+         * True when [text] is the directory listing that named the place, not the place's own page.
+         *
+         * A town's one wine bar often has no website, and the listing is then the page a person
+         * would read. It is quoted as a listing, because calling it the venue's page would be a lie
+         * about where the words came from.
+         */
+        val snippetOnly: Boolean = false
     ) {
         val host: String
             get() = runCatching {
@@ -159,7 +170,12 @@ object PlaceScout {
         /** The region the phone reported, for the ambiguous reply to name. */
         val region: Region? = null,
         /** True when the map answered and did not know the town at all. */
-        val unknownTown: Boolean = false
+        val unknownTown: Boolean = false,
+        /**
+         * The town a short drive away that the places are actually in, when the asked town had
+         * none. Blank in the ordinary case, where [ask]'s town is where they are.
+         */
+        val elsewhere: String = ""
     ) {
         fun text(on: String = today()): String {
             val body = when {
@@ -173,6 +189,7 @@ object PlaceScout {
                 // it stands rather than turned into an apology.
                 picks == null -> fallback(ask, venues, on)
                 picks.picks.isEmpty() -> nothing(ask, on)
+                elsewhere.isNotBlank() -> nearbyAnswer(picks, venues, ask, elsewhere, on)
                 else -> answer(picks, venues, ask, on)
             }
             // When the phone settled the town, every reply says which town and why — including the
@@ -734,6 +751,15 @@ object PlaceScout {
 
         /** The model's pick, from the system prompt and the numbered evidence. */
         suspend fun pick(system: String, evidence: String): String
+
+        /**
+         * Towns a short drive away, for the case where the asked town has nothing at all.
+         *
+         * Default empty: a source that cannot look one town over simply answers for the town it was
+         * asked about. Whatever it returns is held to exactly the same page rules as the ask, so a
+         * neighbour can never be confirmed by a weaker test.
+         */
+        suspend fun nearby(ask: Ask): List<Ask> = emptyList()
     }
 
     /**
@@ -820,37 +846,98 @@ object PlaceScout {
                 }
             }
         }
-        val found = rank(ranked(sources.discover(settled, box)))
-        if (found.isEmpty()) return Report(settled, emptyList(), Picks())
-        // Four with a page is a whole answer; six attempts is the cap, because every page is a
-        // request and a chat that reads ten to keep three is a chat that takes half a minute.
+        val open = gather(rank(ranked(sources.discover(settled, box))), settled, sources)
+        if (open.isNotEmpty()) {
+            val raw = sources.pick(prompt(brief), evidence(settled, open))
+            return Report(settled, open, parse(raw, open))
+        }
+        // Nothing in town survived the evidence. "Nowhere" is the one answer that sends the reader
+        // back to a search engine, and a town of forty thousand people genuinely can have one wine
+        // bar — often tagged as something else, or one street past the boundary the map drew. One
+        // town over is a different, honest answer, and those places are read all the same.
+        for (neighbour in sources.nearby(settled).take(MAX_NEARBY)) {
+            val away = gather(rank(ranked(sources.discover(neighbour, ""))), neighbour, sources)
+            if (away.isEmpty()) continue
+            val raw = sources.pick(prompt(brief), evidence(neighbour, away))
+            return Report(settled, away, parse(raw, away), elsewhere = neighbour.where)
+        }
+        return Report(settled, emptyList(), Picks())
+    }
+
+    /**
+     * The evidence tail: read pages, drop what is closed, outside the town, or not about the place.
+     *
+     * Extracted so the town that was asked about and the town a short drive away are held to exactly
+     * the same rules. Four with a page is a whole answer; six attempts is the cap, because every
+     * page is a request and a chat that reads ten to keep three takes half a minute.
+     */
+    private suspend fun gather(found: List<Venue>, ask: Ask, sources: Sources): List<Venue> {
         val open = mutableListOf<Venue>()
         val hosts = mutableSetOf<String>()
         var attempts = 0
         for (venue in found) {
             if (open.size >= MAX_CHOICES || attempts >= MAX_PAGES) break
-            if (!readable(venue.url)) continue
+            if (open.any { fold(it.name) == fold(venue.name) }) continue
+            if (!readable(venue.url)) {
+                // No page of its own: the listing that named it is the evidence, and only when it
+                // passes the same three checks the venue's own site would have to.
+                if (listingBelongs(venue, ask)) open += listed(venue)
+                continue
+            }
             // One address per place: two records of the same winery are one recommendation, and
             // the second page would be the same page read twice.
             if (!hosts.add(fold(venue.host))) continue
             attempts++
             val text = sources.page(venue.url)
-            if (text.isBlank()) continue
             // A venue's website can lapse and be taken over: a live run found one Portland wine
             // merchant's domain serving a crypto-casino page. The map still says "wine", the page
-            // does not — and a page that never names the place is not evidence of the place.
-            if (!pageBelongs(text, venue)) continue
-            val checked = venue.copy(
-                text = pageDigest(text, venue.name),
-                closed = closedReason(text).ifBlank { venue.closed }
-            )
+            // does not — and a page that never names the place is not evidence of the place, so a
+            // page that loaded and is about something else drops the venue for good.
+            val loaded = text.isNotBlank()
+            val checked = if (loaded && pageBelongs(text, venue)) {
+                venue.copy(
+                    text = pageDigest(text, venue.name),
+                    closed = closedReason(text).ifBlank { venue.closed }
+                )
+            } else {
+                null
+            }
+            if (checked == null) {
+                // Nothing loaded at all — a site that answers a phone with a script, or a dead
+                // domain — is a different case from a page about something else: there the listing
+                // is still the page somebody read today, and it is held to the same three checks.
+                if (!loaded && listingBelongs(venue, ask)) open += listed(venue)
+                continue
+            }
             if (checked.closed.isNotBlank()) continue
             if (!inTown(checked, ask)) continue
-            if (open.none { fold(it.name) == fold(checked.name) }) open += checked
+            open += checked
         }
-        if (open.isEmpty()) return Report(settled, emptyList(), Picks())
-        val raw = sources.pick(prompt(brief), evidence(settled, open))
-        return Report(settled, open, parse(raw, open))
+        return open
+    }
+
+    /** The venue numbered from its listing rather than from a site of its own. */
+    private fun listed(venue: Venue): Venue =
+        venue.copy(text = pageDigest(venue.snippet, venue.name), snippetOnly = true)
+
+    /**
+     * Whether a directory's own description of a place is enough to number it.
+     *
+     * It is a page fetched today, not a memory: the search engine wrote these words about this
+     * place after being asked for it by name and town. The same checks apply — the words have to
+     * name the place, use a wine word, say nothing about a closure, and put it in this town — and
+     * the reply labels the quote as a listing so nobody thinks it came from the venue's site.
+     */
+    fun listingBelongs(venue: Venue, ask: Ask): Boolean {
+        val snippet = venue.snippet.trim()
+        if (snippet.length < 40) return false
+        if (venue.closed.isNotBlank()) return false
+        if (!pageBelongs(snippet, venue)) return false
+        if (wineMentions(snippet) <= 0) return false
+        if (closedReason(snippet).isNotBlank() || closedReason(venue.title, snippet).isNotBlank()) {
+            return false
+        }
+        return inTown(venue.copy(text = snippet), ask)
     }
 
     /**
@@ -968,35 +1055,73 @@ object PlaceScout {
      * the reason, which is the part a person actually wants.
      */
     fun answer(picks: Picks, venues: List<Venue>, ask: Ask, on: String = today()): String {
-        val chosen = picks.picks.mapNotNull { pick -> venues.getOrNull(pick.line - 1)?.let { it to pick } }
+        val chosen = picked(picks, venues)
         if (chosen.isEmpty()) return nothing(ask, on)
-        return buildString {
+        val head = buildString {
             append(chosen.size)
             append(if (chosen.size == 1) " place" else " places")
             append(" in ").append(placeWords(ask)).append(", from pages read today:")
-            chosen.forEach { (venue, pick) ->
-                append("\n\n- ").append(venue.name)
-                if (venue.host.isNotBlank()) append(" (").append(venue.host).append(')')
-                // The page's own words, quoted: a reader can check the recommendation against the
-                // site it came from, which is the difference between research and a plausible list.
-                val quote = pageQuote(venue)
-                if (quote.isNotBlank()) append("\n  Page: “").append(quote).append("”")
-                append("\n  Why: ").append(pick.why)
+        }
+        return head + listing(chosen, picks, venues, on)
+    }
+
+    /**
+     * The reply when the asked town had nothing and a town a short drive away did.
+     *
+     * The alternative was the empty answer that made a reader give up on the app, and the drive is
+     * offered as a choice rather than assumed: the town is named, every place is still one whose
+     * page or listing was read today, and the reader decides whether that is worth the trip.
+     */
+    fun nearbyAnswer(
+        picks: Picks,
+        venues: List<Venue>,
+        ask: Ask,
+        elsewhere: String,
+        on: String = today()
+    ): String {
+        val chosen = picked(picks, venues)
+        if (chosen.isEmpty()) return noEvidence(ask)
+        val head = "Nothing I could confirm open in ${placeWords(ask)}. If you do not mind a short " +
+            "drive, $elsewhere has:"
+        return head + listing(chosen, picks, venues, on)
+    }
+
+    /** The chosen lines, with the place each number points at. */
+    private fun picked(picks: Picks, venues: List<Venue>): List<Pair<Venue, Pick>> =
+        picks.picks.mapNotNull { pick -> venues.getOrNull(pick.line - 1)?.let { it to pick } }
+
+    /** The places, the skips, the note and the date check: the body both replies share. */
+    private fun listing(
+        chosen: List<Pair<Venue, Pick>>,
+        picks: Picks,
+        venues: List<Venue>,
+        on: String
+    ): String = buildString {
+        chosen.forEach { (venue, pick) ->
+            append("\n\n- ").append(venue.name)
+            if (venue.host.isNotBlank()) append(" (").append(venue.host).append(')')
+            // The page's own words, quoted: a reader can check the recommendation against the
+            // site it came from, which is the difference between research and a plausible list.
+            val quote = pageQuote(venue)
+            if (quote.isNotBlank()) {
+                append(if (venue.snippetOnly) "\n  Listing: “" else "\n  Page: “")
+                    .append(quote).append("”")
             }
-            if (picks.skips.isNotEmpty()) {
-                picks.skips.forEach { skip ->
-                    venues.getOrNull(skip.line - 1)?.let { venue ->
-                        append("\n\nSkip: ").append(venue.name).append(" — ").append(skip.why)
-                    }
+            append("\n  Why: ").append(pick.why)
+        }
+        if (picks.skips.isNotEmpty()) {
+            picks.skips.forEach { skip ->
+                venues.getOrNull(skip.line - 1)?.let { venue ->
+                    append("\n\nSkip: ").append(venue.name).append(" — ").append(skip.why)
                 }
             }
-            val note = cleanNote(picks.note)
-            if (note.isNotBlank()) append("\n\n").append(note)
-            // The town and why it was that town are appended by [Report.text], so every reply says
-            // it once — picked, empty, or unreadable alike.
-            append("\n\nChecked against pages fetched ").append(on)
-            append(". Hours and closures change: call before you go.")
         }
+        val note = cleanNote(picks.note)
+        if (note.isNotBlank()) append("\n\n").append(note)
+        // The town and why it was that town are appended by [Report.text], so every reply says
+        // it once — picked, empty, or unreadable alike.
+        append("\n\nChecked against pages fetched ").append(on)
+        append(". Hours and closures change: call before you go.")
     }
 
     /**
@@ -1063,16 +1188,16 @@ object PlaceScout {
     fun nothing(ask: Ask, on: String = today()): String =
         "I read the pages for ${placeWords(ask)} today and none of the places they still describe is " +
             "a wine place I would send you to tonight, so I am not going to name one from memory. " +
-            "A narrower area, a neighbourhood name, or asking again tomorrow is a better question " +
-            "than a guess. (Pages fetched $on.)"
+            "A different area, or asking again tomorrow, is a better question than a guess. " +
+            "(Pages fetched $on.)"
 
-    /** Looked, but nothing named a place that could be confirmed open, in town, with a page. */
+    /** Looked in the town and one town over, and nothing could be confirmed open with wine. */
     fun noEvidence(ask: Ask): String =
-        "I looked for ${ask.subject} in ${placeWords(ask)} just now and found no place I could " +
-            "confirm, from its own page, was open and in ${placeWords(ask)}. I will not answer from " +
-            "memory — that is how you end up at a restaurant that closed two years ago.\n\n" +
-            "Naming the neighbourhood usually helps (\"wine bars in the Pearl District\"), and if " +
-            "the phone had no connection, ask again when it does."
+        "I looked for ${ask.subject} in ${placeWords(ask)}, and in the towns next to it, and read " +
+            "what the pages say: I could not confirm anywhere open with wine tonight. I will not " +
+            "answer from memory — that is how you end up at a restaurant that closed two years ago.\n\n" +
+            "If the phone had no connection, ask again when it does; a different town or a wider " +
+            "area is a better question than a guess."
 
     /**
      * The lookup was refused: say so plainly, and say nothing about anywhere.

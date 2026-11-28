@@ -3,6 +3,33 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.63: the town's one wine bar is not "nowhere"
+
+**Asked for wine in Tigard, Oregon — where a wine bar sits downtown — the app said there was nowhere
+to go.** The discovery prompt was the cause: it asked for "venues inside the town, each with its own
+website". A bar whose presence is a Google listing and an Instagram has no website, so the model
+left it out; the citations that came back were directories, which are dropped; the map then found
+twenty-one Tigard restaurants with no websites and no wine tag. Every source was behaving as
+instructed, and the answer was useless.
+
+Grounding now asks for **names and towns, not websites** — `Place Name | Town`, one per line — and a
+name that arrives without a cited page is searched for on its own and has to be confirmed by that
+search (the same confirmation the keyless path uses) before the research sees it. The page rules did
+not move: the place's own page still has to name it, use a wine word, say nothing about a closure
+and put it in the town asked for.
+
+Two things follow from the same failure. A place with **no site of its own** — or whose site answers
+a phone with a script and no text — is no longer dropped: the directory listing that named it is a
+page fetched today, and when it names the place, talks about wine and puts it in the town, it is
+numbered and the reply quotes it under a `Listing:` line instead of `Page:`. A page that loads and is
+about something else still drops the place, because a hijacked domain is the evidence. And when **nothing in the town survives at all**, the app asks Google for the nearest
+town within a short drive that has somewhere, reads those pages to exactly the same standard, and
+says so: *Nothing I could confirm open in Tigard, Oregon. If you do not mind a short drive, Beaverton,
+Oregon has:* followed by the places. The old "naming the neighbourhood usually helps" line is gone.
+
+Nothing is guessed: a name the model invents fails its confirmation search, a town it invents yields
+nothing, and the empty answer still says so — after two towns, not before them.
+
 ### 1.2.62: discovery through Google's own search, with the key the phone already has
 
 **The map was the wrong source, and the key to a better one was already configured.** Place research

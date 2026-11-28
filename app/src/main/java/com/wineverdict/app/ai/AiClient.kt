@@ -107,6 +107,9 @@ class AiClient(
 
     private val pageCache = PlaceScout.Cache<String>(PLACE_CACHE_MS)
 
+    /** The towns one town over, cached with the town that had nothing: same evening, same answer. */
+    private val nearbyCache = PlaceScout.Cache<List<PlaceScout.Ask>>(PLACE_CACHE_MS)
+
     suspend fun complete(
         system: String,
         turns: List<ChatMessage>,
@@ -326,7 +329,7 @@ class AiClient(
             // volunteer tagged "wine"), and the pages it cites are what the research then reads.
             // The map is the second opinion, not the other way round: it is the source that needed
             // a mirror, a rate-limit apology and a category guess to work at all.
-            val cited = runCatching { grounding()?.find(ask).orEmpty() }.getOrDefault(emptyList())
+            val cited = groundedVenues(ask)
             if (cited.isNotEmpty()) {
                 placeCache.put(key, cited)
                 return cited
@@ -350,6 +353,28 @@ class AiClient(
             if (found.isEmpty() && refusal != null) throw refusal
             if (found.isNotEmpty()) placeCache.put(key, found)
             return found
+        }
+
+        /**
+         * The towns a short drive away, asked of Google when the settled town came back empty.
+         *
+         * The names are the model's, and they are used only as *where to look next*: the research
+         * runs its whole pipeline for each one, so a town the model invented simply yields nothing
+         * and the next is tried. Two towns, because three is a road trip.
+         */
+        override suspend fun nearby(ask: PlaceScout.Ask): List<PlaceScout.Ask> {
+            val key = "near|" + PlaceScout.cacheKey(ask)
+            nearbyCache.get(key)?.let { return it }
+            val towns = runCatching { grounding()?.nearby(ask).orEmpty() }
+                .getOrDefault(emptyList())
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+                .filter { PlaceScout.fold(it) != PlaceScout.fold(ask.where) }
+                .distinctBy { PlaceScout.fold(it) }
+                .take(PlaceScout.MAX_NEARBY)
+            val asks = towns.map { ask.copy(where = it, basis = "") }
+            if (asks.isNotEmpty()) nearbyCache.put(key, asks)
+            return asks
         }
 
         override suspend fun page(url: String): String {
@@ -383,6 +408,34 @@ class AiClient(
     private fun grounding(): GeminiGrounding? =
         settings.key(AiProvider.GEMINI).trim().takeIf { it.isNotBlank() }
             ?.let { GeminiGrounding(it, transport = groundingTransport) }
+
+    /**
+     * What Google's grounding named, with a page wherever it cited one.
+     *
+     * A cited page is evidence as it stands, and the research reads it. A bare name is not: the
+     * prompt deliberately stops asking for websites, because a town's one wine bar often has none,
+     * so each name gets its own search and [PlaceScout.confirmed] — the same confirmation the
+     * keyless path uses — before it is allowed onto the list. Names are capped like the map's, and
+     * the pause between them is the same politeness to the search engine.
+     */
+    private suspend fun groundedVenues(ask: PlaceScout.Ask): List<PlaceScout.Venue> =
+        withContext(Dispatchers.IO) {
+            val proposals = runCatching { grounding()?.find(ask).orEmpty() }
+                .getOrDefault(emptyList())
+            if (proposals.isEmpty()) return@withContext emptyList()
+            val venues = proposals
+                .filter { it.url.isNotBlank() }
+                .map { PlaceScout.Venue(name = it.name, url = it.url, title = it.name) }
+                .toMutableList()
+            for (proposal in proposals.filter { it.url.isBlank() }.take(PlaceScout.MAX_CANDIDATES)) {
+                val hits = runCatching {
+                    web.search(PlaceScout.confirmQuery(proposal.name, ask))
+                }.getOrNull().orEmpty()
+                PlaceScout.confirmed(proposal.name, hits, ask)?.let { venues += it }
+                delay(150)
+            }
+            venues
+        }
 
     /** The map's places, as venues whose address can prove the town. */
     private suspend fun mapVenues(ask: PlaceScout.Ask, box: String): List<PlaceScout.Venue> =
