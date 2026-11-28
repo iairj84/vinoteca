@@ -3,6 +3,23 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.55: a half-typed place finds the one down the road
+
+**Typing "Loyal L" on a phone that had never been asked found a town in Kentucky.** The search is
+ranked by how near it is, which needs to know where *near* is — and the field only asked for the
+phone's position when the location icon was tapped. On a fresh install, typing first meant searching
+from nowhere: the four branches were there to be found, and the only thing on offer was an address.
+
+- **The first thing typed in the box asks.** Once per night's sheet, at the moment there is
+  something to search for, Android's location question appears — *While using the app*, *Only this
+  time*, *Don't allow* — and the words already typed stay where they are while the list is asked
+  again from the fix.
+- **The icon still asks**, for a place that was never typed, and a refusal is not asked over and
+  over: one question per sheet, then the box works as it always did.
+- **Said honestly when there is no fix.** Permission granted, but the phone cannot say where it
+  is: "No location fix, so this search is not nearby. Type the whole name." — rather than a search
+  that quietly looks local and is not.
+
 ### 1.2.54: a night that knows where it happened
 
 **A place was a line to retype every time, and "home" was typed home.** The book kept *where* as

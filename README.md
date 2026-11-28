@@ -79,8 +79,11 @@ Gemini or Groq — with your own key.
   named business within about eighty metres, and **nothing** for a house — a street number is not a
   place anybody said. Somewhere with no name offers **Save this spot**, which names it and gives it
   a circle of its own: 45 m by default, adjustable per place, and renamed or re-cut in
-  **Settings → Saved places**. Location is asked for on the first tap of the icon and never on a
-  keystroke; refused, the box is exactly what it was before.
+  **Settings → Saved places**. Location is asked for the first time anything is typed in the box,
+  because half a name needs to know the town before it can find the branch down the road; the icon
+  asks too, for a place that was never typed. Refused, the box is exactly what it was before — the
+  whole name still finds the place — and a phone with no fix says so instead of searching from
+  nowhere.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
