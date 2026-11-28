@@ -13,7 +13,9 @@ import java.io.File
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 import java.util.UUID
 
 private const val DAY_MS = 24L * 60 * 60 * 1000
@@ -543,6 +545,31 @@ fun yearAgo(
 ): List<Drink> {
     val then = day.minusYears(1)
     return drinks.filter { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() == then }
+}
+
+/**
+ * One day of the calendar as it is said out loud: the whole date, what was written on it, and
+ * whether it is today.
+ *
+ * The dot under the number is decoration and carries none of this, so the words have to — read as a
+ * bare "27" a day says neither which month it belongs to nor whether there is a night behind it,
+ * and a screen reader has nothing else to go on.
+ */
+fun calendarDayWords(
+    date: LocalDate,
+    count: Int,
+    today: Boolean,
+    locale: Locale = Locale.getDefault()
+): String = buildString {
+    append(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM yyyy", locale)))
+    append(
+        when (count) {
+            0 -> ", no entries"
+            1 -> ", 1 entry"
+            else -> ", $count entries"
+        }
+    )
+    if (today) append(", today")
 }
 
 /**

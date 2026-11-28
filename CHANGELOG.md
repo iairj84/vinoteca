@@ -3,6 +3,22 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.52: a calendar you can hear, at any text size
+
+**The calendar was a grid of bare numbers to a screen reader.** Every day announced itself as "27",
+a dot under it meant nothing to TalkBack at all, and nothing said whether the day was the one being
+shown — so the one view built for finding an evening was the one that could not describe it. At the
+largest text size the square cells clipped the numbers they existed to show.
+
+- **Every day is a sentence.** A day reads as *Thursday 27 November 2025, 2 entries* — the date, what
+  was written on it, and *today* when it is — and the day being shown reports itself as selected.
+  Marked-up days no longer depend on a dot only sighted users can see.
+- **The controls say where they lead.** The month and year arrows are *Previous month, October
+  2026* rather than "previous month", the title is a heading a screen reader can jump to, and the
+  weekday letters are skipped instead of read as "S M T W T F S".
+- **The grid grows with the text.** A day's height comes from the number in it, not from a square,
+  so at the largest font size the dates stay whole and the row grows instead of clipping.
+
 ### 1.2.51: a calendar that reaches the years, and a night a year old
 
 **The calendar walked a month at a time and nothing else.** A book that spans five years needed

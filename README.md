@@ -117,7 +117,10 @@ Gemini or Groq — with your own key.
   an evening can be found by its date when the name is the part that is forgotten. **Today**
   comes back to this month and two double arrows move the calendar a year at a time; when the day
   being looked at has entries from the same date a year earlier, **A year ago tonight** names them
-  under their date, and a tap opens that night. **Add** writes a
+  under their date, and a tap opens that night. The calendar is built to be heard as well as seen:
+  a day reads as *Thursday 27 November 2025, 2 entries* and says when it is the one being shown,
+  the month and year arrows name the month and year they lead to, and the day cells grow with the
+  text size instead of clipping their numbers. **Add** writes a
   night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the
   verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it

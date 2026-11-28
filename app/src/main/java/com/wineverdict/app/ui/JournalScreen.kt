@@ -12,10 +12,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,6 +68,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -78,6 +83,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.Drink
 import com.wineverdict.app.data.bottleTastings
+import com.wineverdict.app.data.calendarDayWords
 import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.matchesWords
 import com.wineverdict.app.data.dayWords
@@ -508,9 +514,10 @@ private fun CalendarCard(
     SectionCard(title = null) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                month.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())),
+                monthWords(month),
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
+                // A heading, so a screen reader can jump straight to the calendar.
+                modifier = Modifier.weight(1f).semantics { heading() }
             )
             // Back to the month the phone is in, and off when it is already there with nothing
             // picked: a button that can only do nothing is worse than no button. A night picked in
@@ -525,11 +532,19 @@ private fun CalendarCard(
             ) {
                 Text("Today")
             }
+            // Each control says where it leads, not only that it moves: "previous month" leaves
+            // a screen-reader user counting from a month they have to remember.
             IconButton(onClick = { onMonth(month.minusMonths(1)) }) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous month")
+                Icon(
+                    Icons.Filled.ChevronLeft,
+                    contentDescription = "Previous month, ${monthWords(month.minusMonths(1))}"
+                )
             }
             IconButton(onClick = { onMonth(month.plusMonths(1)) }) {
-                Icon(Icons.Filled.ChevronRight, contentDescription = "Next month")
+                Icon(
+                    Icons.Filled.ChevronRight,
+                    contentDescription = "Next month, ${monthWords(month.plusMonths(1))}"
+                )
             }
         }
         val nights = counts.keys.count { YearMonth.from(it) == month }
@@ -547,13 +562,21 @@ private fun CalendarCard(
             // Twelve months is a long way through a five-year book; these move a year per tap and
             // the title above says which one the month landed in.
             IconButton(onClick = { onMonth(month.minusYears(1)) }) {
-                Icon(Icons.Filled.KeyboardDoubleArrowLeft, contentDescription = "Previous year")
+                Icon(
+                    Icons.Filled.KeyboardDoubleArrowLeft,
+                    contentDescription = "Previous year, ${month.minusYears(1).year}"
+                )
             }
             IconButton(onClick = { onMonth(month.plusYears(1)) }) {
-                Icon(Icons.Filled.KeyboardDoubleArrowRight, contentDescription = "Next year")
+                Icon(
+                    Icons.Filled.KeyboardDoubleArrowRight,
+                    contentDescription = "Next year, ${month.plusYears(1).year}"
+                )
             }
         }
-        Row(Modifier.fillMaxWidth()) {
+        // The weekday letters are the grid's decoration: every day already says its own weekday,
+        // so reading "S M T W T F S" first is noise on the way to the dates.
+        Row(Modifier.fillMaxWidth().clearAndSetSemantics { }) {
             repeat(7) { index ->
                 Text(
                     weekStart.plus(index.toLong())
@@ -592,6 +615,10 @@ private fun CalendarCard(
     }
 }
 
+/** A month as the calendar's title prints it, for the buttons that lead to one. */
+private fun monthWords(month: YearMonth, locale: Locale = Locale.getDefault()): String =
+    month.atDay(1).format(DateTimeFormatter.ofPattern("MMMM yyyy", locale))
+
 /**
  * The night a year earlier, when the calendar is looking at a day that has one.
  *
@@ -619,7 +646,13 @@ private fun YearAgoCard(day: LocalDate, entries: List<Drink>, onOpen: () -> Unit
     }
 }
 
-/** One day of the calendar: its number, whether anything was written, and whether it is chosen. */
+/**
+ * One day of the calendar: its number, whether anything was written, and whether it is chosen.
+ *
+ * It reads as one sentence rather than a number followed by a dot nobody can hear, and its height
+ * comes from the text: at the largest font size a square cell cuts the date in half, and a
+ * calendar that hides its own days is not a calendar.
+ */
 @Composable
 private fun DayCell(
     date: LocalDate,
@@ -630,10 +663,11 @@ private fun DayCell(
     onClick: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    val words = remember(date, count, today) { calendarDayWords(date, count, today) }
     Column(
         modifier = modifier
             .padding(2.dp)
-            .aspectRatio(1f)
+            .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(
                 when {
@@ -642,6 +676,18 @@ private fun DayCell(
                     else -> Color.Transparent
                 }
             )
+            // One node for the whole day, and it replaces the clickable's own: declared outside it
+            // so the sentence and the tap are announced together, instead of an unlabelled button
+            // wrapping a label a screen reader cannot reach. Chosen-ness is said in the sentence
+            // because Compose reports the `selected` property as "checked" on a plain view, and a
+            // calendar day is not a checkbox.
+            .clearAndSetSemantics {
+                contentDescription = if (selected) "$words, selected" else words
+                this.onClick {
+                    onClick()
+                    true
+                }
+            }
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -655,7 +701,8 @@ private fun DayCell(
                 count > 0 -> scheme.onSurface
                 else -> scheme.outline
             },
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false
         )
         if (count > 0) {
             Spacer(
