@@ -53,7 +53,8 @@ Gemini or Groq — with your own key.
   each of them, and every line is checked against the page before it is shown. List prices carry a
   markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
-  drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters. The search
+  drinking window with a Hold / Drink now / At peak / Past peak badge, search, filters and a sort.
+  The search
   folds accents and punctuation, so `rose` finds *Rosé* and `st estephe` finds *St. Estèphe*, and
   every word has to match, so a second word narrows. Every
   bottle with stock carries **Drank one**, which takes it out of the cellar on the tap and then asks
@@ -69,7 +70,13 @@ Gemini or Groq — with your own key.
   open is not one you must. Past peak sorts above at peak. A **To buy** filter, third in the row, is
   the bottles flagged for the next shop: a bottle's page carries a **To buy** chip that names its own
   state, and a flagged bottle says **To buy** on its row. The flag is its own — no verdict is needed
-  to want a bottle again, and it travels in the backup with everything else.
+  to want a bottle again, and it travels in the backup with everything else. Every style has a chip
+  of its own — red, white, rosé, sparkling, orange, dessert and fortified — after the questions about
+  what to do with the shelf, so four new styles cannot push **No bottles** off the end of the
+  scrolling row. **House order** beneath them names the order in force and offers four more:
+  **Recently added**, producer, newest vintage and highest price. A bottle with no price or no
+  vintage goes to the bottom of those two rather than the top, because a missing price is not a
+  cheap one.
 - **Where a night happened** — the *Where* box, on **Drank one**, on a night written in by hand and
   on a corrected night, is a place rather than a line of text. Typing offers nearby businesses by
   name and town — *Loyal Legion — Beaverton*, *… — Portland*, *… — Vancouver* — read from

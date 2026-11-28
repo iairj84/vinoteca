@@ -3,6 +3,27 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.57: the cellar can be put in an order, and every style has its chip
+
+**One order, and four styles with no way in.** The cellar was always read the same way — the bottles
+with a heart, then what is actually on the shelf, then the nearest the end of its window, then the
+producer — so a bottle bought that afternoon landed wherever its producer put it. The filter row
+stopped at Sparkling, so a rosé, an orange wine, a Sauternes and a port had All or nothing between
+them, though the record has always stored the style the model read.
+
+- **Five orders, named under the chips.** The row says which order is in force and opens a menu:
+  **House order** (what the cellar has always done), **Recently added**, **Producer A–Z**, **Newest
+  vintage** and **Highest price**. A bottle with no price or no vintage goes to the bottom of those
+  two rather than the top, because a missing price is not a cheap one.
+- **Seven style chips** — red, white, rosé, sparkling, orange, dessert and fortified. They sit after
+  the questions about what to do with the shelf, not in the middle of them: the strip scrolls, and
+  four new chips in the middle would have pushed **No bottles** — the only route to a saved wine or
+  a bottle that is all drunk — off the end of it.
+- **A style chip is a record, not a decision**, so it still shows a bottle with none left: a rosé you
+  finished is still a rosé you want to remember. **Drink up** and **To buy** still count stock only.
+- The order survives rotation and a process kill the way the filter already did, and the sort is
+  applied last, so it can never change which bottles a filter and a search kept.
+
 ### 1.2.56: the circle is drawn in yards
 
 **The radius picker said metres.** Twenty-five metres, forty-five, three hundred — numbers nobody
