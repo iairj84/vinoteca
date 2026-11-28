@@ -72,40 +72,18 @@ import com.wineverdict.app.ai.BottleCandidate
 import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
-import com.wineverdict.app.data.DrinkUp
+import com.wineverdict.app.data.CellarFilter
+import com.wineverdict.app.data.CellarView
 import com.wineverdict.app.data.InsightStore
-import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.UpdateOffer
 import com.wineverdict.app.data.Updater
-import com.wineverdict.app.model.CellarData
-import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
-import com.wineverdict.app.model.drinkStatus
 import com.wineverdict.app.model.formatMoney
 import com.wineverdict.app.model.locationName
 import com.wineverdict.app.model.stats
 import com.wineverdict.app.util.ImageUtils
 import kotlinx.coroutines.launch
 import java.io.File
-
-private enum class CellarFilter(val label: String) {
-    ALL("All"),
-    // Second, so the one view that asks for a decision is on screen without dragging the chip strip
-    // sideways: the chips past Sparkling were the only ones a thumb never reached.
-    DRINK_UP("Drink up"),
-    // The other decision the cellar holds: what to take to the shop. Beside Drink up for the same
-    // reason — it is a question, not a section of the collection.
-    TO_BUY("To buy"),
-    RED("Red"),
-    WHITE("White"),
-    SPARKLING("Sparkling"),
-    READY("Ready now"),
-    LOVED("Loved"),
-    // A wine on record with no bottles: kept off a list, or every bottle drunk. It used to be
-    // reachable only by scrolling to the bottom of the cellar. Label says what it shows, because
-    // a saved wine and a bottle you finished are the same thing to the record.
-    EMPTY("No bottles")
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,7 +114,7 @@ fun CellarScreen(
     // a filter that resets on every lookup is a filter nobody keeps. Held by its label because a
     // string is what a saved screen state can carry; the enum is read back from it.
     var filterLabel by rememberSaveable { mutableStateOf(CellarFilter.ALL.label) }
-    val filter = CellarFilter.entries.firstOrNull { it.label == filterLabel } ?: CellarFilter.ALL
+    val filter = CellarFilter.of(filterLabel)
     // The weekly nudge opens the cellar on the bottles it was about, rather than leaving the user to
     // hunt for the filter for the thing the notification just named.
     LaunchedEffect(openDrinkUp) {
@@ -262,15 +240,7 @@ fun CellarScreen(
 
     val stats = remember(data) { data.stats() }
     val visible = remember(data, query, filter) {
-        data.wines
-            .filter { matches(it, query, filter, data) }
-            .sortedWith(
-                compareByDescending<Wine> { it.favorite }
-                    .thenByDescending { it.quantity > 0 }
-                    .thenByDescending { it.drinkStatus().ordinal }
-                    .thenBy { it.producer.lowercase() }
-                    .thenBy { it.vintage ?: 9999 }
-            )
+        CellarView.visible(data.wines, data, query, filter)
     }
 
     Scaffold(
@@ -402,6 +372,7 @@ fun CellarScreen(
                             data.wines.isEmpty() -> "Your cellar is empty"
                             filter == CellarFilter.DRINK_UP -> "Nothing wants drinking up"
                             filter == CellarFilter.TO_BUY -> "Nothing on the to-buy list"
+                            filter.type != null -> "No ${filter.label.lowercase()} bottles"
                             else -> "Nothing matches"
                         },
                         body = when {
@@ -415,6 +386,9 @@ fun CellarScreen(
                             filter == CellarFilter.TO_BUY ->
                                 "Open a bottle and tap To buy on its page to keep it here until " +
                                     "the next shop."
+                            filter.type != null ->
+                                "The cellar has nothing recorded as ${filter.label.lowercase()}. " +
+                                    "All shows the whole shelf."
                             else ->
                                 "No bottle in the cellar matches those words. To add one you do not " +
                                     "own yet, tap + — everything you record stays on this phone."
@@ -817,26 +791,6 @@ private fun StatRow(value: String, label: String) {
             maxLines = 1
         )
     }
-}
-
-private fun matches(wine: Wine, query: String, filter: CellarFilter, data: CellarData): Boolean {
-    val filterMatch = when (filter) {
-        CellarFilter.ALL -> true
-        CellarFilter.RED -> wine.type.label == "Red"
-        CellarFilter.WHITE -> wine.type.label == "White"
-        CellarFilter.SPARKLING -> wine.type.label == "Sparkling"
-        CellarFilter.READY -> wine.quantity > 0 &&
-            wine.drinkStatus() in listOf(
-                com.wineverdict.app.model.DrinkStatus.READY,
-                com.wineverdict.app.model.DrinkStatus.PEAK
-            )
-        CellarFilter.DRINK_UP -> wine.quantity > 0 && wine.drinkStatus() in DrinkUp.DUE
-        CellarFilter.TO_BUY -> wine.toBuy
-        CellarFilter.LOVED -> Verdict.liked(wine)
-        CellarFilter.EMPTY -> wine.quantity <= 0
-    }
-    if (!filterMatch) return false
-    return Search.matches(Search.wineFields(wine, data), query)
 }
 
 /**
