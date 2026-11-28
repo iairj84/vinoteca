@@ -31,7 +31,7 @@ class BackupPhotosTest {
 
         val back = Backup.decode(text)
 
-        assertEquals(3, back.version)
+        assertEquals(Backup.VERSION, back.version)
         assertArrayEquals(jpeg, Backup.photos(back)["w1.jpg"])
     }
 

@@ -72,6 +72,8 @@ import com.wineverdict.app.data.Reminders
 import com.wineverdict.app.data.WeeklyDigest
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.InsightStore
+import com.wineverdict.app.data.Place
+import com.wineverdict.app.data.radiusWords
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.SpendMeter
 import com.wineverdict.app.data.Updater
@@ -111,6 +113,7 @@ fun SettingsScreen(
     var testResults by remember { mutableStateOf<Map<AiProvider, TestResult>>(emptyMap()) }
 
     var newLocationName by remember { mutableStateOf("") }
+    var placeTarget by remember { mutableStateOf<Place?>(null) }
     var renameTarget by remember { mutableStateOf<StorageLocation?>(null) }
     var renameText by remember { mutableStateOf("") }
     var confirmClearChat by remember { mutableStateOf(false) }
@@ -708,6 +711,8 @@ fun SettingsScreen(
                 }
             }
 
+            SavedPlacesSection(onEdit = { placeTarget = it })
+
             SectionCard("Advanced") {
                 Text(
                     "Edit mytaste.md directly. It is the file the model judges wine against, and most people never need to open it: the quick start writes it from ten taps and the taste profile shows what it knows. A file you write or import here is kept when the quick start runs again; one the quick start wrote is replaced.",
@@ -947,6 +952,19 @@ fun SettingsScreen(
         }
     }
 
+    placeTarget?.let { place ->
+        PlaceDialog(
+            initial = place,
+            lat = place.lat,
+            lng = place.lng,
+            onSave = { edited ->
+                AppGraph.places.save(edited)
+                placeTarget = null
+            },
+            onDismiss = { placeTarget = null }
+        )
+    }
+
     renameTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { renameTarget = null },
@@ -1023,6 +1041,7 @@ fun SettingsScreen(
                             scope.launch {
                                 val outcome = AppGraph.cellar.mergeCellar(candidate.cellar)
                                 AppGraph.drinks.merge(candidate.drinks)
+                                AppGraph.places.merge(candidate.places)
                                 // The pictures first, then the name on the bottle the merge kept: a
                                 // matched wine keeps this phone's id, so the backup's picture is
                                 // found by identity rather than by the id it was written under.
@@ -1058,6 +1077,7 @@ fun SettingsScreen(
                                 val pictures = Backup.photos(candidate)
                                 AppGraph.cellar.restorePhotos(pictures)
                                 AppGraph.drinks.replaceAll(candidate.drinks)
+                                AppGraph.places.replaceAll(candidate.places)
                                 if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
                                 if (candidate.currency.isNotBlank()) {
                                     AppGraph.settings.currency = candidate.currency
@@ -1132,6 +1152,57 @@ fun SettingsScreen(
                 TextButton(onClick = { importPreview = null }) { Text("Cancel") }
             }
         )
+    }
+}
+
+/**
+ * The circles the location icon recognises, and the only place one can be renamed or re-cut.
+ *
+ * They are listed here rather than on the night because a place outlives the night: Home is Home
+ * next month, and finding the entry that first tagged it to widen its circle would be the wrong
+ * place to look.
+ */
+@Composable
+private fun SavedPlacesSection(onEdit: (Place) -> Unit) {
+    val places by AppGraph.places.places.collectAsStateWithLifecycle()
+    SectionCard("Saved places") {
+        Text(
+            "Home, a friend's house, the bar around the corner. The location icon on a night's " +
+                "Where box checks these first: inside the circle, the night is tagged with the " +
+                "name and nothing is looked up. A spot with no name is offered for saving the " +
+                "first time you tag it.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        places.forEach { place ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(place.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "A circle of ${radiusWords(place.radiusM)} around the pin",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { onEdit(place) }) {
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit ${place.name}")
+                }
+                IconButton(onClick = { AppGraph.places.remove(place.id) }) {
+                    Icon(Icons.Filled.Delete, contentDescription = "Delete ${place.name}")
+                }
+            }
+        }
+        if (places.isEmpty()) {
+            Text(
+                "None yet. The location icon on a night's Where box saves the spot you are " +
+                    "standing on, and the name is yours to choose.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
     }
 }
 

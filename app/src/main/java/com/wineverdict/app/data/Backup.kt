@@ -40,7 +40,12 @@ data class BackupFile(
      * The label pictures, by the file name the bottle records. Base64 JPEG, so the backup stays one
      * file the user can put anywhere. Empty in a backup written before 1.2.45.
      */
-    val photos: Map<String, String> = emptyMap()
+    val photos: Map<String, String> = emptyMap(),
+    /**
+     * The places the user named — Home, a friend's house — with their pins and radiuses. Empty in a
+     * backup written before the place feature, and lost from a phone that is replaced without this.
+     */
+    val places: List<Place> = emptyList()
 ) {
     val bottles: Int get() = cellar.wines.sumOf { it.quantity }
 }
@@ -50,9 +55,9 @@ object Backup {
     const val FORMAT = "wineverdict-backup"
     // The old app's exports, so a cellar moves across the rename with Settings → Backup.
     private val ACCEPTED_FORMATS = setOf(FORMAT, "vinoteca-backup")
-    // 2 added the cellar book, 3 the label pictures. An older file still decodes: [BackupFile.drinks]
-    // and [BackupFile.photos] default empty.
-    const val VERSION = 3
+    // 2 added the cellar book, 3 the label pictures, 4 the saved places. An older file still
+    // decodes: [BackupFile.drinks], [BackupFile.photos] and [BackupFile.places] default empty.
+    const val VERSION = 4
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -66,7 +71,8 @@ object Backup {
         appVersion: String,
         currency: String,
         drinks: List<Drink> = emptyList(),
-        photos: Map<String, ByteArray> = emptyMap()
+        photos: Map<String, ByteArray> = emptyMap(),
+        places: List<Place> = emptyList()
     ): String =
         json.encodeToString(
             BackupFile(
@@ -75,7 +81,8 @@ object Backup {
                 taste = taste,
                 cellar = cellar,
                 drinks = drinks,
-                photos = photos.mapValues { (_, bytes) -> Base64.getEncoder().encodeToString(bytes) }
+                photos = photos.mapValues { (_, bytes) -> Base64.getEncoder().encodeToString(bytes) },
+                places = places
             )
         )
 

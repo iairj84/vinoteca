@@ -1051,14 +1051,7 @@ private fun JournalEntryDialog(
                         TextButton(onClick = { pickingDate = true }) { Text("Change") }
                     }
 
-                    OutlinedTextField(
-                        value = venue,
-                        onValueChange = { venue = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Where (optional)") },
-                        placeholder = { Text("A restaurant, a friend's house…") }
-                    )
+                    PlaceField(value = venue, onValueChange = { venue = it })
 
                     Text("How was it?", style = MaterialTheme.typography.labelLarge)
                     VerdictChips(rating) { rating = it }
@@ -1312,14 +1305,7 @@ private fun JournalEditDialog(
                         TextButton(onClick = { pickingDate = true }) { Text("Change") }
                     }
 
-                    OutlinedTextField(
-                        value = venue,
-                        onValueChange = { venue = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Where (optional)") },
-                        placeholder = { Text("A restaurant, a friend's house…") }
-                    )
+                    PlaceField(value = venue, onValueChange = { venue = it })
 
                     Text("How was it?", style = MaterialTheme.typography.labelLarge)
                     VerdictChips(rating) { rating = it }

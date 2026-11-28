@@ -26,7 +26,10 @@ suspend fun writeBackup(context: Context, uri: Uri): String {
             appVersion = BuildConfig.VERSION_NAME,
             currency = AppGraph.settings.currency,
             drinks = drinks,
-            photos = pictures
+            photos = pictures,
+            // Saved places are drawn on this phone and cannot be looked up again anywhere: a
+            // backup that left them behind would cost every Home and friend's house their name.
+            places = AppGraph.places.places.value
         )
     )
     AppGraph.settings.lastBackupAt = System.currentTimeMillis()

@@ -3,6 +3,7 @@ package com.wineverdict.app
 import android.content.Context
 import com.wineverdict.app.ai.AiClient
 import com.wineverdict.app.ai.PictureGate
+import com.wineverdict.app.data.AndroidAddressFinder
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.ChatRepository
 import com.wineverdict.app.data.DetailsBackfill
@@ -13,6 +14,9 @@ import com.wineverdict.app.data.PalateProfile
 import com.wineverdict.app.data.PalateRules
 import com.wineverdict.app.data.PalateStore
 import com.wineverdict.app.data.PhotoBackfill
+import com.wineverdict.app.data.PlaceFinder
+import com.wineverdict.app.data.PlaceStore
+import com.wineverdict.app.data.PhotonClient
 import com.wineverdict.app.data.SavedListStore
 import com.wineverdict.app.data.ScanQueue
 import com.wineverdict.app.data.SettingsStore
@@ -63,6 +67,10 @@ object AppGraph {
         private set
     lateinit var updater: Updater
         private set
+    lateinit var places: PlaceStore
+        private set
+    lateinit var placeFinder: PlaceFinder
+        private set
 
     /**
      * The newer release the start-up check found, if any.
@@ -103,6 +111,13 @@ object AppGraph {
         scanQueue = ScanQueue(app, settings, taste, cellar, ai, scope)
         lists = SavedListStore(app)
         drinks = DrinkLog(app)
+        // Places before the drinks: a night's Where box reads them, and the finder needs the store.
+        places = PlaceStore(app)
+        // Saved circles first, then Photon for business names, then the platform geocoder for an
+        // address — the order lives in one object so the field and the icon cannot disagree.
+        placeFinder = PlaceFinder(PhotonClient(), AndroidAddressFinder(app)) {
+            places.places.value
+        }
         // Constructed after taste.briefSource is wired, so the lambda above is what an insight sees.
         insights = InsightStore(app, ai, cellar) { taste.brief() }
         // One job for everything a bottle is missing: published notes, flavour words and the ABV
@@ -160,6 +175,7 @@ object AppGraph {
             scanQueue.load()
             lists.load()
             drinks.load()
+            places.load()
             // Anything left from the last session carries on where it stopped.
             scanQueue.start()
             // mytaste.md is a projection of the stored answers, and Ask sends that file. An upgrade

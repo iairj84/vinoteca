@@ -330,14 +330,12 @@ fun DrankDialog(
                     placeholder = { Text("Strawberry, cold, worth it") },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
                 )
-                OutlinedTextField(
+                // The place is a place, not a line of text: it can be tagged from where the phone
+                // is standing, which is the one moment the app watches a bottle leave the shelf.
+                PlaceField(
                     value = venue,
                     onValueChange = { venue = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Where (optional)") },
-                    placeholder = { Text("A restaurant, the kitchen table…") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+                    placeholder = "A restaurant, the kitchen table…"
                 )
             }
         },
