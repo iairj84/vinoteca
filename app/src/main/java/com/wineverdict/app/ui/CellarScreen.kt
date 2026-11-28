@@ -73,6 +73,7 @@ import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
+import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.UpdateOffer
 import com.wineverdict.app.data.Updater
 import com.wineverdict.app.model.CellarData
@@ -803,20 +804,7 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
         CellarFilter.EMPTY -> wine.quantity <= 0
     }
     if (!filterMatch) return false
-    if (query.isBlank()) return true
-    val haystack = listOf(
-        wine.producer,
-        wine.name,
-        wine.region,
-        wine.country,
-        wine.appellation,
-        wine.grapes.joinToString(" "),
-        wine.slot,
-        data.locationName(wine.locationId),
-        wine.flavorTags.joinToString(" "),
-        wine.myNotes
-    ).joinToString(" ").lowercase()
-    return query.trim().lowercase().split(' ').all { haystack.contains(it) }
+    return Search.matches(Search.wineFields(wine, data), query)
 }
 
 /**

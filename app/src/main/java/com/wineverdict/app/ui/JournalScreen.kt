@@ -73,6 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.data.Drink
 import com.wineverdict.app.data.bottleTastings
+import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.matchesWords
 import com.wineverdict.app.data.dayWords
 import com.wineverdict.app.model.Verdict
@@ -693,7 +694,7 @@ private fun JournalEntryDialog(
         if (picked != null || words.length < 2) {
             emptyList()
         } else {
-            wines.filter { it.title.contains(words, ignoreCase = true) }
+            wines.filter { Search.matches(listOf(it.title), words) }
                 .sortedBy { it.title }
                 .take(4)
         }

@@ -3,6 +3,22 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.47: the search answers the spelling you type
+
+**`rose` found nothing in a cellar full of Rosé.** Both boxes compared the words exactly as they were
+stored, so an accent the phone's keyboard did not offer, a full stop, or a hyphen was enough for a
+bottle that was there not to be found — and the two boxes carried a copy each of the same comparison,
+which is how they could drift apart.
+
+- **Accents and punctuation are folded before the words are compared.** `rose` finds *Rosé*,
+  `st estephe` finds *St. Estèphe*, `cote rotie` finds *Côte-Rôtie*, and `dyquem` finds *d'Yquem* —
+  an apostrophe joins the word it elides rather than splitting it. A part of a word still matches, and
+  every word still has to appear, so a second word narrows the list exactly as before.
+- **One matcher, three boxes.** The cellar's search, the cellar book's and the book's bottle picker
+  all call the same `Search` object, so a fix in the folding reaches every one of them.
+- **Nothing stored moved.** Folding happens at the moment of the search, so the name keeps its
+  accents on the card, on the bottle's page and in the backup.
+
 ### 1.2.46: Not now means this version, not every launch
 
 **The update card came back every time the app opened.** **Not now** only cleared it from the screen

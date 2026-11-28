@@ -53,7 +53,9 @@ Gemini or Groq — with your own key.
   each of them, and every line is checked against the page before it is shown. List prices carry a
   markup, so there is no price-band verdict there.
 - **Cellar** — quantity, storage location (racks / fridges you define) and slot, price paid,
-  drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters. Every
+  drinking window with a Hold / Drink now / At peak / Past peak badge, search and filters. The search
+  folds accents and punctuation, so `rose` finds *Rosé* and `st estephe` finds *St. Estèphe*, and
+  every word has to match, so a second word narrows. Every
   bottle with stock carries **Drank one**, which takes it out of the cellar on the tap and then asks
   for the verdict and one line about it; Skip keeps the bottle counted as drunk and says nothing more.
   The same button sits under **Bottles** on the bottle's own page, where the notes and the rules are.
@@ -105,7 +107,8 @@ Gemini or Groq — with your own key.
   verdict you gave at the time, and the minus button as a count adjustment with no verdict
   attributed to you. The **Journal** tab opens it — the nights newest first, each bottle with its
   word, its survey words and the time — so your own record is readable without a model in between.
-  A search box finds a bottle by its words, and a calendar marks every night that has an entry, so
+  A search box finds a bottle by its words — accents and punctuation folded, so `rose` finds *Rosé*
+  — and a calendar marks every night that has an entry, so
   an evening can be found by its date when the name is the part that is forgotten. **Add** writes a
   night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the

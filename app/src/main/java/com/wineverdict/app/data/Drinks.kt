@@ -370,18 +370,12 @@ fun dayWords(
  * Whether a night answers a search.
  *
  * Every word typed has to appear somewhere in what the row shows — the label, where it came from,
- * the note, the taste words — so a second word narrows the book instead of widening it. Keeping it
- * here rather than inside the screen is what makes it testable without a phone.
+ * the note, the taste words — so a second word narrows the book instead of widening it. The words go
+ * through [Search], the same matcher the cellar uses, so an accent or a full stop typed differently
+ * is the same search in both boxes. Keeping it here rather than inside the screen is what makes it
+ * testable without a phone.
  */
-fun matchesWords(drink: Drink, query: String): Boolean {
-    val words = query.trim().lowercase().split(' ').filter { it.isNotBlank() }
-    if (words.isEmpty()) return true
-    val haystack = listOf(
-        drink.title,
-        drink.type,
-        drink.region,
-        drink.note,
-        drink.flavors.joinToString(" ")
-    ).joinToString(" ").lowercase()
-    return words.all { haystack.contains(it) }
-}
+fun matchesWords(drink: Drink, query: String): Boolean = Search.matches(
+    listOf(drink.title, drink.type, drink.region, drink.note, drink.flavors.joinToString(" ")),
+    query
+)
