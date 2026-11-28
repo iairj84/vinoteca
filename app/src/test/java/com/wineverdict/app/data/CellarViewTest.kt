@@ -28,7 +28,9 @@ class CellarViewTest {
         drinkTo: Int? = null,
         favorite: Boolean = false,
         toBuy: Boolean = false,
-        region: String = ""
+        region: String = "",
+        addedAt: Long = 0,
+        price: Double? = null
     ) = Wine(
         producer = producer,
         name = name,
@@ -39,14 +41,17 @@ class CellarViewTest {
         drinkTo = drinkTo,
         favorite = favorite,
         toBuy = toBuy,
-        region = region
+        region = region,
+        addedAt = addedAt,
+        price = price
     )
 
     private fun shown(
         wines: List<Wine>,
         filter: CellarFilter = CellarFilter.ALL,
-        query: String = ""
-    ): List<String> = CellarView.visible(wines, CellarData(), query, filter).map { it.id }
+        query: String = "",
+        sort: CellarSort = CellarSort.HOUSE
+    ): List<String> = CellarView.visible(wines, CellarData(), query, filter, sort).map { it.id }
 
     @Test
     fun everyStyleTheModelCanWriteHasAChipThatFindsIt() {
@@ -140,6 +145,83 @@ class CellarViewTest {
         assertEquals(
             listOf(past.id, peak.id, holding.id),
             shown(listOf(holding, peak, past))
+        )
+    }
+
+    @Test
+    fun aSortLabelFromASavedScreenStillFindsItsOrder() {
+        assertEquals(CellarSort.PRICE, CellarSort.of("Highest price"))
+        assertEquals(CellarSort.HOUSE, CellarSort.of("By colour"))
+        assertEquals(CellarSort.HOUSE, CellarSort.of(null))
+    }
+
+    @Test
+    fun theHouseOrderIsStillWhatTheListOpensOn() {
+        val wines = listOf(wine(name = "B", producer = "A"), wine(name = "A", producer = "Z"))
+        val house = CellarView.visible(wines, CellarData(), "", CellarFilter.ALL).map { it.id }
+        val explicitHouse = CellarView.visible(
+            wines,
+            CellarData(),
+            "",
+            CellarFilter.ALL,
+            CellarSort.HOUSE
+        ).map { it.id }
+        assertEquals(explicitHouse, house)
+        assertEquals(listOf(wines[0].id, wines[1].id), house)
+    }
+
+    @Test
+    fun recentlyAddedPutsTheNewestFirst() {
+        val older = wine(name = "Older", addedAt = 1_000)
+        val newest = wine(name = "Newest", addedAt = 9_000)
+        val middle = wine(name = "Middle", addedAt = 5_000)
+        assertEquals(
+            listOf(newest.id, middle.id, older.id),
+            shown(listOf(older, middle, newest), sort = CellarSort.ADDED)
+        )
+    }
+
+    @Test
+    fun producerSortIsAlphabeticalThenNewest() {
+        val chianti = wine(name = "Chianti", producer = "Felsina", vintage = 2019)
+        val barolo = wine(name = "Barolo", producer = "Burlotto", vintage = 2018)
+        val youngerBarolo = wine(name = "Barolo", producer = "Burlotto", vintage = 2016)
+        assertEquals(
+            listOf(barolo.id, youngerBarolo.id, chianti.id),
+            shown(listOf(chianti, youngerBarolo, barolo), sort = CellarSort.PRODUCER)
+        )
+    }
+
+    @Test
+    fun vintageSortPutsTheNewestFirstAndNonVintageLast() {
+        val nv = wine(name = "Cava", vintage = null)
+        val old = wine(name = "Rioja", vintage = 2012)
+        val young = wine(name = "Rioja", vintage = 2021)
+        assertEquals(
+            listOf(young.id, old.id, nv.id),
+            shown(listOf(nv, old, young), sort = CellarSort.VINTAGE)
+        )
+    }
+
+    @Test
+    fun priceSortPutsTheDearestFirstAndAnUnpricedBottleLast() {
+        val unpriced = wine(name = "Gift", price = null)
+        val cheap = wine(name = "Everyday", price = 12.0)
+        val dear = wine(name = "Treasure", price = 180.0)
+        assertEquals(
+            listOf(dear.id, cheap.id, unpriced.id),
+            shown(listOf(unpriced, cheap, dear), sort = CellarSort.PRICE)
+        )
+    }
+
+    @Test
+    fun theSortOnlyReordersWhatTheFilterAndSearchKept() {
+        val roseOne = wine(name = "A rosé", type = WineType.ROSE, price = 30.0)
+        val roseTwo = wine(name = "Z rosé", type = WineType.ROSE, price = 10.0)
+        val red = wine(name = "A red", type = WineType.RED, price = 99.0)
+        assertEquals(
+            listOf(roseOne.id, roseTwo.id),
+            shown(listOf(roseOne, roseTwo, red), CellarFilter.ROSE, sort = CellarSort.PRICE)
         )
     }
 

@@ -81,6 +81,46 @@ enum class CellarFilter(val label: String) {
     }
 }
 
+/**
+ * The orders the list can be read in.
+ *
+ * [HOUSE] is the one the cellar has always had and stays the default: the bottles with a heart, the
+ * ones actually on the shelf, the nearest the end of a window, then the producer. The other four
+ * answer a different question each — what did I just buy, who made this, how old is it, and what is
+ * the most valuable thing here.
+ *
+ * Every one of them leaves a bottle with no such fact at the bottom rather than at the top, because
+ * a missing price is not a cheap one and a non-vintage is not the oldest wine in the cellar.
+ */
+enum class CellarSort(val label: String) {
+    HOUSE("House order"),
+    ADDED("Recently added"),
+    PRODUCER("Producer A–Z"),
+    VINTAGE("Newest vintage"),
+    PRICE("Highest price");
+
+    fun comparator(): Comparator<Wine> = when (this) {
+        HOUSE -> CellarView.HOUSE_ORDER
+        // A shopping trip in one tap: what came off the shelf last is at the top.
+        ADDED -> compareByDescending<Wine> { it.addedAt }
+            .thenBy { it.producer.lowercase() }
+            .thenBy { it.vintage ?: 9999 }
+        // A producer's own line reads newest first, which is how a shelf of one grower is written.
+        PRODUCER -> compareBy<Wine> { it.producer.lowercase() }
+            .thenByDescending { it.vintage ?: Int.MIN_VALUE }
+            .thenBy { it.name.lowercase() }
+        VINTAGE -> compareByDescending<Wine> { it.vintage ?: Int.MIN_VALUE }
+            .thenBy { it.producer.lowercase() }
+        PRICE -> compareByDescending<Wine> { it.price ?: Double.NEGATIVE_INFINITY }
+            .thenBy { it.producer.lowercase() }
+    }
+
+    companion object {
+        /** A sort read back from a saved screen state; a label this build lacks is the house order. */
+        fun of(label: String?): CellarSort = entries.firstOrNull { it.label == label } ?: HOUSE
+    }
+}
+
 object CellarView {
 
     /**
@@ -88,17 +128,19 @@ object CellarView {
      *
      * The search box is the cellar's own — it narrows what you own, it never adds a wine — and it
      * reads the same fields it always has, so the box and the chip compose instead of one replacing
-     * the other.
+     * the other. The order is the last thing applied, so a sort never changes which bottles a filter
+     * and a search kept.
      */
     fun visible(
         wines: List<Wine>,
         data: CellarData,
         query: String,
-        filter: CellarFilter
+        filter: CellarFilter,
+        sort: CellarSort = CellarSort.HOUSE
     ): List<Wine> = wines
         .filter { filter.matches(it) }
         .filter { Search.matches(Search.wineFields(it, data), query) }
-        .sortedWith(HOUSE_ORDER)
+        .sortedWith(sort.comparator())
 
     /**
      * The order the list has always had: a heart first, then what is actually on the shelf, then the

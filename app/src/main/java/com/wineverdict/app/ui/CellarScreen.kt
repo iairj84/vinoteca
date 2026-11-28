@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,13 +23,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -73,6 +79,7 @@ import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.CellarFilter
+import com.wineverdict.app.data.CellarSort
 import com.wineverdict.app.data.CellarView
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.UpdateOffer
@@ -115,6 +122,10 @@ fun CellarScreen(
     // string is what a saved screen state can carry; the enum is read back from it.
     var filterLabel by rememberSaveable { mutableStateOf(CellarFilter.ALL.label) }
     val filter = CellarFilter.of(filterLabel)
+    // The order is remembered the same way, and for the same reason: a sort that resets whenever a
+    // bottle is opened is a sort nobody keeps.
+    var sortLabel by rememberSaveable { mutableStateOf(CellarSort.HOUSE.label) }
+    val sort = CellarSort.of(sortLabel)
     // The weekly nudge opens the cellar on the bottles it was about, rather than leaving the user to
     // hunt for the filter for the thing the notification just named.
     LaunchedEffect(openDrinkUp) {
@@ -239,8 +250,8 @@ fun CellarScreen(
     }
 
     val stats = remember(data) { data.stats() }
-    val visible = remember(data, query, filter) {
-        CellarView.visible(data.wines, data, query, filter)
+    val visible = remember(data, query, filter, sort) {
+        CellarView.visible(data.wines, data, query, filter, sort)
     }
 
     Scaffold(
@@ -363,6 +374,12 @@ fun CellarScreen(
                     options = CellarFilter.entries.map { it.label },
                     selected = filter.label,
                     onSelect = { label -> filterLabel = label }
+                )
+            }
+            item {
+                SortRow(
+                    selected = sort,
+                    onSelect = { option -> sortLabel = option.label }
                 )
             }
             if (visible.isEmpty()) {
@@ -790,6 +807,53 @@ private fun StatRow(value: String, label: String) {
             textAlign = TextAlign.End,
             maxLines = 1
         )
+    }
+}
+
+/**
+ * The order the list is read in, under the chips that decide what is in it.
+ *
+ * A menu rather than a second strip: the row above already scrolls, and two scrolling rows of pills
+ * would read as two filters. The label is the order currently in force, so the control says what it
+ * is doing without being opened — and "House order" is the cellar's own, not a neutral sort.
+ */
+@Composable
+private fun SortRow(selected: CellarSort, onSelect: (CellarSort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(
+            onClick = { open = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+        ) {
+            Icon(
+                Icons.Filled.SwapVert,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(selected.label, style = MaterialTheme.typography.labelLarge)
+            Icon(
+                Icons.Filled.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            CellarSort.entries.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.label) },
+                    onClick = {
+                        open = false
+                        onSelect(option)
+                    },
+                    trailingIcon = {
+                        if (option == selected) {
+                            Icon(Icons.Filled.Check, contentDescription = null)
+                        }
+                    }
+                )
+            }
+        }
     }
 }
 
