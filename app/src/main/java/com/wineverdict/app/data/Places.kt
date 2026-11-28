@@ -17,12 +17,21 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** The circle a place claims by default: about fifty yards. */
-const val PLACE_RADIUS_M = 45
+/**
+ * Metres are what is measured and stored; yards and miles are what is said.
+ *
+ * The circles below are the round numbers a person picks — twenty-five yards to five hundred — kept
+ * to the nearest metre so a stored radius is one integer and the backup format does not move.
+ */
+private const val METRES_PER_YARD = 0.9144
+private const val METRES_PER_MILE = 1609.344
 
-/** The narrowest circle worth having, and the widest that is still "a place". */
-const val PLACE_MIN_RADIUS_M = 15
-const val PLACE_MAX_RADIUS_M = 500
+/** Fifty yards: the circle a house claims by default. */
+const val PLACE_RADIUS_M = 46
+
+/** Fifteen yards — a driveway — and five hundred, which is as wide as a place is. */
+const val PLACE_MIN_RADIUS_M = 14
+const val PLACE_MAX_RADIUS_M = 457
 
 /**
  * A place the user named once and the app can recognise again: Home, a friend's house, the bar
@@ -84,15 +93,24 @@ fun nearestPlace(places: List<Place>, lat: Double, lng: Double): Place? =
         )
         ?.first
 
-/** "45 m", "1.2 km" — the radius as it is spoken rather than as it is stored. */
-fun radiusWords(radiusM: Int): String {
-    if (radiusM < 1000) return "$radiusM m"
-    val km = radiusM / 1000.0
-    return String.format(Locale.US, "%.1f km", km)
+/** "50 yd", "0.6 mi" — the radius as it is spoken rather than as it is stored. */
+fun radiusWords(radiusM: Int): String = distanceWords(radiusM.toDouble())
+
+/**
+ * Yards up to half a mile, then miles with one decimal.
+ *
+ * Yards are rounded to five, because a circle is drawn by eye: forty-nine and fifty are the same
+ * circle, and a picker that said "49 yd" would be pretending to a precision nobody chose. An older
+ * place stored in metres reads just as naturally — 150 m is 165 yd.
+ */
+fun distanceWords(metres: Double): String {
+    val yards = metres / METRES_PER_YARD
+    if (yards < 880) return "${(yards / 5).roundToInt() * 5} yd"
+    return String.format(Locale.US, "%.1f mi", metres / METRES_PER_MILE)
 }
 
-/** The radiuses the picker offers, and the one it starts on. */
-val PLACE_RADIUS_CHOICES = listOf(25, 45, 75, 150, 300)
+/** The circles the picker offers: 25, 50, 100, 200 and 500 yards, to the nearest metre. */
+val PLACE_RADIUS_CHOICES = listOf(23, 46, 91, 183, 457)
 
 /**
  * The places on this phone, written whole like the cellar.
@@ -166,7 +184,4 @@ class PlaceStore(context: Context) {
         list.filter { it.name.isNotBlank() }.sortedBy { it.name.lowercase() }
 }
 
-/** Metres as words, rounded the way a person says a distance. */
-fun metresWords(metres: Double): String =
-    if (metres < 1000) "${metres.roundToInt()} m"
-    else String.format(Locale.US, "%.1f km", metres / 1000.0)
+

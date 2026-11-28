@@ -132,11 +132,11 @@ class PhotonClient : PlaceLookup {
 
     private companion object {
         /**
-         * How far from a business its pin may sit and still be "where I am". A bar's doorway is
-         * where somebody enters it; a fix inside can be fifty metres out, and nothing beyond this
-         * is the same building.
+         * How far from a business its pin may sit and still be "where I am": a hundred yards. A
+         * bar's doorway is where somebody enters it; a fix inside can be fifty yards out, and
+         * nothing beyond this is the same building.
          */
-        const val REVERSE_MAX_METRES = 80.0
+        const val REVERSE_MAX_METRES = 91.0
     }
 }
 

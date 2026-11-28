@@ -55,10 +55,24 @@ class PlaceBookTest {
     }
 
     @Test
-    fun theRadiusIsSaidTheWayPeopleSayIt() {
-        assertEquals("45 m", radiusWords(45))
-        assertEquals("1.2 km", radiusWords(1200))
-        assertEquals("30 m", metresWords(30.4))
+    fun theRadiusIsSaidInYardsAndMiles() {
+        assertEquals("50 yd", radiusWords(46))
+        assertEquals("0.6 mi", radiusWords(1000))
+    }
+
+    @Test
+    fun everyCircleThePickerOffersReadsAsARoundNumberOfYards() {
+        assertEquals(
+            listOf("25 yd", "50 yd", "100 yd", "200 yd", "500 yd"),
+            PLACE_RADIUS_CHOICES.map { radiusWords(it) }
+        )
+    }
+
+    @Test
+    fun aRadiusStoredInMetresByAnOlderBuildStillReadsNaturally() {
+        // Places saved before the picker spoke yards still hold the old metre values.
+        assertEquals("165 yd", radiusWords(150))
+        assertEquals("330 yd", radiusWords(300))
     }
 
     @Test
@@ -74,6 +88,7 @@ class PlaceBookTest {
         val place = Place(name = "Home")
         assertEquals(PLACE_RADIUS_M, place.radiusM)
         assertTrue(PLACE_RADIUS_M in PLACE_RADIUS_CHOICES)
+        assertEquals("50 yd", radiusWords(place.radiusM))
         assertNotNull(place.id)
     }
 
