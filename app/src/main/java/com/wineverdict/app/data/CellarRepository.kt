@@ -316,6 +316,20 @@ class CellarRepository(context: Context) {
     }
 
     /**
+     * Puts a bottle on, or takes it off, the list for the next shop. Kept apart from the rating: a
+     * bottle at none left and one never opened can both be wanted again, and neither needs a verdict
+     * to say so.
+     */
+    suspend fun setToBuy(id: String, toBuy: Boolean) = mutate { current ->
+        current.copy(
+            wines = current.wines.map {
+                if (it.id == id) it.copy(toBuy = toBuy, updatedAt = System.currentTimeMillis())
+                else it
+            }
+        )
+    }
+
+    /**
      * Replaces a guessed reference note with one read from published pages, keeping the pages so
      * the bottle can say where it came from. Blank values leave what is already on the record.
      */

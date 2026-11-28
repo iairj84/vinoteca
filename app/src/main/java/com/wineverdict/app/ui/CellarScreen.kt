@@ -93,6 +93,9 @@ private enum class CellarFilter(val label: String) {
     // Second, so the one view that asks for a decision is on screen without dragging the chip strip
     // sideways: the chips past Sparkling were the only ones a thumb never reached.
     DRINK_UP("Drink up"),
+    // The other decision the cellar holds: what to take to the shop. Beside Drink up for the same
+    // reason — it is a question, not a section of the collection.
+    TO_BUY("To buy"),
     RED("Red"),
     WHITE("White"),
     SPARKLING("Sparkling"),
@@ -398,6 +401,7 @@ fun CellarScreen(
                         title = when {
                             data.wines.isEmpty() -> "Your cellar is empty"
                             filter == CellarFilter.DRINK_UP -> "Nothing wants drinking up"
+                            filter == CellarFilter.TO_BUY -> "Nothing on the to-buy list"
                             else -> "Nothing matches"
                         },
                         body = when {
@@ -408,6 +412,9 @@ fun CellarScreen(
                                 "No bottle with stock is at its peak or past its window. A bottle " +
                                     "with no window on record cannot say either way — Settings → " +
                                     "Fill in the details is what puts one there."
+                            filter == CellarFilter.TO_BUY ->
+                                "Open a bottle and tap To buy on its page to keep it here until " +
+                                    "the next shop."
                             else ->
                                 "No bottle in the cellar matches those words. To add one you do not " +
                                     "own yet, tap + — everything you record stays on this phone."
@@ -824,6 +831,7 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
                 com.wineverdict.app.model.DrinkStatus.PEAK
             )
         CellarFilter.DRINK_UP -> wine.quantity > 0 && wine.drinkStatus() in DrinkUp.DUE
+        CellarFilter.TO_BUY -> wine.toBuy
         CellarFilter.LOVED -> Verdict.liked(wine)
         CellarFilter.EMPTY -> wine.quantity <= 0
     }

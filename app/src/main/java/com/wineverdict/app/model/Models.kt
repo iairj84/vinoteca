@@ -85,6 +85,11 @@ data class Wine(
     val myNotes: String = "",
     val rating: Int? = null,
     val favorite: Boolean = false,
+    /**
+     * Wanted at the next shop. Its own flag rather than a rating: a bottle can be loved, finished
+     * and out of stock, or never opened at all — the question this answers is only "buy this again".
+     */
+    val toBuy: Boolean = false,
     val fitScore: Int? = null,
     val fitReason: String = "",
     val source: String = "manual",

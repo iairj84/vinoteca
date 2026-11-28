@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Surface
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import com.wineverdict.app.util.ImageUtils
@@ -34,10 +35,13 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -332,6 +336,36 @@ fun WineDetailScreen(wineId: String?, onBack: () -> Unit, onEdit: (String) -> Un
                 text = "Tap a word for what you thought of it. Tap the same word again to clear it.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.outline
+            )
+
+            // A question of its own, not a fourth word on the verdict row: buying another says
+            // nothing about the glass, and a bottle never opened can want buying too. The label
+            // changes with the answer, so the state is read from the chip rather than guessed from
+            // its colour.
+            FilterChip(
+                selected = wine.toBuy,
+                onClick = { scope.launch { AppGraph.cellar.setToBuy(wine.id, !wine.toBuy) } },
+                label = { Text(if (wine.toBuy) "On the to-buy list" else "To buy") },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.ShoppingCart,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                shape = RoundedCornerShape(50),
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = Color.Transparent,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = wine.toBuy,
+                    borderColor = MaterialTheme.colorScheme.outlineVariant,
+                    selectedBorderColor = MaterialTheme.colorScheme.tertiary
+                )
             )
 
             // No score on a bottle you already own: that decision was made at the till. What the

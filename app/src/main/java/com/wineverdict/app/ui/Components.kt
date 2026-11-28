@@ -434,6 +434,11 @@ fun WineRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Pill(if (wine.quantity > 0) "${wine.quantity} btl" else "none left")
+                // Said here as well as filtered for above it, so a bottle that wants buying is
+                // recognisable in All rather than only in the one view that asks for it.
+                if (wine.toBuy) {
+                    Pill("To buy", color = MaterialTheme.colorScheme.tertiaryContainer)
+                }
                 Text(
                     text = locationName,
                     style = MaterialTheme.typography.labelSmall,
