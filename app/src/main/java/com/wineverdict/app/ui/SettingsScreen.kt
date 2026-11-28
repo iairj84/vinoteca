@@ -67,6 +67,7 @@ import com.wineverdict.app.data.CrashLog
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.PhotoBackfill
 import com.wineverdict.app.data.ImportPreview
+import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.SpendMeter
 import com.wineverdict.app.data.Updater
@@ -109,6 +110,9 @@ fun SettingsScreen(
 
     var busy by remember { mutableStateOf(false) }
     var dataMessage by remember { mutableStateOf<String?>(null) }
+    // Read here and refreshed by the export below, so a phone that has never been backed up says so
+    // instead of leaving it to memory.
+    var lastBackupAt by remember { mutableStateOf(AppGraph.settings.lastBackupAt) }
     var restoreCandidate by remember { mutableStateOf<BackupFile?>(null) }
     var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
 
@@ -176,22 +180,10 @@ fun SettingsScreen(
         busy = true
         scope.launch {
             try {
-                val cellar = AppGraph.cellar.data.value
-                val drinks = AppGraph.drinks.drinks.value
-                Backup.write(
-                    context,
-                    uri,
-                    Backup.encode(
-                        cellar = cellar,
-                        taste = AppGraph.taste.text.value,
-                        appVersion = BuildConfig.VERSION_NAME,
-                        currency = AppGraph.settings.currency,
-                        drinks = drinks
-                    )
-                )
-                dataMessage = "Backup written: ${cellar.wines.size} wines, " +
-                    "${cellar.wines.sumOf { it.quantity }} bottles, ${drinks.size} entries in the " +
-                    "cellar book, plus your mytaste.md."
+                // The same call the cellar's own nudge uses, pictures included, so the two places a
+                // backup can be started from cannot write different files.
+                dataMessage = writeBackup(context, uri)
+                lastBackupAt = AppGraph.settings.lastBackupAt
             } catch (e: Exception) {
                 dataMessage = e.message ?: "Could not write the backup."
             } finally {
@@ -676,9 +668,18 @@ fun SettingsScreen(
 
             SectionCard("Backup and import") {
                 Text(
-                    "Your cellar lives in this app's private files, so keep a copy somewhere else. A backup is one JSON file with every wine, note and location plus your mytaste.md — no API key is ever included.",
+                    "Your cellar lives in this app's private files, so keep a copy somewhere else. A backup is one JSON file with every wine, note, location and label picture plus your mytaste.md — no API key is ever included, and the pictures are what make it a few megabytes.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    if (lastBackupAt == 0L) {
+                        "No backup has left this phone yet."
+                    } else {
+                        "Last backup: ${formatDay(lastBackupAt)}."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
@@ -921,7 +922,12 @@ fun SettingsScreen(
                     Text(
                         "${candidate.cellar.wines.size} wines · ${candidate.bottles} bottles · " +
                             "${candidate.cellar.locations.size} storage locations · " +
-                            "${candidate.drinks.size} entries in the cellar book"
+                            "${candidate.drinks.size} entries in the cellar book" +
+                            (if (candidate.photos.isEmpty()) {
+                                ""
+                            } else {
+                                " · ${Backup.pictureWords(candidate.photos.size)}"
+                            })
                     )
                     if (candidate.taste.isNotBlank()) Text("Includes the mytaste.md from that phone.")
                     Text("Merge keeps what is on this phone and matches duplicates. Replace deletes it first.")
@@ -934,13 +940,30 @@ fun SettingsScreen(
                             scope.launch {
                                 val outcome = AppGraph.cellar.mergeCellar(candidate.cellar)
                                 AppGraph.drinks.merge(candidate.drinks)
+                                // The pictures first, then the name on the bottle the merge kept: a
+                                // matched wine keeps this phone's id, so the backup's picture is
+                                // found by identity rather than by the id it was written under.
+                                val pictures = Backup.photos(candidate)
+                                AppGraph.cellar.restorePhotos(pictures)
+                                AppGraph.cellar.attachBackupPhotos(
+                                    candidate.cellar.wines
+                                        .filter { it.photo.isNotBlank() }
+                                        .associate { InsightStore.key(it) to it.photo }
+                                )
                                 if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
                                 if (candidate.currency.isNotBlank()) {
                                     AppGraph.settings.currency = candidate.currency
                                     currency = candidate.currency
                                 }
                                 dataMessage = "Merged: ${outcome.added} new wines, ${outcome.updated} matched, " +
-                                    "${outcome.locationsAdded} locations added."
+                                    "${outcome.locationsAdded} locations added" +
+                                    (
+                                        if (pictures.isEmpty()) {
+                                            "."
+                                        } else {
+                                            ", ${Backup.pictureWords(pictures.size)}."
+                                        }
+                                        )
                                 restoreCandidate = null
                             }
                         }
@@ -949,13 +972,22 @@ fun SettingsScreen(
                         onClick = {
                             scope.launch {
                                 AppGraph.cellar.replaceAll(candidate.cellar)
+                                val pictures = Backup.photos(candidate)
+                                AppGraph.cellar.restorePhotos(pictures)
                                 AppGraph.drinks.replaceAll(candidate.drinks)
                                 if (candidate.taste.isNotBlank()) AppGraph.taste.write(candidate.taste)
                                 if (candidate.currency.isNotBlank()) {
                                     AppGraph.settings.currency = candidate.currency
                                     currency = candidate.currency
                                 }
-                                dataMessage = "Restored ${candidate.cellar.wines.size} wines from the backup."
+                                dataMessage = "Restored ${candidate.cellar.wines.size} wines from the backup" +
+                                    (
+                                        if (pictures.isEmpty()) {
+                                            "."
+                                        } else {
+                                            " with ${Backup.pictureWords(pictures.size)}."
+                                        }
+                                        )
                                 restoreCandidate = null
                             }
                         }

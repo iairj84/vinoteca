@@ -86,9 +86,9 @@ Gemini or Groq — with your own key.
   where pinching zooms in and dragging moves it, for the print that no reading captures.
 - **The label you scanned** — a bottle added from a single-label scan keeps its photograph, shown
   on the bottle's page and openable full screen with pinch-to-zoom. A shelf or menu frame is one
-  picture of several bottles, so it is not named as any one of their labels. Photos live in app
-  storage beside `cellar.json` and are not in the JSON backup; a photo whose wine is deleted is
-  cleaned up on the next start.
+  picture of several bottles, so it is not named as any one of their labels. Label pictures live in
+  app storage beside `cellar.json` and travel in the JSON backup as base64, so a restored phone comes
+  back with them; a photo whose wine is deleted is cleaned up on the next start.
 - **Fill in the details** — one action in Settings completes whatever a bottle is missing: the
   reference notes, the flavour words, the ABV the alcohol gate needs, the drinking window, the
   country, region and appellation, and the grapes. One lookup answers all of it in one request,
@@ -144,7 +144,7 @@ Gemini or Groq — with your own key.
   model, no quota, one bottle at a time, stoppable). A picture it pulls from a page is marked as the
   finder's, and **Check** measures every kept picture against the same rule: one that is not the
   bottle is looked for again, a page's picture with nothing better is taken off, and a photograph
-  you took yourself is only ever replaced by one that does look like the bottle. The files are app-private, so the JSON backup carries records rather than pictures.
+  you took yourself is only ever replaced by one that does look like the bottle. The files are app-private; a label picture is in the JSON backup, and the page photographs of saved menus are not.
 - **Taste profile** — a real `mytaste.md` file you edit in the app, with a hand-written half and a
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.
@@ -239,8 +239,12 @@ Gemini bills a 1536px frame at roughly 1,000 tokens, so the same pass is cheaper
 ## Backup, restore and importing
 
 **Settings → Backup and import.** The export is one JSON file (`wineverdict-backup-YYYY-MM-DD.json`)
-holding every wine, storage location and your `mytaste.md`, plus the currency. API keys are never
-included. Restore offers **Merge** (keeps what is on the phone, matches duplicates) or **Replace**.
+holding every wine, storage location and your `mytaste.md`, the cellar book and the label pictures,
+plus the currency. API keys are never included. When bottles are on the shelf and the last export is
+over a month old — or there has never been one — the cellar shows **Keep a copy off this phone** with
+**Export backup**, and Settings says when the last one was made. Restore offers **Merge** (keeps what
+is on the phone, matches duplicates) or **Replace**; label pictures are put back with the records that
+name them, and a merge gives a picture to a bottle it matched but left bare.
 
 **Import a CSV** reads CellarTracker and Vivino exports, and any spreadsheet whose headings look
 like wine columns. Columns are matched by name from an alias table rather than by position, so
@@ -462,17 +466,21 @@ them are written into the file.
 | Data | Location |
 | --- | --- |
 | Cellar, locations | `files/cellar.json` |
+| Label pictures | `files/label-photos/` |
 | Chat transcript (text only, no photos) | `files/chat.json` |
 | Cellar book (nights and tastings from bottles) | `files/drinks.json` |
 | Taste profile | `files/mytaste.md` |
-| Quick-start answers | private `SharedPreferences` (`vinoteca_palate`) |
+| Quick-start answers | private `SharedPreferences` (`wineverdict_palate`) |
 | Pending batch scans + their photos | `files/scan-queue.json`, `files/scan-queue/` |
 | "Why it tastes this way" answers, cached by wine | `files/insights.json` |
-| API keys, base URLs, model ids, pace, currency | private `SharedPreferences` (`vinoteca_settings`) |
+| API keys, base URLs, model ids, pace, currency | private `SharedPreferences` (`wineverdict_settings`) |
 | Captured photos | app cache, deleted by the system |
 
 Uninstalling the app deletes all of it, which is what **Settings → Backup and import → Export
-backup** is for: one JSON file with the cellar, the locations, `mytaste.md` and the cellar book.
+backup** is for: one JSON file with the cellar, the locations, `mytaste.md`, the cellar book and the
+label pictures. `cellar.json` and `drinks.json` are written whole and swapped in, with the previous
+version kept as `.bak` and read when the file cannot be; Android's own backup carries the files but
+not `wineverdict_settings`, where the keys are.
 
 ## Documentation
 

@@ -10,8 +10,14 @@
         android:name="android.hardware.camera"
         android:required="false" />
 
+    <!--
+      allowBackup carries the cellar, the cellar book, mytaste.md and the label pictures to a new
+      phone. The two rule files leave the settings preferences out, because they hold the API keys.
+    -->
     <application
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

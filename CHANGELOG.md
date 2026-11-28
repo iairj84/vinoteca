@@ -3,6 +3,34 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.45: a backup you could rebuild a phone from
+
+**The backup held the facts of a cellar and none of its labels.** A restore brought back every bottle
+and no pictures, which is the half of the record a photograph carries. And nothing ever asked for a
+backup at all: the export sat in Settings, so a phone lost in a restaurant took years of notes with
+it. Under both was a smaller defect with a larger consequence — the cellar file was rewritten in
+place, so a phone that died mid-save could come back to a file that decoded as empty, and the next
+save made the emptiness permanent.
+
+- **The label pictures are in the backup.** Each is kept as base64 in the same one JSON file, named
+  by the record it belongs to; a restore puts the files back, and a merge gives a picture to a bottle
+  it matched but left bare. The export says how many pictures went in, because that number explains
+  why the file is a few megabytes. Page photographs of saved menus are still not included.
+- **The cellar asks for a backup once a month.** When bottles are on the shelf and the last export is
+  over thirty days old — or there has never been one — a card under the cellar's numbers says so,
+  with **Export backup** writing the file from there and **Not now** buying the same month. Settings
+  says when the last backup was made, and the export itself is now one shared call, so the two places
+  it can be started from cannot write different files.
+- **Android's own backup no longer carries the API keys.** The cellar, the book, `mytaste.md` and the
+  label pictures stay eligible for Auto Backup and a phone-to-phone transfer; the settings
+  preferences are excluded from both, so a key pasted on the phone never rides to a server because a
+  backup was made.
+- **A save is whole or it does not happen.** `cellar.json` and `drinks.json` are written to a
+  temporary file, flushed to the disk and renamed into place, with the file they replace kept as
+  `.bak`. A load reads the file, then that copy, then an unfinished write — so a crash costs one
+  start's changes rather than the cellar — and a file nothing can read is kept aside as
+  `.unreadable` instead of being replaced by an empty cellar.
+
 ### 1.2.44: the update card in plain words
 
 **The card that offers a new release printed its notes as Markdown.** The notes are the changelog,

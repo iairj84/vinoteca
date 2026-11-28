@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12 and up: cloud backup and phone-to-phone transfer.
+
+  The cellar, the cellar book, mytaste.md and the label pictures may travel; the settings file may
+  not, because it holds the AI provider keys. Moving to a new phone means pasting a key once, which
+  is cheaper than a key living in a backup nobody remembers making.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="wineverdict_settings.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="wineverdict_settings.xml" />
+    </device-transfer>
+</data-extraction-rules>

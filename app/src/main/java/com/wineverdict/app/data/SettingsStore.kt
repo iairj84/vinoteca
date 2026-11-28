@@ -138,6 +138,19 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SHOW_VALUE, true)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_VALUE, value).apply()
 
+    /**
+     * When a backup last left the phone, in epoch millis, 0 when none ever has. The monthly nudge on
+     * the cellar counts from here, and Settings says the date beside the export.
+     */
+    var lastBackupAt: Long
+        get() = prefs.getLong(KEY_LAST_BACKUP, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_BACKUP, value).apply()
+
+    /** When **Not now** was last tapped on that nudge: a month, not silence for good. */
+    var backupNudgeDismissedAt: Long
+        get() = prefs.getLong(KEY_BACKUP_DISMISSED, 0L)
+        set(value) = prefs.edit().putLong(KEY_BACKUP_DISMISSED, value).apply()
+
     var currency: String
         get() = prefs.getString(KEY_CURRENCY, "").orEmpty().ifBlank { DEFAULT_CURRENCY }
         set(value) = prefs.edit()
@@ -166,6 +179,8 @@ class SettingsStore(context: Context) {
         private const val KEY_CURRENCY = "currency"
         private const val KEY_SHOW_SCAN_DETAILS = "scan.details"
         private const val KEY_SHOW_VALUE = "cellar.value"
+        private const val KEY_LAST_BACKUP = "backup.last"
+        private const val KEY_BACKUP_DISMISSED = "backup.dismissed"
 
         private const val LEGACY_API_KEY = "groq_api_key"
         private const val LEGACY_VISION_MODEL = "vision_model"

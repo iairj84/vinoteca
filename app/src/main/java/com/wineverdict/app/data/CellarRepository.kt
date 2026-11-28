@@ -44,17 +44,24 @@ class CellarRepository(context: Context) {
     val data: StateFlow<CellarData> = _data.asStateFlow()
 
     fun load() {
-        if (file.exists()) {
-            runCatching { json.decodeFromString<CellarData>(file.readText()) }
-                .onSuccess { loaded ->
-                    // A cellar imported before the placeholder fix carries "Unknown" on the end
-                    // of most names. The repair runs on the way in, and the file is rewritten only
-                    // when it actually changed something.
-                    val cleaned = loaded.withPlaceholdersCleared()
-                    _data.value = cleaned
-                    if (cleaned != loaded) persist(cleaned)
-                    pruneLabelPhotos(cleaned)
-                }
+        // Read through the safety net: the file, the copy kept from the write before it, then a write
+        // that never finished. A phone that died mid-save used to come back to an empty cellar,
+        // because the unreadable file was then replaced by the defaults below.
+        val loaded = SafeFile.read(file) { text -> json.decodeFromString<CellarData>(text) }
+        if (loaded != null) {
+            // A cellar imported before the placeholder fix carries "Unknown" on the end of most
+            // names. The repair runs on the way in, and the file is rewritten only when it actually
+            // changed something.
+            val cleaned = loaded.withPlaceholdersCleared()
+            _data.value = cleaned
+            if (cleaned != loaded) persist(cleaned)
+            pruneLabelPhotos(cleaned)
+        } else if (file.exists()) {
+            // Nothing could be read: keep the bytes for a repair rather than overwriting them with
+            // an empty cellar, which is how a broken file used to become a lost one.
+            runCatching {
+                file.copyTo(File(file.parentFile, "${file.name}.unreadable"), overwrite = true)
+            }
         }
         if (_data.value.locations.isEmpty()) {
             persist(_data.value.copy(locations = defaultLocations()))
@@ -89,6 +96,55 @@ class CellarRepository(context: Context) {
                 name
             }.getOrDefault("")
         }
+
+    /** The label pictures on record, by name, for a backup that carries them. */
+    suspend fun photoBytes(): Map<String, ByteArray> = withContext(Dispatchers.IO) {
+        _data.value.wines
+            .map { it.photo }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .mapNotNull { name ->
+                File(labelDir, name).takeIf { it.isFile }?.let { file ->
+                    runCatching { name to file.readBytes() }.getOrNull()
+                }
+            }
+            .toMap()
+    }
+
+    /**
+     * Puts a restored backup's pictures back beside the records that name them.
+     *
+     * Best effort, like [saveLabelPhoto]: a picture that cannot be written must not fail the restore
+     * that brought the bottles back.
+     */
+    suspend fun restorePhotos(photos: Map<String, ByteArray>) = withContext(Dispatchers.IO) {
+        if (photos.isEmpty()) return@withContext
+        labelDir.mkdirs()
+        photos.forEach { (name, bytes) -> runCatching { File(labelDir, name).writeBytes(bytes) } }
+    }
+
+    /**
+     * Gives a picture from a merged backup to the bottle it matched.
+     *
+     * A merge keeps the id the bottle already had, so the backup's picture name points at a record
+     * this phone does not have. Identity is what the merge matched on, so identity is what the
+     * picture is found by; a bottle that already has one keeps it.
+     */
+    suspend fun attachBackupPhotos(byIdentity: Map<String, String>) {
+        if (byIdentity.isEmpty()) return
+        mutate { current ->
+            current.copy(
+                wines = current.wines.map { wine ->
+                    val name = byIdentity[InsightStore.key(wine)]
+                    if (wine.photo.isBlank() && name != null && File(labelDir, name).isFile) {
+                        wine.copy(photo = name)
+                    } else {
+                        wine
+                    }
+                }
+            )
+        }
+    }
 
     /**
      * Names a photograph on a record, and touches nothing else.
@@ -144,8 +200,13 @@ class CellarRepository(context: Context) {
         }
     }
 
+    /**
+     * One write, whole or not at all: the new document is built beside the old one and swapped in,
+     * and the file it replaces is kept as `cellar.json.bak` for the load after a crash. A half-written
+     * cellar used to decode as an empty one, which the next save then made permanent.
+     */
     private fun persist(next: CellarData) {
-        runCatching { file.writeText(json.encodeToString(next)) }
+        SafeFile.write(file, json.encodeToString(next))
         _data.value = next
     }
 

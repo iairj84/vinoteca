@@ -89,9 +89,10 @@ class DrinkLog(context: Context) {
     val drinks: StateFlow<List<Drink>> = _drinks.asStateFlow()
 
     fun load() {
-        if (!file.exists()) return
-        runCatching { json.decodeFromString<List<Drink>>(file.readText()) }
-            .onSuccess { loaded -> _drinks.value = loaded.sortedByDescending { it.at } }
+        // The same safety net as the cellar: the book is written whole, and an interrupted write is
+        // read from the copy before it rather than left as an empty book.
+        val loaded = SafeFile.read(file) { text -> json.decodeFromString<List<Drink>>(text) }
+        if (loaded != null) _drinks.value = loaded.sortedByDescending { it.at }
     }
 
     /**
@@ -225,7 +226,7 @@ class DrinkLog(context: Context) {
 
     private fun write(next: List<Drink>) {
         _drinks.value = next
-        runCatching { file.writeText(json.encodeToString(next)) }
+        SafeFile.write(file, json.encodeToString(next))
     }
 
     private companion object {

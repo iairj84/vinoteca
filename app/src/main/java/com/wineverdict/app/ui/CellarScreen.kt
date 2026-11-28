@@ -59,6 +59,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +69,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.BuildConfig
 import com.wineverdict.app.ai.BottleCandidate
+import com.wineverdict.app.data.Backup
+import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.Updater
@@ -131,6 +134,22 @@ fun CellarScreen(
     // the result titles and snippets, a short list of the bottlings those results name, and the
     // pages read only for the one picked.
     val scope = rememberCoroutineScope()
+    // The export is the only copy that leaves the phone. Settings has always had it and nothing ever
+    // asked for one, so the card below asks once a month and writes the same file from here.
+    val context = LocalContext.current
+    var lastBackupAt by remember { mutableStateOf(AppGraph.settings.lastBackupAt) }
+    var nudgeDismissedAt by remember { mutableStateOf(AppGraph.settings.backupNudgeDismissedAt) }
+    val exportBackup = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val message = runCatching { writeBackup(context, uri) }
+                .getOrElse { e -> e.message ?: "Could not write the backup." }
+            lastBackupAt = AppGraph.settings.lastBackupAt
+            snackbarState.showSnackbar(message)
+        }
+    }
     var addOpen by remember { mutableStateOf(false) }
     var words by remember { mutableStateOf("") }
     var asked by remember { mutableStateOf<String?>(null) }
@@ -270,6 +289,27 @@ fun CellarScreen(
                     ready = stats.readyToDrink,
                     value = if (showValue) formatMoney(stats.invested, stats.currency) else null
                 )
+            }
+            // Below the cellar's own numbers rather than above them: an update is urgent and a
+            // backup is not, but a copy that is never made is the one loss the app cannot undo.
+            val now = System.currentTimeMillis()
+            if (BackupNudge.due(
+                    hasBottles = data.wines.any { it.quantity > 0 },
+                    lastBackupAt = lastBackupAt,
+                    dismissedAt = nudgeDismissedAt,
+                    now = now
+                )
+            ) {
+                item(key = "backup") {
+                    BackupNudgeCard(
+                        words = BackupNudge.words(lastBackupAt, now),
+                        onExport = { exportBackup.launch(Backup.suggestedFileName()) },
+                        onDismiss = {
+                            nudgeDismissedAt = System.currentTimeMillis()
+                            AppGraph.settings.backupNudgeDismissedAt = nudgeDismissedAt
+                        }
+                    )
+                }
             }
             if (savedLists.isNotEmpty()) {
                 item {
@@ -885,6 +925,39 @@ private fun UpdateAvailableCard(release: Updater.Release, onDismiss: () -> Unit)
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error
                 )
+            }
+        }
+    }
+}
+
+/**
+ * Once a month: the copy that is not on this phone.
+ *
+ * The export has always been the only backup and nothing ever said so, so a phone lost with the
+ * cellar in it took years of notes with it. The card reads its dates from [BackupNudge] and writes
+ * the file through the same call Settings uses; **Not now** buys a month, because a card that asks at
+ * every launch is a card that is ignored.
+ */
+@Composable
+private fun BackupNudgeCard(words: String, onExport: () -> Unit, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("Keep a copy off this phone", style = MaterialTheme.typography.titleSmall)
+            Text(
+                words,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(onClick = onExport) { Text("Export backup") }
+                TextButton(onClick = onDismiss) { Text("Not now") }
             }
         }
     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup (Android 11 and below).
+
+  The cellar, the cellar book, mytaste.md and the label pictures are the user's record of years and
+  are worth carrying to a new phone. The settings file is not: it holds the AI provider keys, and a
+  credential should never ride to somebody else's server because a phone was backed up.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="wineverdict_settings.xml" />
+</full-backup-content>
