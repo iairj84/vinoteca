@@ -173,10 +173,14 @@ Gemini or Groq — with your own key.
   offered again.
 - **Ask looks places up instead of remembering them** — “Where should I go for dinner in Portland
   with good wine?” used to come back as three restaurants that had been closed for years, because
-  the answer was the model's memory of a city it has never been to. Now the app does the looking,
-  from the map rather than from a search engine: OpenStreetMap entries inside the town's own
-  boundary (Nominatim, with Overpass as the second opinion), each carrying the address, hours and
-  website that make it a fact. A place is only offered to the sommelier after its own page loaded,
+  the answer was the model's memory of a city it has never been to. Now the app does the looking.
+  With a Gemini key configured, discovery is Google's own search grounding (the native
+  `generateContent` call with the `google_search` tool): the places Google cites for that town are
+  the candidates, and each citation is resolved past Google's redirect to the venue's own site. It
+  finds the restaurants with serious lists that a map cannot, because a map only knows what a
+  volunteer tagged "wine". Without a Gemini key — or when grounding returns nothing — the map is the
+  second opinion: OpenStreetMap entries inside the town's own boundary (Nominatim, with Overpass as
+  the third). A place is only offered to the sommelier after its own page loaded,
   named the place, used a wine word, said nothing about being closed, and agreed it is in the town
   asked about — a lapsed domain that now serves something else is not evidence. A page that says
   *permanently closed*, *closed for good* or *closed in 2023* removes the place (but *closed
@@ -187,8 +191,8 @@ Gemini or Groq — with your own key.
   place called Home, or the locale country) and every reply says which town it used and why; when
   the phone cannot settle it, the answer lists the candidates and asks instead of guessing. The
   reader runs on the phone itself in an instrumented test (`:app:connectedDebugAndroidTest`). Other states' addresses are dropped. When the pages
-  confirm nothing, the map is busy, or the town is unknown, the answer says so plainly rather than
-  falling back to a guess.
+  confirm nothing, every source is busy, or the town is unknown, the answer says so plainly rather
+  than falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

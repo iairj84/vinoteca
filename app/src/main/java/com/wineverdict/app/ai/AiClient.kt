@@ -97,6 +97,9 @@ class AiClient(
 
     private val web = WebLookup()
 
+    /** One connection pool for grounded discovery, however often the key is re-read. */
+    private val groundingTransport = HttpTransport()
+
     /** How long one town's map answer and pages are reused: an evening, not a month. */
     private val PLACE_CACHE_MS = 20 * 60_000L
 
@@ -318,9 +321,17 @@ class AiClient(
             val key = PlaceScout.cacheKey(ask)
             placeCache.get(key)?.let { return it }
 
-            // The map first: it is not a search engine, so a burst of place questions cannot get
-            // the phone refused, and its address is what proves the town. The search path stays as
-            // the fallback for a town the map has no boundary for, or for categories the map lacks.
+            // Google first, when the phone has a Gemini key. Its search grounding knows the
+            // restaurants with serious lists that the map cannot see (the map only finds what a
+            // volunteer tagged "wine"), and the pages it cites are what the research then reads.
+            // The map is the second opinion, not the other way round: it is the source that needed
+            // a mirror, a rate-limit apology and a category guess to work at all.
+            val cited = runCatching { grounding()?.find(ask).orEmpty() }.getOrDefault(emptyList())
+            if (cited.isNotEmpty()) {
+                placeCache.put(key, cited)
+                return cited
+            }
+
             var refusal: AiException? = null
             val mapped = try {
                 mapVenues(ask, box)
@@ -362,6 +373,16 @@ class AiClient(
             maxTokens = 900
         )
     }
+
+    /**
+     * Grounded discovery, or null when this phone has no Gemini key.
+     *
+     * Built per call because the key is a setting the user can change at any time; the transport
+     * underneath is shared, so no second connection pool is created.
+     */
+    private fun grounding(): GeminiGrounding? =
+        settings.key(AiProvider.GEMINI).trim().takeIf { it.isNotBlank() }
+            ?.let { GeminiGrounding(it, transport = groundingTransport) }
 
     /** The map's places, as venues whose address can prove the town. */
     private suspend fun mapVenues(ask: PlaceScout.Ask, box: String): List<PlaceScout.Venue> =

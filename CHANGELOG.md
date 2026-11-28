@@ -3,6 +3,32 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.62: discovery through Google's own search, with the key the phone already has
+
+**The map was the wrong source, and the key to a better one was already configured.** Place research
+found venues by asking OpenStreetMap for things tagged *wine bar* inside a town's boundary. That
+finds bars with wine in the name and misses the restaurant with a serious list under a chef's name —
+and a map is stale about closures in its own way. Gemini's API can use Google Search as a tool
+(`"tools":[{"google_search":{}}]` on the native `generateContent` call), which is the search a
+person would do, answered with the pages it used.
+
+`GeminiGrounding` now does discovery when a Gemini key is set: one grounded request for the settled
+town, then every cited page is resolved past Google's own redirect to the venue's real host. The
+research tail is unchanged, deliberately — each cited page is still fetched and has to name the
+place, use a wine word, say nothing about being closed, and place it in the asked town before the
+sommelier may mention it. The model proposes pages; the app still decides.
+
+What it costs: grounding is billed per search query. On the cheap tier this app uses
+(`gemini-2.5-flash-lite`) Google gives 500 grounded requests a day free, then $14–35 per 1,000; the
+app's existing ten-requests-a-minute limit and twenty-minute place cache sit on top of that, so a
+normal evening is a handful. No new key, no proxy, no mirror: if the key is absent or grounding
+fails, the map answers as before.
+
+A page that Google cites is not automatically a venue: redirects that land on Google's own hosts,
+listings on Yelp, Tripadvisor, Instagram and YouTube, and the same site cited twice are all dropped
+before anything is fetched. A response with prose but no citations is the model remembering, and is
+treated as no answer — never as a list of places.
+
 ### 1.2.61: the question reaches the research, and the region is the phone's
 
 **A real phone still answered from the cellar.** Asked *where should I go in Beaverton for good wine
