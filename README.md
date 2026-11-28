@@ -149,10 +149,12 @@ Gemini or Groq — with your own key.
   generated “Bottles I love” half rebuilt from the bottles you called Good or Loved. Import/export it as
   a file.
 - **Updates, and a cellar value you can put away** — the app asks GitHub once at start-up whether a
-  newer release exists, and offers it at the top of the cellar with **Update** and **Not now**;
-  nothing downloads or installs without a tap, and a failed check is silent. Settings → Currency has
-  **Show the cellar value**, which takes the PAID total off the cellar label without touching the
-  price of a single bottle.
+  newer release exists, and offers it at the top of the cellar with **Update** and **Not now**.
+  **Not now** is remembered for that release, so it is not asked again on every launch and it is asked
+  again when a newer one is published; Settings → Updates still reports and installs a release the
+  card is not offering. Nothing downloads or installs without a tap, and a failed check is silent.
+  Settings → Currency has **Show the cellar value**, which takes the PAID total off the cellar label
+  without touching the price of a single bottle.
 - **Crash report** — a fatal error is written to a file on the phone and shown in Settings → About
   under **Last crash**, with Copy and Forget it. Nothing leaves the device.
 - **Gates stand where you are standing** — a hard gate is a limit when buying, so a bottle over the

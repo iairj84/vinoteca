@@ -257,3 +257,18 @@ class Updater(private val context: Context) {
         private const val ASSET_PREFIX = "wine-verdict-"
     }
 }
+
+/**
+ * Whether a start-up check's answer belongs at the top of the cellar.
+ *
+ * **Not now** used to live in the screen's memory, so the same release was offered again on every
+ * launch, rotation and tab switch — the one answer the app had been given, ignored. It is stored as
+ * the version it was about, because that is what it answers: the card stays away for that release and
+ * returns when a newer one is published. Settings still reports an update when asked, so a release
+ * that was dismissed is never unreachable, only not repeated.
+ */
+object UpdateOffer {
+
+    fun show(version: String?, dismissedVersion: String): Boolean =
+        !version.isNullOrBlank() && version != dismissedVersion.trim()
+}

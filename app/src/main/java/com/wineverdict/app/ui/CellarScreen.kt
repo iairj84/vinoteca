@@ -73,6 +73,7 @@ import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
 import com.wineverdict.app.data.InsightStore
+import com.wineverdict.app.data.UpdateOffer
 import com.wineverdict.app.data.Updater
 import com.wineverdict.app.model.CellarData
 import com.wineverdict.app.model.Verdict
@@ -110,7 +111,9 @@ fun CellarScreen(
     val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
     // The start-up check's answer, shown once at the top of the list rather than buried in Settings.
     val update by AppGraph.pendingUpdate.collectAsStateWithLifecycle()
-    var updateHidden by remember { mutableStateOf(false) }
+    // **Not now** is an answer about one release, so it is remembered by version: the card stays away
+    // across launches, tab switches and rotations, and a newer release is a new question.
+    var dismissedVersion by remember { mutableStateOf(AppGraph.settings.dismissedUpdate) }
     // Whether the label prints what the cellar cost. Read here, set in Settings.
     val showValue by remember { mutableStateOf(AppGraph.settings.showCellarValue) }
     // A candidate the cellar already holds is a second bottle, not a twin: the same identity the
@@ -277,9 +280,15 @@ fun CellarScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             val available = update
-            if (available != null && !updateHidden) {
+            if (available != null && UpdateOffer.show(available.version, dismissedVersion)) {
                 item(key = "update") {
-                    UpdateAvailableCard(available, onDismiss = { updateHidden = true })
+                    UpdateAvailableCard(
+                        available,
+                        onDismiss = {
+                            dismissedVersion = available.version
+                            AppGraph.settings.dismissedUpdate = available.version
+                        }
+                    )
                 }
             }
             item {

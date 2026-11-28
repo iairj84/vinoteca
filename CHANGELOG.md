@@ -3,6 +3,19 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.46: Not now means this version, not every launch
+
+**The update card came back every time the app opened.** **Not now** only cleared it from the screen
+it was on — the answer lived in memory — so the next launch, a rotation, or a trip to another tab and
+back put the same card on the cellar again, for as long as the release went uninstalled.
+
+- **The answer is remembered by version.** Tapping **Not now** stores the release it was about, so the
+  card stays away across launches, rotations and tab switches, and it returns when a newer release is
+  published, because that is a different question.
+- **Settings still reports it.** The Updates section answers an explicit **Check for updates** and
+  can download and install from there, so a release dismissed on the cellar is never unreachable — it
+  is only not repeated at the top of the list.
+
 ### 1.2.45: a backup you could rebuild a phone from
 
 **The backup held the facts of a cellar and none of its labels.** A restore brought back every bottle

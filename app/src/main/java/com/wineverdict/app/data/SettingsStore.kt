@@ -151,6 +151,14 @@ class SettingsStore(context: Context) {
         get() = prefs.getLong(KEY_BACKUP_DISMISSED, 0L)
         set(value) = prefs.edit().putLong(KEY_BACKUP_DISMISSED, value).apply()
 
+    /**
+     * The release the user answered **Not now** to. Stored by version because the answer is about one
+     * release, not about updates: the card stays away until a newer one is published.
+     */
+    var dismissedUpdate: String
+        get() = prefs.getString(KEY_DISMISSED_UPDATE, "").orEmpty()
+        set(value) = prefs.edit().putString(KEY_DISMISSED_UPDATE, value.trim()).apply()
+
     var currency: String
         get() = prefs.getString(KEY_CURRENCY, "").orEmpty().ifBlank { DEFAULT_CURRENCY }
         set(value) = prefs.edit()
@@ -181,6 +189,7 @@ class SettingsStore(context: Context) {
         private const val KEY_SHOW_VALUE = "cellar.value"
         private const val KEY_LAST_BACKUP = "backup.last"
         private const val KEY_BACKUP_DISMISSED = "backup.dismissed"
+        private const val KEY_DISMISSED_UPDATE = "update.dismissed"
 
         private const val LEGACY_API_KEY = "groq_api_key"
         private const val LEGACY_VISION_MODEL = "vision_model"
