@@ -3,6 +3,29 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.48: a night that can be corrected
+
+**A night in the cellar book could not be changed.** The date was picked days later and turned out
+wrong, the verdict was tapped on the wrong word, the line was a typo — and the only way back was a
+record that stayed wrong for ever, or a second entry beside it that made one evening look like two.
+
+- **A tap on a night opens it for correction.** The date, the verdict, the taste words, the
+  buy-again answer and the line come back as they were saved, and **Save** writes them in place. The
+  entry keeps its id, the bottle it belongs to, and whether it came from **Drank one**, the minus
+  button, your own hand or a bottle's older tasting, so the record still says how it got there.
+- **The correction reaches the bottle it came from.** **Drank one** and a hand-written night are the
+  two entries that write a verdict and a dated line onto the bottle, and the taste brief reads the
+  bottle rather than the book. The verdict is written only when the correction actually changed it
+  and the bottle still holds the word that night gave, so a later verdict of your own is never
+  overwritten; the dated line is rewritten where it stands instead of a second copy appearing
+  beneath it, and a line edited by hand on the bottle's page is left as it is.
+- **Delete takes the entry out, and asks first.** The bottle keeps whatever it already knows — a
+  rating and a note may have been given on the bottle's own page — and the confirm says so, because
+  a deleted night cannot be put back from there.
+- **A verdict typed onto a count adjustment makes it a night.** A bottle taken out with the minus
+  button never had a word asked for it; one given now is yours, and the entry stops calling itself
+  a corrected count.
+
 ### 1.2.47: the search answers the spelling you type
 
 **`rose` found nothing in a cellar full of Rosé.** Both boxes compared the words exactly as they were

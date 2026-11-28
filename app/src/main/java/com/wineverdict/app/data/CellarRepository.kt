@@ -402,6 +402,25 @@ class CellarRepository(context: Context) {
         )
     }
 
+    /**
+     * A night's correction, carried to the bottle it was written from.
+     *
+     * Only the two kinds of entry that wrote onto the bottle are corrected there — **Drank one** and
+     * a night written by hand. A count adjustment never had a verdict to move, and a tasting brought
+     * across from a bottle came *from* that bottle, which is already where it lives.
+     */
+    suspend fun correctJournalTaste(before: Drink, after: Drink) = mutate { current ->
+        if (before.wineId.isBlank()) {
+            current
+        } else {
+            current.copy(
+                wines = current.wines.map { wine ->
+                    if (wine.id == before.wineId) correctBottle(wine, before, after) else wine
+                }
+            )
+        }
+    }
+
     suspend fun addTastingNote(id: String, note: String) = mutate { current ->
         val stamp = LocalDate.now().toString()
         current.copy(

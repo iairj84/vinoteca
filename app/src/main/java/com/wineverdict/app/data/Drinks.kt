@@ -177,6 +177,32 @@ class DrinkLog(context: Context) {
         return drink
     }
 
+    /**
+     * Rewrites one entry, for a night that was written down wrong.
+     *
+     * The date, the verdict, the words and the line are the four things a remembered evening gets
+     * wrong; the id, the wine and how the bottle left the shelf are not among them, because a
+     * correction says what was written was wrong, not that a different bottle was opened. The entry
+     * comes back so the caller can carry the same correction to the bottle it was written from.
+     */
+    fun update(
+        id: String,
+        at: Long,
+        rating: Int?,
+        note: String,
+        flavors: List<String>,
+        again: Boolean?
+    ): Drink? {
+        val before = _drinks.value.firstOrNull { it.id == id } ?: return null
+        val after = before.corrected(at, rating, note, flavors, again)
+        write(
+            _drinks.value.map { if (it.id == id) after else it }
+                .sortedByDescending { it.at }
+                .take(MAX_DRINKS)
+        )
+        return after
+    }
+
     /** Adds the entries of a backup that this phone does not already hold. */
     fun merge(others: List<Drink>) {
         if (others.isEmpty()) return
@@ -232,9 +258,104 @@ class DrinkLog(context: Context) {
     private companion object {
         /** Five years of a bottle most days; older entries are dropped rather than kept for ever. */
         const val MAX_DRINKS = 2_000
-        /** The brief prints three words a bottle; six is already more than the survey needs. */
-        const val MAX_FLAVORS = 6
     }
+}
+
+/** The brief prints three words a bottle; six is already more than the survey needs. */
+private const val MAX_FLAVORS = 6
+
+/**
+ * The same entry, with the night, the verdict, the words and the line replaced.
+ *
+ * The id, the wine and how the bottle left the shelf are kept: a correction is about what was
+ * written down, not about which bottle was opened. A verdict typed onto a count adjustment makes it
+ * a night, because the minus button never asked and the word is still the user's.
+ */
+fun Drink.corrected(
+    at: Long,
+    rating: Int?,
+    note: String,
+    flavors: List<String>,
+    again: Boolean?
+): Drink = copy(
+    at = at,
+    rating = rating,
+    note = note.trim(),
+    flavors = flavors.map { it.trim() }.filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }.take(MAX_FLAVORS),
+    again = again,
+    via = if (via == Drink.COUNT && rating != null) Drink.MANUAL else via
+)
+
+/**
+ * The bottle after one night was corrected.
+ *
+ * **Drank one** and a hand-written night both write their verdict and their dated line onto the
+ * bottle, and the taste brief reads the bottle rather than this log; a correction that stopped at
+ * the book would leave the word the user just changed feeding every scan and every list. So it is
+ * carried across, and only where it is still this night's to carry:
+ *
+ * - the verdict is written only when this correction actually changed it **and** the bottle still
+ *   holds the word the night gave — a later night's verdict is not this one's to overwrite;
+ * - only the exact line the night wrote is rewritten, so a note typed on the bottle's own page is
+ *   left as it stands;
+ * - a flavour word is added rather than removed, because the record cannot tell which of its words
+ *   this night contributed.
+ */
+fun correctBottle(
+    wine: Wine,
+    before: Drink,
+    after: Drink,
+    zone: ZoneId = ZoneId.systemDefault()
+): Wine {
+    val oldDay = Instant.ofEpochMilli(before.at).atZone(zone).toLocalDate().toString()
+    val newDay = Instant.ofEpochMilli(after.at).atZone(zone).toLocalDate().toString()
+    val oldLine = if (before.note.isBlank()) null else "$oldDay — ${before.note.trim()}"
+    val newLine = if (after.note.isBlank()) null else "$newDay — ${after.note.trim()}"
+    val verdict = when {
+        after.rating == before.rating -> wine.rating
+        wine.rating != before.rating -> wine.rating
+        else -> after.rating
+    }
+    val merged = (wine.flavorTags + after.flavors)
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .distinctBy { it.lowercase() }
+        .take(12)
+    return wine.copy(
+        rating = verdict,
+        favorite = when {
+            verdict == Verdict.LOVED.rating -> true
+            verdict == null -> false
+            after.rating != before.rating -> false
+            else -> wine.favorite
+        },
+        flavorTags = merged,
+        myNotes = rewriteNote(wine.myNotes, oldLine, newLine),
+        updatedAt = System.currentTimeMillis()
+    )
+}
+
+/**
+ * The bottle's notes with one line replaced, removed, or added.
+ *
+ * A line that is not there any more — rewritten by hand on the bottle's page — is not added again: a
+ * second copy would read as a second tasting of the same night.
+ */
+private fun rewriteNote(notes: String, oldLine: String?, newLine: String?): String {
+    val lines = notes.lines().filter { it.isNotBlank() }
+    val next = when {
+        oldLine != null && oldLine in lines -> lines.mapNotNull { line ->
+            when {
+                line != oldLine -> line
+                newLine != null -> newLine
+                else -> null
+            }
+        }
+        oldLine == null && newLine != null && newLine !in lines -> lines + newLine
+        else -> lines
+    }
+    return next.joinToString("\n")
 }
 
 /** A bottle's own tasting, waiting to be brought into the book. */

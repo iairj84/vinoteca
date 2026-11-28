@@ -13,8 +13,8 @@ android {
         applicationId = "com.wineverdict.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 62
-        versionName = "1.2.47"
+        versionCode = 63
+        versionName = "1.2.48"
         resourceConfigurations += listOf("en")
     }
 

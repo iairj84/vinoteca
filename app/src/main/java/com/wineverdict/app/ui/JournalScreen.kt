@@ -29,9 +29,12 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -121,6 +124,9 @@ fun JournalScreen() {
     val zone = remember { ZoneId.systemDefault() }
     val now = remember(drinks) { System.currentTimeMillis() }
     var adding by remember { mutableStateOf(false) }
+    // The entry being corrected, if any. Held as the entry itself rather than an id so the sheet
+    // opens holding what was saved even if the list moves underneath it.
+    var editing by remember { mutableStateOf<Drink?>(null) }
     // The book is a record of years, so it can be read two ways: by the words on a label, or by the
     // evening. Neither changes a single entry — they only choose what is shown.
     var query by rememberSaveable { mutableStateOf("") }
@@ -179,6 +185,40 @@ fun JournalScreen() {
                 else "Written in the cellar book."
             )
         }
+    }
+
+    /**
+     * A night corrected: the book first, then the bottle the night wrote onto.
+     *
+     * **Drank one** and a hand-written entry are the two that put a verdict and a dated line on the
+     * bottle, and the taste brief reads the bottle rather than this log — a correction that stopped
+     * at the book would leave the word the user just changed feeding every scan and every list.
+     */
+    fun correct(
+        entry: Drink,
+        at: Long,
+        rating: Int?,
+        flavors: List<String>,
+        again: Boolean?,
+        note: String
+    ) {
+        val after = AppGraph.drinks.update(entry.id, at, rating, note, flavors, again) ?: return
+        val onBottle = entry.wineId.isNotBlank() &&
+            (entry.via == Drink.MANUAL || entry.via == Drink.DRANK)
+        if (onBottle) {
+            scope.launch { AppGraph.cellar.correctJournalTaste(entry, after) }
+        }
+        scope.launch {
+            snackbarState.showSnackbar(
+                if (onBottle) "Corrected — here and on the bottle." else "Corrected."
+            )
+        }
+    }
+
+    /** Takes a night out of the book. The bottle keeps whatever that night wrote onto it. */
+    fun forget(entry: Drink) {
+        AppGraph.drinks.remove(entry.id)
+        scope.launch { snackbarState.showSnackbar("Taken out of the cellar book.") }
     }
 
     // What the bottles already know and the book was never told: a verdict or a note from before
@@ -381,7 +421,9 @@ fun JournalScreen() {
                         )
                     }
                 }
-                items(list, key = { it.id }) { drink -> DrinkRow(drink, zone) }
+                items(list, key = { it.id }) { drink ->
+                    DrinkRow(drink, zone, onEdit = { editing = drink })
+                }
             }
         }
     }
@@ -393,6 +435,21 @@ fun JournalScreen() {
             onSave = { entry ->
                 adding = false
                 record(entry)
+            }
+        )
+    }
+
+    editing?.let { entry ->
+        JournalEditDialog(
+            drink = entry,
+            onDismiss = { editing = null },
+            onSave = { at, rating, flavors, again, note ->
+                editing = null
+                correct(entry, at, rating, flavors, again, note)
+            },
+            onDelete = {
+                editing = null
+                forget(entry)
             }
         )
     }
@@ -528,11 +585,11 @@ private fun DayCell(
     }
 }
 
-/** One bottle, as the night it was opened. */
+/** One bottle, as the night it was opened. A tap opens it for correction. */
 @Composable
-private fun DrinkRow(drink: Drink, zone: ZoneId) {
+private fun DrinkRow(drink: Drink, zone: ZoneId, onEdit: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEdit),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
@@ -556,6 +613,15 @@ private fun DrinkRow(drink: Drink, zone: ZoneId) {
                         else -> "no verdict"
                     }
                 )
+                // A tap anywhere on the row opens it; the pencil is what says so.
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "Correct this night",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             val where = listOf(drink.type, drink.region)
                 .map { it.trim() }
@@ -928,33 +994,267 @@ private fun JournalEntryDialog(
     }
 
     if (pickingDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = night)
-        DatePickerDialog(
-            onDismissRequest = { pickingDate = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        state.selectedDateMillis?.let { chosen ->
-                            val zone = ZoneId.systemDefault()
-                            // The picker works in UTC days; the record is a local night.
-                            val day = Instant.ofEpochMilli(chosen)
-                                .atZone(ZoneOffset.UTC)
-                                .toLocalDate()
-                            night = if (day == LocalDate.now(zone)) {
+        NightPickerDialog(
+            night = night,
+            onDismiss = { pickingDate = false },
+            onNight = { night = it }
+        )
+    }
+}
+
+/**
+ * The date picker both sheets use, so a night typed in and a night corrected cannot be dated two
+ * different ways: the picker works in UTC days, the record is a local night, and today keeps the
+ * hour it is written at instead of snapping back to midnight.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NightPickerDialog(night: Long, onDismiss: () -> Unit, onNight: (Long) -> Unit) {
+    // The picker works in UTC days, so it is seeded with the local night's date at UTC midnight.
+    // Seeded with the timestamp itself, an evening after 19:00 in a western zone opened on the next
+    // day — and pressing Set without touching anything moved the night by one.
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = Instant.ofEpochMilli(night)
+            .atZone(ZoneId.systemDefault())
+            .toLocalDate()
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant()
+            .toEpochMilli()
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    state.selectedDateMillis?.let { chosen ->
+                        val zone = ZoneId.systemDefault()
+                        val day = Instant.ofEpochMilli(chosen)
+                            .atZone(ZoneOffset.UTC)
+                            .toLocalDate()
+                        onNight(
+                            if (day == LocalDate.now(zone)) {
                                 System.currentTimeMillis()
                             } else {
                                 day.atStartOfDay(zone).toInstant().toEpochMilli()
                             }
-                        }
-                        pickingDate = false
+                        )
                     }
-                ) { Text("Set") }
+                    onDismiss()
+                }
+            ) { Text("Set") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    ) {
+        DatePicker(state = state)
+    }
+}
+
+/**
+ * One night, corrected.
+ *
+ * The date, the verdict, the taste words, the buy-again answer and the line are the five things a
+ * remembered evening gets wrong, so the sheet opens holding what was saved rather than blank.
+ *
+ * The bottle is not editable here on purpose: moving a night onto a second bottle would leave the
+ * first holding a tasting it never had. That is a night to delete and write again, which is why
+ * Delete lives on this sheet and asks before it writes.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun JournalEditDialog(
+    drink: Drink,
+    onDismiss: () -> Unit,
+    onSave: (at: Long, rating: Int?, flavors: List<String>, again: Boolean?, note: String) -> Unit,
+    onDelete: () -> Unit
+) {
+    var night by remember(drink.id) { mutableStateOf(drink.at) }
+    var rating by remember(drink.id) { mutableStateOf(drink.rating) }
+    // A word saved before the survey offered it still shows, or correcting the night would drop it.
+    val words = remember(drink.flavors) { (drink.flavors + SURVEY_FLAVORS).distinct() }
+    var flavors by remember(drink.id) { mutableStateOf(drink.flavors) }
+    var again by remember(drink.id) { mutableStateOf(drink.again) }
+    var note by remember(drink.id) { mutableStateOf(drink.note) }
+    var pickingDate by remember { mutableStateOf(false) }
+    var confirming by remember { mutableStateOf(false) }
+    val onBottle = drink.wineId.isNotBlank() &&
+        (drink.via == Drink.MANUAL || drink.via == Drink.DRANK)
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize().imePadding(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 4.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Correct this night",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(drink.title, style = MaterialTheme.typography.titleSmall)
+                        val where = listOf(drink.type, drink.region)
+                            .map { it.trim() }
+                            .filter { it.isNotBlank() }
+                            .joinToString(" · ")
+                        if (where.isNotBlank()) {
+                            Text(
+                                where,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        // Said at the top, before anything is changed: the survey's chips are tall
+                        // enough to push a line at the bottom of the sheet under its fold.
+                        Text(
+                            text = if (onBottle) {
+                                "Correcting this night also corrects the bottle: its verdict and " +
+                                    "this night's line, unless a later verdict is yours. Delete takes " +
+                                    "the entry out and leaves the bottle as it is."
+                            } else {
+                                "This changes the book only — the bottle keeps its own rating and " +
+                                    "notes. Delete takes the entry out of the book."
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("The night", style = MaterialTheme.typography.labelLarge)
+                            Text(
+                                dayWords(night),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { pickingDate = true }) { Text("Change") }
+                    }
+
+                    Text("How was it?", style = MaterialTheme.typography.labelLarge)
+                    VerdictChips(rating) { rating = it }
+
+                    Text(
+                        if (flavors.isEmpty()) "What did it taste of? (up to six)"
+                        else "What did it taste of? (${flavors.size} of 6)",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        words.forEach { word ->
+                            val chosen = word in flavors
+                            FilterChip(
+                                selected = chosen,
+                                enabled = chosen || flavors.size < 6,
+                                onClick = {
+                                    flavors = if (chosen) flavors - word else flavors + word
+                                },
+                                label = { Text(word) }
+                            )
+                        }
+                    }
+
+                    Text("Would you buy it again?", style = MaterialTheme.typography.labelLarge)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = again == true,
+                            onClick = { again = if (again == true) null else true },
+                            label = { Text("Yes") }
+                        )
+                        FilterChip(
+                            selected = again == false,
+                            onClick = { again = if (again == false) null else false },
+                            label = { Text("No") }
+                        )
+                    }
+
+                    OutlinedTextField(
+                        value = note,
+                        onValueChange = { note = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("One line about it (optional)") },
+                        maxLines = 3
+                    )
+
+                    TextButton(
+                        onClick = { confirming = true },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Delete this night")
+                    }
+                    // Room under the last line, so the sheet's own edge never cuts it in half.
+                    Spacer(Modifier.size(8.dp))
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                        Text("Cancel")
+                    }
+                    Button(
+                        onClick = { onSave(night, rating, flavors, again, note) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Save")
+                    }
+                }
+            }
+        }
+    }
+
+    if (pickingDate) {
+        NightPickerDialog(
+            night = night,
+            onDismiss = { pickingDate = false },
+            onNight = { night = it }
+        )
+    }
+
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = { confirming = false },
+            title = { Text("Delete this night?") },
+            text = {
+                Text(
+                    "“${drink.title}” comes out of the cellar book. The bottle's own rating and " +
+                        "notes keep what they have, and the night cannot be put back from here."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirming = false
+                    onDelete()
+                }) { Text("Delete") }
             },
             dismissButton = {
-                TextButton(onClick = { pickingDate = false }) { Text("Cancel") }
+                TextButton(onClick = { confirming = false }) { Text("Keep it") }
             }
-        ) {
-            DatePicker(state = state)
-        }
+        )
     }
 }

@@ -113,7 +113,11 @@ Gemini or Groq — with your own key.
   night the app could not
   see — a restaurant bottle, or one from before it was installed — with an editable date, the
   verdict, one line, and a three-tap survey: up to six taste words and whether you would buy it
-  again. A wine you do not own becomes a record with no bottles, so the answer lives under Cellar's
+  again. **Tap a night to correct it** — the date, the verdict, the taste words, would-you-buy-it-again
+  and the line — or **Delete this night** to take it out after asking. A correction to a night that
+  wrote onto its bottle (**Drank one**, or one you added by hand) is carried to the bottle's verdict
+  and its dated line, leaving a later verdict of your own alone. A wine you do not own becomes a
+  record with no bottles, so the answer lives under Cellar's
   **No bottles** filter and reaches the taste brief the way a rated bottle does. Ask reads the same
   record: “what did I drink yesterday”, “what did I have last week”, “what have I loved this month”.
   A bottle's page says when it was last drunk. **Undo** takes an inventory entry back with the
