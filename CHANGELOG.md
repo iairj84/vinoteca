@@ -3,6 +3,37 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.61: the question reaches the research, and the region is the phone's
+
+**A real phone still answered from the cellar.** Asked *where should I go in Beaverton for good wine
+tonight?*, the app replied *Beaverton is not on my record of wine menus…* — the research never ran.
+The sentence names no venue noun and no outing word, so the classifier did not recognise it and the
+question fell through to the general chat. That shape is now a place question: *where should I go /
+where to eat* plus wine as the reason (*for good wine*, *with a wine list*, *to drink wine*). A cellar
+question that only sounds similar — *what should I drink with dinner?*, *where should I store this
+bottle?* — still stays in the cellar, and both are tests.
+
+**The region reader was proved on Android, not in a harness.** A new instrumented test
+(`./gradlew :app:connectedDebugAndroidTest`) runs `DeviceRegions` inside the emulator, with the app's
+own `PlaceStore` and `PlaceFinder` and no injected region:
+
+- a runtime with no fix and no Home reports **United States, source "your phone's region"**, and no
+  state — said as such;
+- a saved place called Home is reverse-geocoded to **Portland, Oregon, source "your Home place"**;
+- a bare **"Portland" settled to Portland, Oregon** from that runtime value, through the same
+  research the chat calls;
+- a runtime with **no usable region asks which Portland**, and does not default to Oregon.
+
+Running it found a real gap: the region step asked Photon only, and this emulator resolved Nominatim
+but **could not resolve `photon.komoot.io` at all**, so the state silently fell back to the locale.
+The phone's own geocoder is now the second answer for a coordinate (`PlaceFinder.townAt`), which is
+also how a phone with no location permission but a saved Home can still settle Portland; the order is
+tested.
+
+**Every reply now names the town it used.** An Android run showed the explanation appearing only
+when places were picked, so *nothing in Portland, Oregon* read like a silent default. The town and
+its reason are appended once, by the reply itself, for every outcome.
+
 ### 1.2.60: which Portland, said out loud
 
 The question that started this is asked without a state: *where should I go for dinner tonight in

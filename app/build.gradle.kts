@@ -13,9 +13,12 @@ android {
         applicationId = "com.wineverdict.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 75
-        versionName = "1.2.60"
+        versionCode = 76
+        versionName = "1.2.61"
         resourceConfigurations += listOf("en")
+        // The place question's town is settled by the region the phone reports, so that reader is
+        // exercised on a real Android runtime: `./gradlew :app:connectedDebugAndroidTest`.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -115,6 +118,9 @@ dependencies {
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
 
     testImplementation("junit:junit:4.13.2")
+
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.2")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

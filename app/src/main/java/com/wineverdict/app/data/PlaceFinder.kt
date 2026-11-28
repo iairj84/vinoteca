@@ -24,6 +24,16 @@ sealed interface HereResult {
 /** The platform's own geocoder, kept behind an interface so the fallback order can be tested. */
 interface AddressFinder {
     suspend fun find(query: String, near: LatLng?): PlaceHit?
+
+    /**
+     * The town and region at a coordinate, from the platform's own geocoder.
+     *
+     * A live emulator resolved Nominatim and could not resolve Photon's host at all, so the place
+     * question's region step had nothing to read and fell through to the locale. The phone's
+     * geocoder is a second, independent answer to the same question, and it is on every device.
+     * Null when it has nothing: a coordinate it cannot name is not an error.
+     */
+    suspend fun reverse(lat: Double, lng: Double): PlaceHit? = null
 }
 
 /**
@@ -90,6 +100,7 @@ class PlaceFinder(
      */
     suspend fun townAt(lat: Double, lng: Double): PlaceHit? =
         runCatching { photon.reverse(lat, lng) }.getOrNull()
+            ?: runCatching { addresses.reverse(lat, lng) }.getOrNull()
 
     /** The places the user saved, so a circle called Home can answer "which region am I in". */
     fun savedPlaces(): List<Place> = saved()
@@ -132,6 +143,32 @@ class AndroidAddressFinder(private val context: Context) : AddressFinder {
             street = address,
             lat = first.latitude,
             lng = first.longitude
+        )
+    }
+
+    /**
+     * The town and state at a coordinate, as the platform knows them.
+     *
+     * `adminArea` is the state on an American address ("Oregon"), and `locality` is the town: that
+     * pair is exactly what settles which Portland a question means. A coordinate in a village with
+     * no locality falls back to the sub-admin area rather than returning a nameless place.
+     */
+    override suspend fun reverse(lat: Double, lng: Double): PlaceHit? = withContext(Dispatchers.IO) {
+        if (!Geocoder.isPresent()) return@withContext null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val first = runCatching { geocoder.getFromLocation(lat, lng, 1) }
+            .getOrNull()
+            ?.firstOrNull()
+            ?: return@withContext null
+        val city = first.locality ?: first.subAdminArea ?: ""
+        val region = first.adminArea ?: ""
+        if (city.isBlank() && region.isBlank()) return@withContext null
+        PlaceHit(
+            name = first.featureName ?: first.thoroughfare ?: city.ifBlank { region },
+            city = city,
+            region = region,
+            lat = lat,
+            lng = lng
         )
     }
 }

@@ -330,6 +330,46 @@ class PlaceScoutTest {
         Region(state = state, country = country, countryCode = code, source = source)
 
     @Test
+    fun theSentenceThatFailedOnAPhoneIsAPlaceQuestion() {
+        // From a real screenshot: answered by the cellar chat — "Beaverton is not on my record of
+        // wine menus" — because neither a venue noun nor an outing word appeared in it.
+        val ask = PlaceScout.ask("where should I go in Beaverton for good wine tonight?")
+        assertNotNull("the sentence was not recognised as a place question", ask)
+        assertTrue("the town was lost: ${ask!!.where}", ask.where.contains("Beaverton", ignoreCase = true))
+    }
+
+    @Test
+    fun aCellarQuestionAboutADinnerAtHomeStaysInTheCellar() {
+        assertNull(PlaceScout.ask("what should I drink with dinner tonight?"))
+        assertNull(PlaceScout.ask("where should I store this bottle?"))
+    }
+
+    @Test
+    fun aBareTownLikeBeavertonIsAnsweredWithItsState() = runBlocking {
+        val ask = PlaceScout.ask("where should I go in Beaverton for good wine tonight?")!!
+        val venue = PlaceScout.Venue(
+            "Beaverton Wine Bar",
+            "https://beavertonwine.example/",
+            address = "123 SW Broadway, Beaverton, Oregon"
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun region() = region("Oregon")
+            override suspend fun towns(ask: PlaceScout.Ask) = listOf(
+                town("Beaverton", "Oregon"),
+                town("Beaverton", "Michigan")
+            )
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(venue)
+            override suspend fun page(url: String) =
+                "Beaverton Wine Bar pours Oregon wine by the glass in Beaverton, Oregon."
+            override suspend fun pick(system: String, evidence: String) =
+                """{"picks":[{"line":1,"why":"by the glass"}]}"""
+        }
+        val text = PlaceScout.research(ask, "", sources).text()
+        assertTrue(text.contains("in Beaverton, Oregon"))
+        assertTrue(text.contains("your phone's region is Oregon"))
+    }
+
+    @Test
     fun aBareTownIsSettledByThePhonesOwnState() {
         val portlands = listOf(
             town("Portland", "Oregon"),

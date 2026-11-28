@@ -161,18 +161,25 @@ object PlaceScout {
         /** True when the map answered and did not know the town at all. */
         val unknownTown: Boolean = false
     ) {
-        fun text(on: String = today()): String = when {
-            options.isNotEmpty() -> whichTown(ask.where, options, region)
-            unknownTown -> townUnknown(ask, region)
-            // "near me" and the phone could not say where: ask, do not invent a town.
-            ask.where.isBlank() -> askWhere(ask)
-            // Nothing survived the evidence checks: say that, rather than describe a place.
-            venues.isEmpty() -> noEvidence(ask)
-            // The model's answer could not be read: the evidence still is, so it is printed as it
-            // stands rather than turned into an apology.
-            picks == null -> fallback(ask, venues, on)
-            picks.picks.isEmpty() -> nothing(ask, on)
-            else -> answer(picks, venues, ask, on)
+        fun text(on: String = today()): String {
+            val body = when {
+                options.isNotEmpty() -> whichTown(ask.where, options, region)
+                unknownTown -> townUnknown(ask, region)
+                // "near me" and the phone could not say where: ask, do not invent a town.
+                ask.where.isBlank() -> askWhere(ask)
+                // Nothing survived the evidence checks: say that, rather than describe a place.
+                venues.isEmpty() -> noEvidence(ask)
+                // The model's answer could not be read: the evidence still is, so it is printed as
+                // it stands rather than turned into an apology.
+                picks == null -> fallback(ask, venues, on)
+                picks.picks.isEmpty() -> nothing(ask, on)
+                else -> answer(picks, venues, ask, on)
+            }
+            // When the phone settled the town, every reply says which town and why — including the
+            // one that found nowhere. An Android run showed the explanation appearing only when
+            // places were picked, which left "nothing in Portland, Oregon" looking like a default.
+            if (ask.basis.isBlank()) return body
+            return "$body\n\nI used ${placeWords(ask)} — ${ask.basis}."
         }
     }
 
@@ -236,6 +243,26 @@ object PlaceScout {
     /** Eating out. Weaker than [VENUE]: a dinner at home is a cellar question. */
     private val OUTING = Regex("(?i)\\b(dinner|lunch|brunch|supper|eat out|eating out|night out|meal out)\\b")
 
+    /**
+     * "Where should I go…", with no venue noun at all.
+     *
+     * A real phone asked "where should I go in Beaverton for good wine tonight?" and got the cellar's
+     * answer — *Beaverton is not on my record of wine menus* — because neither the venue list nor the
+     * outing list contained a word from that sentence. The user's question went to the general chat,
+     * so none of the research ran. This is the shape that was missing.
+     */
+    private val GO_OUT = Regex(
+        "(?i)(\\bwhere\\s+(should|can|could|do|would|shall)\\s+(i|we)?\\s*(go|eat|drink|have)\\b)|" +
+            "(\\bwhere\\s+to\\s+(go|eat|drink)\\b)|(\\banywhere\\s+(to|for)\\s+(go|eat|drink)\\b)"
+    )
+
+    /** Wine as the reason to go out: "for good wine", "with a wine list", "to drink wine". */
+    private val WINE_OUT = Regex(
+        "(?i)\\b(good|great|nice|decent|serious|interesting|natural|fine)\\s+wine\\b|" +
+            "\\bwine\\s+(list|bar|shop|store|selection|cellar|menu|programme|program)\\b|" +
+            "\\b(drink|drinking|pour)\\s+wine\\b|\\bwine\\s+tonight\\b|\\bfor\\s+(some\\s+)?wine\\b"
+    )
+
     /** The question's shape: it asks the app to look for somewhere, not to pour something. */
     private val ASKING = Regex(
         "(?i)(\\bwhere\\b|\\brecommend|\\bsuggest|\\bany good|\\banywhere|\\bsomewhere|" +
@@ -261,12 +288,15 @@ object PlaceScout {
         if (question.isBlank()) return null
         val venue = VENUE.containsMatchIn(question)
         val outing = OUTING.containsMatchIn(question)
+        // Going out for wine, phrased without either noun: "where should I go … for good wine"
+        // is a place question and used to be answered from the cellar's own memory instead.
+        val goingOut = GO_OUT.containsMatchIn(question) && WINE_OUT.containsMatchIn(question)
         val bottle = BOTTLE.containsMatchIn(question)
-        if (!venue && !outing) return null
+        if (!venue && !outing && !goingOut) return null
         // A dinner question is only about a place when it also asks where, and says nothing about
         // opening a bottle: "what should I drink with dinner" is the cellar.
-        if (!venue && bottle) return null
-        val asking = ASKING.containsMatchIn(question) ||
+        if (!venue && !goingOut && bottle) return null
+        val asking = ASKING.containsMatchIn(question) || goingOut ||
             (venue && question.contains('?') && !bottle)
         if (!asking) return null
         val (where, nearMe) = where(question)
@@ -962,11 +992,8 @@ object PlaceScout {
             }
             val note = cleanNote(picks.note)
             if (note.isNotBlank()) append("\n\n").append(note)
-            // Naming the town is the point of settling it: "Portland, Oregon" and why it was that
-            // Portland, never a silent choice between twelve.
-            if (ask.basis.isNotBlank()) {
-                append("\n\nI used ").append(placeWords(ask)).append(" — ").append(ask.basis).append('.')
-            }
+            // The town and why it was that town are appended by [Report.text], so every reply says
+            // it once — picked, empty, or unreadable alike.
             append("\n\nChecked against pages fetched ").append(on)
             append(". Hours and closures change: call before you go.")
         }

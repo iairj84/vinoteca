@@ -183,9 +183,10 @@ Gemini or Groq — with your own key.
   Sundays* does not). The reply is written by the app from the fetched record — the name, the host
   and what the page actually says, under a *Page:* line quoting the venue's own words — so a
   restaurant the model remembers cannot reach the screen. A town with a twin is settled by the
-  phone's own region (a location fix, the saved place called Home, or the locale country) and the
-  reply says which town it used and why; when the phone cannot settle it, the answer lists the
-  candidates and asks instead of guessing. Other states' addresses are dropped. When the pages
+  phone's own region (a location fix reverse-geocoded by Photon or the platform geocoder, the saved
+  place called Home, or the locale country) and every reply says which town it used and why; when
+  the phone cannot settle it, the answer lists the candidates and asks instead of guessing. The
+  reader runs on the phone itself in an instrumented test (`:app:connectedDebugAndroidTest`). Other states' addresses are dropped. When the pages
   confirm nothing, the map is busy, or the town is unknown, the answer says so plainly rather than
   falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
