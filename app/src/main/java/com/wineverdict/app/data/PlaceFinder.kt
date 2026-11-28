@@ -82,6 +82,18 @@ class PlaceFinder(
      * radius also reaches the pavement, the smaller circle wins — which is the one the user drew
      * about the bar.
      */
+    /**
+     * The town and region at a coordinate, with no saved-place shortcut.
+     *
+     * The place question needs the state rather than the business: asked from a sofa, the nearest
+     * named business is a neighbour's shop and its town is still the right answer.
+     */
+    suspend fun townAt(lat: Double, lng: Double): PlaceHit? =
+        runCatching { photon.reverse(lat, lng) }.getOrNull()
+
+    /** The places the user saved, so a circle called Home can answer "which region am I in". */
+    fun savedPlaces(): List<Place> = saved()
+
     suspend fun here(lat: Double?, lng: Double?): HereResult {
         if (lat == null || lng == null) return HereResult.NoFix
         nearestPlace(saved(), lat, lng)?.let { return HereResult.Saved(it) }

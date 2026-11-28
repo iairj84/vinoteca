@@ -1,5 +1,6 @@
 package com.wineverdict.app.ai
 
+import com.wineverdict.app.data.Region
 import com.wineverdict.app.data.Search
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -67,7 +68,15 @@ object PlaceScout {
         /** "near me": [where] is empty until the phone can name the town it is standing in. */
         val nearMe: Boolean = false,
         val kind: Kind = Kind.ANY,
-        val question: String = ""
+        val question: String = "",
+        /**
+         * Why this town, when the phone settled it: "your phone's region is Oregon".
+         *
+         * Blank when the user named both town and region themselves, which needs no explanation,
+         * and printed in the reply when it is not — a user is owed the reason their "Portland"
+         * became Portland, Oregon.
+         */
+        val basis: String = ""
     ) {
         enum class Kind { ANY, RESTAURANT, BAR, SHOP }
 
@@ -114,9 +123,49 @@ object PlaceScout {
         val note: String = ""
     )
 
+    /** A town the map knows, with the state that settles it and the box the research searches. */
+    data class Town(
+        val name: String,
+        val state: String,
+        val country: String,
+        val countryCode: String,
+        /** west,north,east,south as the map prints it; empty when the reply had none. */
+        val box: String
+    ) {
+        /** "Portland, Oregon": the town as a reply prints it. */
+        val label: String
+            get() = listOf(name, state).filter { it.isNotBlank() }.joinToString(", ")
+    }
+
+    /** What a bare town name became, given what the phone knows. */
+    sealed interface Choice {
+        /** One town, and why it was that one (blank when there was no choice to make). */
+        data class One(val town: Town, val basis: String) : Choice
+
+        /** Several towns and nothing to choose between them: the reply asks, it does not guess. */
+        data class Many(val options: List<Town>, val region: Region?) : Choice
+
+        /** The map knows no such town. */
+        data object None : Choice
+    }
+
     /** What the research produced, and the reply it earns. */
-    data class Report(val ask: Ask, val venues: List<Venue>, val picks: Picks?) {
+    data class Report(
+        val ask: Ask,
+        val venues: List<Venue>,
+        val picks: Picks?,
+        /** Non-empty when the town name was ambiguous: the reply lists these instead of places. */
+        val options: List<Town> = emptyList(),
+        /** The region the phone reported, for the ambiguous reply to name. */
+        val region: Region? = null,
+        /** True when the map answered and did not know the town at all. */
+        val unknownTown: Boolean = false
+    ) {
         fun text(on: String = today()): String = when {
+            options.isNotEmpty() -> whichTown(ask.where, options, region)
+            unknownTown -> townUnknown(ask, region)
+            // "near me" and the phone could not say where: ask, do not invent a town.
+            ask.where.isBlank() -> askWhere(ask)
             // Nothing survived the evidence checks: say that, rather than describe a place.
             venues.isEmpty() -> noEvidence(ask)
             // The model's answer could not be read: the evidence still is, so it is printed as it
@@ -456,6 +505,9 @@ object PlaceScout {
     }
 
     /** Phrases that mean the place no longer exists. Deliberately narrow: "closed Sundays" is open. */
+    /** A title that is nothing but the directory's closure label. */
+    private val LABEL = Regex("(?i)^\\s*(closed|permanently closed|closed permanently)\\s*[.!]?\\s*$")
+
     private val CLOSED_PHRASES = listOf(
         "permanently closed",
         "closed permanently",
@@ -485,8 +537,11 @@ object PlaceScout {
         if (Regex("\\bclosed\\s+(in|since)\\s+(19|20)\\d{2}\\b").containsMatchIn(text)) {
             return "closed"
         }
-        val label = Regex("(?i)(^|[\\s\\-–—|:])closed([\\s\\-–—|:]|$)")
-        if (label.containsMatchIn(title)) return "closed"
+        // A bare "CLOSED" is a directory's label, and only a label: it has to be the whole of a
+        // short title that was passed separately from the body. The research calls this with the
+        // page text alone, so a page that says "closed Sundays" is prose, not a verdict — a live
+        // audit found the old rule reading any page's "closed" as a closure and dropping the venue.
+        if (parts.size > 1 && title.length <= 60 && LABEL.matches(title)) return "closed"
         return ""
     }
 
@@ -625,14 +680,75 @@ object PlaceScout {
      * that wants to prove the path works passes the same three and nothing else changes.
      */
     interface Sources {
-        /** Places in the town. Throws [AiException] with `retryable` when the source is busy. */
-        suspend fun discover(ask: Ask): List<Venue>
+        /**
+         * The region the phone can honestly report, or null when it knows none.
+         *
+         * It settles a bare town name and it is printed when it did: a reply that quietly turned
+         * "Portland" into Portland, Oregon without saying why is the guessing this exists to stop.
+         */
+        suspend fun region(): Region? = null
+
+        /** The towns the map knows by this name, each with its state and its box. */
+        suspend fun towns(ask: Ask): List<Town> = emptyList()
+
+        /**
+         * Places in the settled town. [box] is the town's own bounding box when settling found
+         * one; blank means the source must look the town up itself.
+         *
+         * Throws [AiException] with `retryable` when the source is busy.
+         */
+        suspend fun discover(ask: Ask, box: String = ""): List<Venue>
 
         /** The readable text of a page, or "" when it cannot be used. */
         suspend fun page(url: String): String
 
         /** The model's pick, from the system prompt and the numbered evidence. */
         suspend fun pick(system: String, evidence: String): String
+    }
+
+    /**
+     * Which town a bare name means, given what the phone knows.
+     *
+     * The rule that matters is the last line: when nothing can choose, this returns [Choice.Many]
+     * and the reply asks. Twelve Portlands came back from the map in one live query; taking the
+     * first would have been a coin flip dressed as research.
+     *
+     *  - one town by that name: no choice to make;
+     *  - the phone's state names one of them: that one, and the reply says so;
+     *  - the phone knows only its country, and exactly one of them is in it: that one;
+     *  - otherwise: [Choice.Many].
+     */
+    fun chooseTown(town: String, region: Region?, options: List<Town>): Choice {
+        val wanted = fold(town)
+        val named = options.filter { fold(it.name) == wanted }
+            .ifEmpty { options.filter { fold(it.name).contains(wanted) } }
+        if (named.isEmpty()) return Choice.None
+        if (named.size == 1) return Choice.One(named.single(), "")
+
+        val state = fold(region?.state.orEmpty())
+        if (state.isNotBlank()) {
+            val same = named.filter { sameRegion(it.state, state) }
+            if (same.size == 1) return Choice.One(same.single(), "your phone's region is ${region?.words}")
+            if (same.size > 1) return Choice.Many(same, region)
+        }
+        val code = region?.countryCode.orEmpty()
+        if (code.isNotBlank()) {
+            val same = named.filter { it.countryCode.equals(code, ignoreCase = true) }
+            if (same.size == 1) return Choice.One(same.single(), "it is the only $town in ${region?.country}")
+            if (same.size > 1) return Choice.Many(same, region)
+        }
+        return Choice.Many(named, region)
+    }
+
+    /** Whether a map state is the one the phone reported, allowing "OR" for "Oregon". */
+    private fun sameRegion(state: String, region: String): Boolean {
+        val s = fold(state)
+        val r = fold(region)
+        if (s.isBlank() || r.isBlank()) return false
+        if (s == r) return true
+        if (s.length == 2) return r.startsWith(s)
+        if (r.length == 2) return s.startsWith(r)
+        return s.startsWith(r) || r.startsWith(s)
     }
 
     /**
@@ -643,8 +759,39 @@ object PlaceScout {
      * place with no page is not recommended — the evidence is the page, not the map's memory of it.
      */
     suspend fun research(ask: Ask, brief: String, sources: Sources): Report {
-        val found = rank(ranked(sources.discover(ask)))
-        if (found.isEmpty()) return Report(ask, emptyList(), Picks())
+        // The town is settled before anything is fetched, because a page that proves Portland,
+        // Oregon is worthless if the question quietly became Portland, Maine.
+        var settled = ask
+        var box = ""
+        var region: Region? = null
+        if (ask.nearMe || !ask.where.contains(',')) {
+            region = sources.region()
+            if (ask.nearMe) {
+                val where = listOf(region?.city.orEmpty(), region?.state.orEmpty())
+                    .filter { it.isNotBlank() }
+                    .joinToString(", ")
+                if (where.isBlank()) return Report(ask, emptyList(), Picks(), region = region)
+                settled = ask.copy(
+                    where = where,
+                    basis = "your phone says you are in ${region?.words?.ifBlank { where }}"
+                )
+            } else {
+                when (val choice = chooseTown(ask.where, region, sources.towns(ask))) {
+                    is Choice.One -> {
+                        settled = ask.copy(where = choice.town.label, basis = choice.basis)
+                        box = choice.town.box
+                    }
+                    is Choice.Many -> return Report(
+                        ask, emptyList(), Picks(), options = choice.options, region = choice.region ?: region
+                    )
+                    Choice.None -> return Report(
+                        ask, emptyList(), Picks(), region = region, unknownTown = true
+                    )
+                }
+            }
+        }
+        val found = rank(ranked(sources.discover(settled, box)))
+        if (found.isEmpty()) return Report(settled, emptyList(), Picks())
         // Four with a page is a whole answer; six attempts is the cap, because every page is a
         // request and a chat that reads ten to keep three is a chat that takes half a minute.
         val open = mutableListOf<Venue>()
@@ -671,9 +818,59 @@ object PlaceScout {
             if (!inTown(checked, ask)) continue
             if (open.none { fold(it.name) == fold(checked.name) }) open += checked
         }
-        if (open.isEmpty()) return Report(ask, emptyList(), Picks())
-        val raw = sources.pick(prompt(brief), evidence(ask, open))
-        return Report(ask, open, parse(raw, open))
+        if (open.isEmpty()) return Report(settled, emptyList(), Picks())
+        val raw = sources.pick(prompt(brief), evidence(settled, open))
+        return Report(settled, open, parse(raw, open))
+    }
+
+    /**
+     * The reply for a town the map answered for and does not know.
+     *
+     * Not the same as a busy map: this one is a typo or a very small place, and saying so is more
+     * useful than "nothing found", which reads as though the lookup happened and the town is empty.
+     */
+    fun townUnknown(ask: Ask, region: Region?): String {
+        val where = ask.where.trim().ifBlank { "that town" }
+        val known = region?.words.orEmpty()
+        return "I could not find a town called \"$where\" on the map" +
+            (if (known.isNotBlank()) ", and your phone's region is $known." else ".") +
+            "\n\nCheck the spelling, or add the state — \"$where, Oregon\" — and I will read the " +
+            "pages of what is there."
+    }
+
+    /**
+     * The research, or the honest reply when the map will not answer.
+     *
+     * One function so the chat and the live run cannot drift: a refusal is the assistant's message,
+     * never a place named from memory and never a red error card.
+     */
+    suspend fun researchOrSay(ask: Ask, brief: String, sources: Sources): String = try {
+        research(ask, brief, sources).text()
+    } catch (e: AiException) {
+        if (!e.retryable) throw e
+        cannotConfirm(ask, e.message.orEmpty().replace(Regex("\\s+"), " ").take(200))
+    }
+
+    /**
+     * The reply for a name that means more than one town: the list, the reason, and the ask.
+     *
+     * It is not an error and it is not an evasion. The map really does know a dozen Portlands, the
+     * phone really does know only so much, and the one thing worse than asking is answering about
+     * the wrong one.
+     */
+    fun whichTown(town: String, options: List<Town>, region: Region?): String {
+        val names = options.take(6).joinToString("; ") { it.label }
+        val known = region
+        val why = when {
+            known != null && known.state.isNotBlank() ->
+                "Your phone's region is ${known.words}, and none of them is there, so I will not guess."
+            known != null && known.country.isNotBlank() ->
+                "Your phone only tells me ${known.words}, and that has more than one."
+            else -> "I cannot tell from this phone which one you mean."
+        }
+        val example = options.firstOrNull()?.label ?: town
+        return "I found more than one $town: $names. $why\n\n" +
+            "Say which one — \"$example\" — and I will read its pages."
     }
 
     /**
@@ -750,7 +947,11 @@ object PlaceScout {
             chosen.forEach { (venue, pick) ->
                 append("\n\n- ").append(venue.name)
                 if (venue.host.isNotBlank()) append(" (").append(venue.host).append(')')
-                append(" — ").append(pick.why)
+                // The page's own words, quoted: a reader can check the recommendation against the
+                // site it came from, which is the difference between research and a plausible list.
+                val quote = pageQuote(venue)
+                if (quote.isNotBlank()) append("\n  Page: “").append(quote).append("”")
+                append("\n  Why: ").append(pick.why)
             }
             if (picks.skips.isNotEmpty()) {
                 picks.skips.forEach { skip ->
@@ -761,10 +962,45 @@ object PlaceScout {
             }
             val note = cleanNote(picks.note)
             if (note.isNotBlank()) append("\n\n").append(note)
+            // Naming the town is the point of settling it: "Portland, Oregon" and why it was that
+            // Portland, never a silent choice between twelve.
+            if (ask.basis.isNotBlank()) {
+                append("\n\nI used ").append(placeWords(ask)).append(" — ").append(ask.basis).append('.')
+            }
             append("\n\nChecked against pages fetched ").append(on)
             append(". Hours and closures change: call before you go.")
         }
     }
+
+    /**
+     * A short, verbatim window of the venue's own page, for the reply to quote.
+     *
+     * [Venue.text] is already the page cut around the venue's name, so the quote is the page's
+     * words and not a summary: the reader can compare it with the site. Sentence first, then a
+     * word boundary, and an ellipsis when the sentence was longer than the quote.
+     */
+    fun pageQuote(venue: Venue, max: Int = 160): String {
+        // Live pages carry leftovers: a tag the stripper could not close, and JSON-escaped quotes
+        // from an embedded data block. Quoting those as "the page says" would be a lie about what
+        // a reader would see there, so they are removed before the words are chosen.
+        val cleaned = venue.text.trim()
+            .replace(Regex("(?s)<[^>]{1,400}>"), " ")
+            .replace("\\\"", "\"")
+            .replace(Regex("\\\\u003[cC]"), "<")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        if (cleaned.isBlank()) return ""
+        val sentences = cleaned.split(Regex("(?<=[.!?])\\s+"))
+        val sentence = sentences.firstOrNull { it.length >= 40 && MARKUP.none { mark -> it.contains(mark) } }
+            ?: sentences.firstOrNull { it.length >= 40 }
+            ?: cleaned
+        if (sentence.length <= max) return sentence.trim()
+        val cut = sentence.take(max).substringBeforeLast(' ').trim()
+        return "$cut…"
+    }
+
+    /** Fragments that are markup rather than prose, even after the tag stripper has run. */
+    private val MARKUP = listOf("data-test", "class=", "style=", "{\"", "<!--", "&#")
 
     /**
      * The model's closing prose, without numbers it only half saw.

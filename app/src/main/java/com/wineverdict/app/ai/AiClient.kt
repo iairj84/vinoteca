@@ -1,5 +1,6 @@
 package com.wineverdict.app.ai
 
+import com.wineverdict.app.data.Region
 import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.model.Wine
@@ -279,8 +280,23 @@ class AiClient(
      * A source that cannot be reached throws: "the phone is offline" and "the town has no wine
      * bar" are different answers, and only the second one is worth wording as an empty result.
      */
-    suspend fun scout(ask: PlaceScout.Ask, brief: String): PlaceScout.Report =
-        PlaceScout.research(ask, brief, sources(ask))
+    suspend fun scout(
+        ask: PlaceScout.Ask,
+        brief: String,
+        region: Region? = null
+    ): PlaceScout.Report = PlaceScout.research(ask, brief, sources(region))
+
+    /**
+     * The place answer as the chat shows it: research, or the honest "could not check" reply.
+     *
+     * The catch lives in [PlaceScout.researchOrSay] so the live run proves the same text the chat
+     * produces, rather than a second copy of it in a test.
+     */
+    suspend fun scoutReply(
+        ask: PlaceScout.Ask,
+        brief: String,
+        region: Region? = null
+    ): String = PlaceScout.researchOrSay(ask, brief, sources(region))
 
     /**
      * The three sources the chat uses: the map, the page reader, and the provider.
@@ -291,9 +307,14 @@ class AiClient(
      * closure published this afternoon is still picked up, and long enough that a table's follow-up
      * question ("what about something cheaper?") costs nothing.
      */
-    private fun sources(ask: PlaceScout.Ask): PlaceScout.Sources = object : PlaceScout.Sources {
+    private fun sources(region: Region?): PlaceScout.Sources = object : PlaceScout.Sources {
 
-        override suspend fun discover(ask: PlaceScout.Ask): List<PlaceScout.Venue> {
+        override suspend fun region(): Region? = region
+
+        override suspend fun towns(ask: PlaceScout.Ask): List<PlaceScout.Town> =
+            OsmPlaces.towns(ask.where)
+
+        override suspend fun discover(ask: PlaceScout.Ask, box: String): List<PlaceScout.Venue> {
             val key = PlaceScout.cacheKey(ask)
             placeCache.get(key)?.let { return it }
 
@@ -302,7 +323,7 @@ class AiClient(
             // the fallback for a town the map has no boundary for, or for categories the map lacks.
             var refusal: AiException? = null
             val mapped = try {
-                mapVenues(ask)
+                mapVenues(ask, box)
             } catch (e: AiException) {
                 refusal = e
                 emptyList()
@@ -343,8 +364,8 @@ class AiClient(
     }
 
     /** The map's places, as venues whose address can prove the town. */
-    private suspend fun mapVenues(ask: PlaceScout.Ask): List<PlaceScout.Venue> =
-        OsmPlaces.find(ask).map(OsmPlaces::asVenue)
+    private suspend fun mapVenues(ask: PlaceScout.Ask, box: String): List<PlaceScout.Venue> =
+        OsmPlaces.find(ask, box).map(OsmPlaces::asVenue)
 
     /**
      * The search-engine path, kept for towns the map cannot answer for.

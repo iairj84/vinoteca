@@ -3,6 +3,37 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.60: which Portland, said out loud
+
+The question that started this is asked without a state: *where should I go for dinner tonight in
+Portland with good wine?* The map knows twelve Portlands and, until now, the app took whichever
+came first. Now the phone settles it, and the reply says so.
+
+- **A bare town name is settled by the phone's own region.** In order of how true it is: a fresh
+  location fix, reverse-geocoded to town and state; the saved place called Home; the phone's locale
+  region (country only, and said as such). Twelve Portlands, and the reply reads *I used Portland,
+  Oregon — your phone's region is Oregon, United States.* A phone in Washington asking for
+  Vancouver gets Vancouver, Washington, and the reply names it; the same question from British
+  Columbia would get Vancouver, BC.
+- **When the phone cannot settle it, the app asks.** No region, or a region none of the towns is in:
+  *I found more than one Portland: Portland, Oregon; Portland, Maine; Portland, Texas… Your phone's
+  region is California, and none of them is there, so I will not guess.* A town the map has never
+  heard of says that, separately from a map that did not answer.
+- **The reply quotes the page, venue by venue.** Each recommendation now carries a short verbatim
+  window of the venue's own site under *Page:*, so a reader can check the recommendation against the
+  source. Markup fragments and JSON-escaped quotes are stripped first; a live page had been quoted
+  as `<header data-test=…>`.
+- **A closure bug the audit found.** Passing a page's whole text as one string let the old bare
+  *CLOSED* label rule read any page containing the word — *closed Sundays* included — as a shutdown
+  and drop the venue. A bare label is now only a label: the whole of a short, separate title.
+- **A refused map is the assistant's reply, produced by the production path.** The catch moved into
+  the research call itself, so the chat and the live run cannot drift. A live run against dead hosts
+  answered in 1.5 s: *I could not check anywhere in Portland just now… Nothing was guessed.*
+- **Proved live, three ways.** The instrument now runs the exact question with an Oregon phone, the
+  ambiguous Vancouver question with a Washington phone, and a forced failure followed by the same
+  question again. Its transcripts record the device region, the map's twelve towns, the settled town,
+  every page's length and closure verdict, the call counts, and the reply a user reads.
+
 ### 1.2.59: the place answer is proved, not promised
 
 **The research path had never actually run.** 1.2.58 added the lookup, but its confirmation pass met

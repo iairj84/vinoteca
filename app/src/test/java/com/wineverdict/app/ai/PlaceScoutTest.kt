@@ -1,5 +1,6 @@
 package com.wineverdict.app.ai
 
+import com.wineverdict.app.data.Region
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -244,7 +245,7 @@ class PlaceScoutTest {
             "https://stem.example/" to "Stem Wine Bar on N Mississippi in Portland, by the glass."
         )
         val sources = object : PlaceScout.Sources {
-            override suspend fun discover(ask: PlaceScout.Ask) = venues
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = venues
             override suspend fun page(url: String) = pages[url].orEmpty()
             override suspend fun pick(system: String, evidence: String): String {
                 assertTrue(evidence.indexOf("Bar Diane") < evidence.indexOf("Stem"))
@@ -268,7 +269,8 @@ class PlaceScoutTest {
     fun aVenueWithNoReadablePageIsNotRecommended() = runBlocking {
         val ask = place("Where should I go for dinner in Portland with good wine?")!!
         val sources = object : PlaceScout.Sources {
-            override suspend fun discover(ask: PlaceScout.Ask) = listOf(
+            override suspend fun towns(ask: PlaceScout.Ask) = listOf(town("Portland", "Oregon"))
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(
                 PlaceScout.Venue("Bar Diane", "https://bardiane.com/", address = "Portland, OR")
             )
             override suspend fun page(url: String) = ""
@@ -317,6 +319,183 @@ class PlaceScoutTest {
             hours = "Mo,Tu 17:00-22:00"
         )
         assertEquals(listOf(bar, shop), PlaceScout.rank(listOf(shop, bar)))
+    }
+
+    // ------------------------------------------------------------ which town a bare name means
+
+    private fun town(name: String, state: String, country: String = "United States", code: String = "us") =
+        PlaceScout.Town(name, state, country, code, box = "-122.8,45.6,-122.4,45.4")
+
+    private fun region(state: String, country: String = "United States", code: String = "us", source: String = "your location") =
+        Region(state = state, country = country, countryCode = code, source = source)
+
+    @Test
+    fun aBareTownIsSettledByThePhonesOwnState() {
+        val portlands = listOf(
+            town("Portland", "Oregon"),
+            town("Portland", "Maine"),
+            town("Portland", "Texas")
+        )
+        val choice = PlaceScout.chooseTown("Portland", region("Oregon"), portlands)
+        assertTrue(choice is PlaceScout.Choice.One)
+        val one = choice as PlaceScout.Choice.One
+        assertEquals("Portland, Oregon", one.town.label)
+        assertTrue(one.basis.contains("Oregon"))
+    }
+
+    @Test
+    fun anAmbiguousTownWithNoRegionAsksInsteadOfPicking() {
+        val choice = PlaceScout.chooseTown(
+            "Portland",
+            null,
+            listOf(town("Portland", "Oregon"), town("Portland", "Maine"))
+        )
+        assertTrue(choice is PlaceScout.Choice.Many)
+        assertEquals(2, (choice as PlaceScout.Choice.Many).options.size)
+    }
+
+    @Test
+    fun aRegionThatMatchesNoneOfThemAlsoAsks() {
+        // A phone in California cannot settle Portland, Oregon from Portland, Maine.
+        val choice = PlaceScout.chooseTown(
+            "Portland",
+            region("California"),
+            listOf(town("Portland", "Oregon"), town("Portland", "Maine"))
+        )
+        assertTrue(choice is PlaceScout.Choice.Many)
+    }
+
+    @Test
+    fun aCountryOnlyRegionSettlesATownUniqueInThatCountry() {
+        val vancouvers = listOf(
+            town("Vancouver", "British Columbia", "Canada", "ca"),
+            town("Vancouver", "Washington")
+        )
+        val choice = PlaceScout.chooseTown("Vancouver", region("", "United States", "us", "your phone's region"), vancouvers)
+        assertTrue(choice is PlaceScout.Choice.One)
+        assertEquals("Vancouver, Washington", (choice as PlaceScout.Choice.One).town.label)
+        assertTrue(choice.basis.contains("United States"))
+    }
+
+    @Test
+    fun aTownTheMapDoesNotKnowIsNotAPlace() {
+        assertTrue(
+            PlaceScout.chooseTown("Nowhereville", region("Oregon"), listOf(town("Portland", "Oregon")))
+                is PlaceScout.Choice.None
+        )
+    }
+
+    @Test
+    fun theAmbiguousReplyNamesTheTownsAndTheRegionAndDoesNotPick() {
+        val text = PlaceScout.whichTown(
+            "Portland",
+            listOf(town("Portland", "Oregon"), town("Portland", "Maine")),
+            region("California")
+        )
+        assertTrue(text.contains("Portland, Oregon"))
+        assertTrue(text.contains("Portland, Maine"))
+        assertTrue(text.contains("California"))
+        assertTrue(text.contains("will not guess"))
+    }
+
+    @Test
+    fun thePipelineTurnsABarePortlandIntoOregonAndSaysWhy() = runBlocking {
+        val ask = place("Where should I go for dinner tonight in Portland with good wine?")!!
+        var askedWhere = ""
+        var askedBox = ""
+        val venue = PlaceScout.Venue(
+            "Stem Wine Bar PDX",
+            "https://stemwinebarpdx.com/",
+            address = "3920 North Mississippi Avenue, Portland, Oregon"
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun region() = region("Oregon")
+            override suspend fun towns(ask: PlaceScout.Ask) = listOf(
+                town("Portland", "Oregon"),
+                town("Portland", "Maine")
+            )
+            override suspend fun discover(ask: PlaceScout.Ask, box: String): List<PlaceScout.Venue> {
+                askedWhere = ask.where
+                askedBox = box
+                return listOf(venue)
+            }
+            override suspend fun page(url: String) =
+                "Stem Wine Bar on N Mississippi in Portland, Oregon. Vietnamese food and wine."
+            override suspend fun pick(system: String, evidence: String) =
+                """{"picks":[{"line":1,"why":"dinner and a glass"}]}"""
+        }
+        val report = PlaceScout.research(ask, "", sources)
+        assertEquals("Portland, Oregon", askedWhere)
+        assertTrue("the map box for the settled town", askedBox.isNotEmpty())
+        assertTrue(report.text().contains("in Portland, Oregon"))
+        assertTrue(report.text().contains("your phone's region is Oregon"))
+    }
+
+    @Test
+    fun aPageQuoteIsThePagesWordsCutAtAWordBoundary() {
+        val venue = PlaceScout.Venue(
+            "Stem Wine Bar PDX",
+            "https://stemwinebarpdx.com/",
+            text = "Vietnamese Food & Wine on N Mississippi | Friendship Kitchen & Stem. " +
+                "Stem Wine Bar on N Mississippi Avenue in Portland."
+        )
+        val quote = PlaceScout.pageQuote(venue)
+        assertTrue(quote.startsWith("Vietnamese Food & Wine on N Mississippi"))
+        assertTrue(quote.length <= 161)
+        // The quote is the page's own words, so it keeps the venue's name where the page put it.
+        assertTrue(quote.contains("Friendship Kitchen & Stem"))
+
+        val long = PlaceScout.Venue("Bar Diane", "https://bardiane.com/", text = "wine ".repeat(80))
+        assertTrue(PlaceScout.pageQuote(long).endsWith("…"))
+        assertTrue(PlaceScout.pageQuote(long).length <= 161)
+    }
+
+    @Test
+    fun aQuoteIsProseAndNotMarkupOrEscapedJson() {
+        // Both shapes came off live pages: Squarespace emits a header tag after the stripper, and
+        // its data block escapes its quotes.
+        val floyds = PlaceScout.Venue(
+            "Floyd's Coffee House & Wine Bar",
+            "https://www.floyds.coffee/",
+            text = "Floyd's Coffee House & Wine Bar 0 <header data-test=\"header\" id=\"header\" " +
+                "class=\" header theme-col--primary \"> Our wine bar pours by the glass until late."
+        )
+        val quote = PlaceScout.pageQuote(floyds)
+        assertFalse(quote.contains("<header"))
+        assertFalse(quote.contains("data-test"))
+        assertTrue(quote.contains("Our wine bar pours by the glass"))
+
+        val willful = PlaceScout.Venue(
+            "Willful Wine CO",
+            "https://willfulwine.com/",
+            text = "Willful Wine Co - Homepage Featured Products 2021 Walla Walla Red Blend " +
+                "\\\"silken textures and a contrast of ripe berry fruits..\" and more wine."
+        )
+        assertFalse(PlaceScout.pageQuote(willful).contains("\\\""))
+    }
+
+    @Test
+    fun theRefusalSaysNothingWasGuessedOnlyOnce() {
+        val ask = place("Where should I go for dinner in Portland, Oregon?")!!
+        val text = PlaceScout.cannotConfirm(ask, OsmPlaces.BUSY)
+        assertEquals(1, Regex("Nothing was guessed").findAll(text).count())
+        assertEquals(1, Regex("Ask again in a minute").findAll(text).count())
+    }
+
+    @Test
+    fun aPageThatClosesOnSundaysIsNotAClosedVenue() {
+        // Real restaurant wording: the day it shuts is not the day it shut for good.
+        assertEquals(
+            "",
+            PlaceScout.closedReason("Open Tuesday to Saturday, closed Sundays and Mondays. Wine list on the site.")
+        )
+        assertEquals(
+            "",
+            PlaceScout.closedReason("We are closed for a private event on 12 December. Join us the week after.")
+        )
+        assertTrue(
+            PlaceScout.closedReason("After 22 years, our tasting room has closed permanently.").isNotBlank()
+        )
     }
 
     @Test

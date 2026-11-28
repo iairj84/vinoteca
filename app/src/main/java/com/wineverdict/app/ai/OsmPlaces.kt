@@ -43,7 +43,31 @@ import java.util.concurrent.TimeUnit
  */
 object OsmPlaces {
 
-    private const val NOMINATIM = "https://nominatim.openstreetmap.org/search"
+    /**
+     * The service this app asks, and the instances it falls back to.
+     *
+     * Mutable so a live run can point them at a host that refuses connections and prove the
+     * cannot-confirm reply on a real failure instead of a simulated one. Nothing in the app sets
+     * them: the defaults are the only values a user ever gets.
+     */
+    @Volatile
+    var nominatim: String = "https://nominatim.openstreetmap.org/search"
+
+    @Volatile
+    var overpass: List<String> = listOf(
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.openstreetmap.fr/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter"
+    )
+
+    /** Map requests made since [resetRequests]; the live run prints it per question. */
+    @Volatile
+    var requests: Int = 0
+        private set
+
+    fun resetRequests() {
+        requests = 0
+    }
 
     /** Ask for the map, not a person: both services' usage policies want an identifiable client. */
     private const val AGENT = "wine-verdict/1.2 (Android cellar app; place research)"
@@ -103,14 +127,58 @@ object OsmPlaces {
         PlaceScout.Ask.Kind.ANY -> listOf("wine bar", "winery", "wine")
     }
 
-    /** The URL that finds the town itself, whose bounding box scopes everything after it. */
+    /** The URL that lists the towns by this name, with the state that tells them apart. */
     fun townUrl(where: String): String =
-        "$NOMINATIM?q=${encode(where)}&format=jsonv2&addressdetails=1&limit=1"
+        "$nominatim?q=${encode(where)}&format=jsonv2&addressdetails=1&featureType=settlement&limit=12"
 
     /** The URL that finds [term] inside a town's box, with the tags the evidence needs. */
     fun searchUrl(term: String, box: String): String =
-        "$NOMINATIM?q=${encode(term)}&format=jsonv2&addressdetails=1&extratags=1&limit=40" +
+        "$nominatim?q=${encode(term)}&format=jsonv2&addressdetails=1&extratags=1&limit=40" +
             "&bounded=1&viewbox=${encode(box)}"
+
+    /**
+     * The towns in a Nominatim settlement reply: name, state, country, and the box to search in.
+     *
+     * One live query for "Portland" returned twelve settlements in five countries, and "Springfield"
+     * returned twelve in the United States alone. That is the data the settling decision needs, and
+     * it arrives in the same request that used to fetch only the first town's box — so asking which
+     * town a name means costs no extra request.
+     */
+    fun parseTowns(body: String): List<PlaceScout.Town> {
+        if (body.isBlank()) return emptyList()
+        val array = runCatching { Json.parseToJsonElement(body) as JsonArray }.getOrNull()
+            ?: return emptyList()
+        return array.mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            val name = item.text("name")
+            if (name.isBlank()) return@mapNotNull null
+            val box = runCatching { item["boundingbox"] as JsonArray }.getOrNull()
+                ?: return@mapNotNull null
+            val values = box.mapNotNull { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
+            if (values.size != 4) return@mapNotNull null
+            val (south, north, west, east) = values
+            val address = item["address"] as? JsonObject
+            PlaceScout.Town(
+                name = name,
+                state = address?.text("state").orEmpty(),
+                country = address?.text("country").orEmpty(),
+                countryCode = address?.text("country_code").orEmpty(),
+                box = "$west,$north,$east,$south"
+            )
+        }.distinctBy { PlaceScout.fold(it.name) to PlaceScout.fold(it.state) }
+    }
+
+    /**
+     * The towns the map knows by this name.
+     *
+     * A refusal throws rather than returning an empty list: "the map did not answer" and "the map
+     * knows no Portland" are different answers, and only the second is worth wording as an empty
+     * result. A live run pointed at a dead host must say it could not check, not that the town does
+     * not exist.
+     */
+    suspend fun towns(query: String): List<PlaceScout.Town> = withContext(Dispatchers.IO) {
+        parseTowns(getOrThrow(townUrl(query)))
+    }
 
     /**
      * The town's box, in Nominatim's viewbox order (west, north, east, south), or null when the
@@ -120,18 +188,8 @@ object OsmPlaces {
      * for, and to Portland, Maine when nothing is. A box for the wrong Portland would put the whole
      * question in the wrong state, so a mismatch is no box at all.
      */
-    fun townBox(body: String, region: String): String? {
-        val first = runCatching { Json.parseToJsonElement(body) as JsonArray }.getOrNull()
-            ?.firstOrNull() as? JsonObject ?: return null
-        val address = first["address"] as? JsonObject
-        val state = address?.get("state")?.jsonPrimitive?.contentOrNull.orEmpty()
-        if (!regionMatches(state, region)) return null
-        val box = runCatching { first["boundingbox"] as JsonArray }.getOrNull() ?: return null
-        val values = box.mapNotNull { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() }
-        if (values.size != 4) return null
-        val (south, north, west, east) = values
-        return "$west,$north,$east,$south"
-    }
+    fun townBox(body: String, region: String): String? =
+        parseTowns(body).firstOrNull { regionMatches(it.state, region) }?.box
 
     /**
      * The places in a Nominatim reply that are in the asked town and region, wine places only.
@@ -191,21 +249,29 @@ object OsmPlaces {
      * when its instances have room it also finds the bars whose name says wine. Only when neither
      * produces a place does the question become "cannot check right now".
      */
-    suspend fun find(ask: PlaceScout.Ask): List<Place> = withContext(Dispatchers.IO) {
-        val town = ask.where.substringBefore(',').trim()
-        val region = ask.where.substringAfter(',', "").trim()
-        val viaNominatim = runCatching { nominatim(town, region, ask.kind) }.getOrNull().orEmpty()
-        if (viaNominatim.isNotEmpty()) return@withContext viaNominatim
-        overpass(ask)
-    }
+    suspend fun find(ask: PlaceScout.Ask, box: String = ""): List<Place> =
+        withContext(Dispatchers.IO) {
+            val town = ask.where.substringBefore(',').trim()
+            val region = ask.where.substringAfter(',', "").trim()
+            // Settling already found the town's box, so the usual question pays for one town lookup
+            // and three term searches. Only a question that arrived with its own box missing pays
+            // for a lookup here.
+            val known = box.ifBlank {
+                townBox(get(townUrl(ask.where)).orEmpty(), region).orEmpty()
+            }
+            val viaNominatim = runCatching { nominatim(town, region, ask.kind, known) }
+                .getOrNull().orEmpty()
+            if (viaNominatim.isNotEmpty()) return@withContext viaNominatim
+            overpass(ask)
+        }
 
     private suspend fun nominatim(
         town: String,
         region: String,
-        kind: PlaceScout.Ask.Kind
+        kind: PlaceScout.Ask.Kind,
+        box: String
     ): List<Place> {
-        val where = if (region.isBlank()) town else "$town, $region"
-        val box = townBox(get(townUrl(where)).orEmpty(), region) ?: return emptyList()
+        if (box.isBlank()) return emptyList()
         val found = LinkedHashMap<String, Place>()
         for (term in terms(kind)) {
             val body = get(searchUrl(term, box)) ?: continue
@@ -217,21 +283,29 @@ object OsmPlaces {
         return found.values.toList()
     }
 
-    private suspend fun get(url: String): String? {
+    /** One Nominatim call, or a retryable refusal that says the map did not answer. */
+    private suspend fun getOrThrow(url: String): String {
+        var failure: Throwable? = null
         repeat(2) { attempt ->
             if (attempt > 0) delay(RETRY_PAUSE_MS)
+            requests++
             try {
                 val request = Request.Builder().url(url).addHeader("User-Agent", AGENT).get().build()
                 http.newCall(request).execute().use { response ->
                     val body = response.body?.string().orEmpty()
                     if (response.isSuccessful && body.trimStart().startsWith("[")) return body
+                    failure = IllegalStateException("HTTP ${response.code}: ${body.take(100)}")
                 }
             } catch (e: Exception) {
-                // A refused Nominatim call is not fatal: Overpass is asked next.
+                failure = e
             }
         }
-        return null
+        throw AiException(BUSY, retryable = true).apply { initCause(failure) }
     }
+
+    /** A Nominatim call whose refusal is tolerable, because Overpass is asked next. */
+    private suspend fun get(url: String): String? =
+        runCatching { getOrThrow(url) }.getOrNull()
 
     // ---------------------------------------------------------------- Overpass
 
@@ -243,11 +317,7 @@ object OsmPlaces {
      * instance answered the same query with the same 34 Portland places. After a few queries the
      * French instance asks for "white-listed usages", so it is asked second, not first.
      */
-    private val HOSTS = listOf(
-        "https://overpass-api.de/api/interpreter",
-        "https://overpass.openstreetmap.fr/api/interpreter",
-        "https://overpass.kumi.systems/api/interpreter"
-    )
+
 
     /**
      * The Overpass query for one town.
@@ -337,9 +407,10 @@ object OsmPlaces {
         val deadline = System.currentTimeMillis() + BUDGET_MS
         for (round in 0 until ROUNDS) {
             if (round > 0) delay(RETRY_PAUSE_MS)
-            for (host in HOSTS) {
+            for (host in overpass) {
                 if (System.currentTimeMillis() >= deadline) break
                 val short = host.substringAfter("//").substringBefore('/')
+                requests++
                 try {
                     val request = Request.Builder()
                         .url(host)
@@ -362,9 +433,9 @@ object OsmPlaces {
     }
 
     /** What a user is told when neither map source will answer: a retry, not a guess. */
-    const val BUSY =
-        "The place map is at capacity right now and did not answer. Nothing was guessed: ask again " +
-            "in a minute and it will look properly."
+    // The apology and the retry belong to [PlaceScout.cannotConfirm], which wraps this reason; the
+    // first live run said "nothing was guessed, ask again" twice because both said it.
+    const val BUSY = "The place map is busy right now and did not answer."
 
     /**
      * Whether the map's state field is the region that was asked about.

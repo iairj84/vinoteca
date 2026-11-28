@@ -16,7 +16,7 @@ import org.junit.Test
 class OsmPlacesNominatimTest {
 
     private val town = """
-        [{"place_id":1,"display_name":"Portland, Multnomah County, Oregon, United States",
+        [{"place_id":1,"name":"Portland","display_name":"Portland, Multnomah County, Oregon, United States",
           "boundingbox":["45.4325360","45.6528812","-122.8367489","-122.4720252"],
           "address":{"city":"Portland","state":"Oregon","country":"United States"}}]
     """.trimIndent()

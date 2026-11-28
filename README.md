@@ -181,11 +181,13 @@ Gemini or Groq — with your own key.
   asked about — a lapsed domain that now serves something else is not evidence. A page that says
   *permanently closed*, *closed for good* or *closed in 2023* removes the place (but *closed
   Sundays* does not). The reply is written by the app from the fetched record — the name, the host
-  and what the page actually says — so a restaurant the model remembers cannot reach the screen. A
-  town with a twin (Portland, Oregon and Portland, Maine) is settled by the phone's own state when
-  it is standing in the town being asked about, and other states' addresses are dropped. When the
-  pages confirm nothing, or the map is at capacity, the answer says it could not check right now
-  rather than falling back to a guess.
+  and what the page actually says, under a *Page:* line quoting the venue's own words — so a
+  restaurant the model remembers cannot reach the screen. A town with a twin is settled by the
+  phone's own region (a location fix, the saved place called Home, or the locale country) and the
+  reply says which town it used and why; when the phone cannot settle it, the answer lists the
+  candidates and asks instead of guessing. Other states' addresses are dropped. When the pages
+  confirm nothing, the map is busy, or the town is unknown, the answer says so plainly rather than
+  falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

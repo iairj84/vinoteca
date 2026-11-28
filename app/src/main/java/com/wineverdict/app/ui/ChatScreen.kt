@@ -60,17 +60,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.AiException
+import com.wineverdict.app.data.DeviceRegions
 import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.ProposalParsing
 import com.wineverdict.app.ai.PlaceScout
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
-import com.wineverdict.app.data.HereResult
 import com.wineverdict.app.data.PairingTable
-import com.wineverdict.app.data.PlaceHit
-import com.wineverdict.app.data.Search
-import com.wineverdict.app.data.WhereAmI
 import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.BottleUpdate
 import com.wineverdict.app.model.ChatMessage
@@ -150,23 +147,19 @@ fun ChatScreen() {
                         if (ask != null) {
                             status = "Looking up ${ask.subject} in " +
                                 "${ask.place.ifBlank { "your area" }}…"
-                            val resolved = locatePlace(ask, context)
-                            val reply = if (resolved == null) {
-                                PlaceScout.askWhere(ask)
-                            } else {
-                                // A lookup that is refused is an answer too: "cannot check right now"
-                                // belongs in the conversation, not in the red error card, and it
-                                // must never turn into a place named from memory.
-                                try {
-                                    AppGraph.ai.scout(resolved, AppGraph.taste.brief()).text()
-                                } catch (e: AiException) {
-                                    if (!e.retryable) throw e
-                                    PlaceScout.cannotConfirm(
-                                        resolved,
-                                        e.message.orEmpty().replace(Regex("\\s+"), " ").take(200)
-                                    )
-                                }
-                            }
+                            // The phone's own region settles a bare town name, so the question the
+                            // user typed works: "Portland" becomes Portland, Oregon when the phone
+                            // says Oregon, and comes back as a question when it cannot say.
+                            val region = DeviceRegions.of(context, AppGraph.placeFinder)
+                            // A lookup that is refused is an answer too: "cannot check right now"
+                            // belongs in the conversation, not in the red error card, and it must
+                            // never turn into a place named from memory. The branch is inside the
+                            // production call so the live run exercises the same text.
+                            val reply = AppGraph.ai.scoutReply(
+                                ask,
+                                AppGraph.taste.brief(),
+                                region
+                            )
                             AppGraph.chat.append(ChatMessage(role = "assistant", text = reply))
                             return@launch
                         }
@@ -465,42 +458,6 @@ fun ChatScreen() {
             }
         }
     }
-}
-
-/**
- * The town a place question is really about, spelled so a search cannot pick the wrong one.
- *
- * "Portland" is at least two cities with their own wine scenes, and a live run answered a Portland,
- * Oregon question with Portland, Maine restaurants. When the phone is standing in the town that was
- * named, its own state settles it: the question becomes "Portland, Oregon". A town the user is not
- * in is left exactly as typed — the app does not know which Lisbon they mean, and pretending to
- * would be worse than the ambiguity.
- *
- * Null only when the question said "near me" and the phone cannot say where it is: the reply then
- * asks for a town rather than guessing at one.
- */
-private suspend fun locatePlace(ask: PlaceScout.Ask, context: Context): PlaceScout.Ask? {
-    if (ask.where.isNotBlank() && !ask.nearMe) {
-        // Already qualified ("Portland, Oregon"): there is nothing to settle, and a location fix
-        // would only delay the searches.
-        if (ask.where.contains(',')) return ask
-        val here = townOnThisPhone(context) ?: return ask
-        return if (PlaceScout.sameTown(here.city, ask.where)) {
-            ask.copy(where = PlaceScout.townWithRegion(here.city, here.region))
-        } else {
-            ask
-        }
-    }
-    val here = townOnThisPhone(context) ?: return null
-    return ask.copy(where = PlaceScout.townWithRegion(here.city, here.region))
-}
-
-/** The business the phone is standing in, which is also the town it is in. */
-private suspend fun townOnThisPhone(context: Context): PlaceHit? {
-    if (!WhereAmI.allowed(context)) return null
-    val fix = WhereAmI.fix(context) ?: return null
-    val found = runCatching { AppGraph.placeFinder.here(fix.lat, fix.lng) }.getOrNull()
-    return (found as? HereResult.Business)?.hit?.takeIf { it.city.isNotBlank() }
 }
 
 /**
