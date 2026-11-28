@@ -171,6 +171,17 @@ Gemini or Groq — with your own key.
   your saved wine menus — the place, the day, the wines you picked there and the ones you refused — so
   “what did I order at that place” is answerable, and a wine you turned down at that table is never
   offered again.
+- **Ask looks places up instead of remembering them** — “Where should I go for dinner in Portland
+  with good wine?” used to come back as three restaurants that had been closed for years, because
+  the answer was the model's memory of a city it has never been to. Now the app does the looking:
+  it searches for names, gives each name its own confirmation search, drops any place a page marks
+  closed (*permanently closed*, *closed for good*, *closed in 2023* — but not *closed Sundays*),
+  opens the pages, and only then asks the sommelier which of those numbered places to pick and why.
+  The reply is written by the app from the fetched record — the name, the source and what the page
+  actually says — so a restaurant the model remembers cannot reach the screen. A town with a twin
+  (Portland, Oregon and Portland, Maine) is settled by the phone's own state when it is standing in
+  the town being asked about. When the pages confirm nothing, or the search engine is busy, the
+  answer says that plainly rather than falling back to a guess.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

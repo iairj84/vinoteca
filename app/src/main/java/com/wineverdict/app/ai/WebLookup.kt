@@ -81,15 +81,44 @@ class WebLookup {
     private val SRC_ATTR = Regex("src\\s*=\\s*[\"']([^\"']+)[\"']", RegexOption.IGNORE_CASE)
 
 
-    /** Search results in rank order. Throws only when the search itself could not be reached. */
+    /**
+     * Search results in rank order. Throws when the search could not be reached, or was refused.
+     *
+     * The refusal matters: after a burst of searches DuckDuckGo answers HTTP 202 with an "anomaly"
+     * challenge page, which is a successful response carrying no results. Parsed as results it said
+     * "the web had nothing" — a wrong diagnosis that sent the reader looking at the bottle or the
+     * town when the truth was a search engine asking for a minute's peace. Place research asks
+     * several searches in a row, so this is not a corner case any more.
+     */
     suspend fun search(query: String): List<Hit> = withContext(Dispatchers.IO) {
         val url = "https://lite.duckduckgo.com/lite/?q=" + URLEncoder.encode(query, "UTF-8")
         val html = get(url) ?: throw AiException(
             "The web search did not answer. That is the phone's connection, not the bottle: " +
                 "try again when it is back."
         )
+        if (challenged(html)) throw AiException(
+            "The search engine is refusing queries from this connection for a minute — it answers " +
+                "that way when it sees a burst. Nothing was guessed in the meantime: ask again in a " +
+                "minute and it will look properly.",
+            retryable = true
+        )
         parseHits(html)
     }
+
+
+    /**
+     * Whether this page is the engine's challenge rather than its results.
+     *
+     * A real results page always carries `uddg=` links; an anomaly page carries words like anomaly,
+     * captcha or "JavaScript is required" and not one result. Both conditions are required, so a
+     * legitimate snippet about a security anomaly is not mistaken for a block.
+     */
+    internal fun challenged(html: String): Boolean =
+        !html.contains("uddg=") && CHALLENGE.containsMatchIn(html)
+
+    private val CHALLENGE = Regex(
+        "(?i)(anomaly|captcha|unusual traffic|javascript is required|challenge)"
+    )
 
     /** The readable text of one page, up to [limit] characters. Empty when it cannot be used. */
     suspend fun pageText(url: String, limit: Int = 5000): String = withContext(Dispatchers.IO) {

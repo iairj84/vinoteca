@@ -1,5 +1,6 @@
 package com.wineverdict.app.ui
 
+import android.content.Context
 import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -60,10 +61,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.wineverdict.app.AppGraph
 import com.wineverdict.app.ai.AiJob
 import com.wineverdict.app.ai.ProposalParsing
+import com.wineverdict.app.ai.PlaceScout
 import com.wineverdict.app.ai.Prompts
 import com.wineverdict.app.ai.Thinking
 import com.wineverdict.app.ai.chatBudget
+import com.wineverdict.app.data.HereResult
 import com.wineverdict.app.data.PairingTable
+import com.wineverdict.app.data.PlaceHit
+import com.wineverdict.app.data.Search
+import com.wineverdict.app.data.WhereAmI
 import com.wineverdict.app.ai.chatHistory
 import com.wineverdict.app.model.BottleUpdate
 import com.wineverdict.app.model.ChatMessage
@@ -78,6 +84,7 @@ import kotlinx.coroutines.withContext
 private val suggestions = listOf(
     "What should I open with chicken pot pie tonight?",
     "Which of my bottles are at their best right now?",
+    "Where should I go for dinner near me with good wine?",
     "Something under 25 for a Tuesday, from my cellar",
     "I am at the shop — is this bottle worth it?"
 )
@@ -94,6 +101,7 @@ fun ChatScreen() {
     var input by remember { mutableStateOf("") }
     var pendingUri by remember { mutableStateOf<Uri?>(null) }
     var sending by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Reading your cellar…") }
     var error by remember { mutableStateOf<String?>(null) }
 
     var cameraTarget by remember { mutableStateOf<Uri?>(null) }
@@ -116,6 +124,7 @@ fun ChatScreen() {
             val photo = pendingUri
             if (text.isNotBlank() || photo != null) {
                 sending = true
+                status = "Reading your cellar…"
                 error = null
                 input = ""
                 pendingUri = null
@@ -132,6 +141,24 @@ fun ChatScreen() {
                             imageBase64 = base64
                         )
                         AppGraph.chat.append(userMessage)
+                        // Somewhere to go is a question about the world, and the world is not in
+                        // mytaste.md: it is on pages fetched now. This branch answers it from those
+                        // pages and never from the model's memory, which is what used to send the
+                        // reader to a restaurant that closed two years earlier.
+                        val ask = if (photo == null) PlaceScout.ask(text) else null
+                        if (ask != null) {
+                            status = "Looking up ${ask.subject} in " +
+                                "${ask.place.ifBlank { "your area" }}…"
+                            val resolved = locatePlace(ask, context)
+                            val reply = if (resolved == null) {
+                                PlaceScout.askWhere(ask)
+                            } else {
+                                AppGraph.ai.scout(resolved, AppGraph.taste.brief())?.text()
+                                    ?: PlaceScout.noEvidence(resolved)
+                            }
+                            AppGraph.chat.append(ChatMessage(role = "assistant", text = reply))
+                            return@launch
+                        }
                         // Sized from the thinnest provider that could answer, not the one that
                         // leads: the fallback gets the same body, and a wide window is a 413 on
                         // Groq rather than an answer.
@@ -335,7 +362,7 @@ fun ChatScreen() {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(modifier = Modifier.height(18.dp))
                             Text(
-                                "  Reading your cellar…",
+                                "  $status",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontStyle = FontStyle.Italic,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -427,6 +454,48 @@ fun ChatScreen() {
             }
         }
     }
+}
+
+/**
+ * The town a place question is really about, spelled so a search cannot pick the wrong one.
+ *
+ * "Portland" is at least two cities with their own wine scenes, and a live run answered a Portland,
+ * Oregon question with Portland, Maine restaurants. When the phone is standing in the town that was
+ * named, its own state settles it: the question becomes "Portland, Oregon". A town the user is not
+ * in is left exactly as typed — the app does not know which Lisbon they mean, and pretending to
+ * would be worse than the ambiguity.
+ *
+ * Null only when the question said "near me" and the phone cannot say where it is: the reply then
+ * asks for a town rather than guessing at one.
+ */
+private suspend fun locatePlace(ask: PlaceScout.Ask, context: Context): PlaceScout.Ask? {
+    if (ask.where.isNotBlank() && !ask.nearMe) {
+        // Already qualified ("Portland, Oregon"): there is nothing to settle, and a location fix
+        // would only delay the searches.
+        if (ask.where.contains(',')) return ask
+        val here = townOnThisPhone(context) ?: return ask
+        return if (sameTown(here.city, ask.where)) ask.copy(where = withRegion(here)) else ask
+    }
+    val here = townOnThisPhone(context) ?: return null
+    return ask.copy(where = withRegion(here))
+}
+
+private fun withRegion(hit: PlaceHit): String =
+    if (hit.region.isBlank()) hit.city else "${hit.city}, ${hit.region}"
+
+private fun sameTown(city: String, asked: String): Boolean {
+    val here = Search.fold(city)
+    val there = Search.fold(asked)
+    if (here.isBlank() || there.isBlank()) return false
+    return here == there || here.startsWith("$there ") || there.startsWith("$here ")
+}
+
+/** The business the phone is standing in, which is also the town it is in. */
+private suspend fun townOnThisPhone(context: Context): PlaceHit? {
+    if (!WhereAmI.allowed(context)) return null
+    val fix = WhereAmI.fix(context) ?: return null
+    val found = runCatching { AppGraph.placeFinder.here(fix.lat, fix.lng) }.getOrNull()
+    return (found as? HereResult.Business)?.hit?.takeIf { it.city.isNotBlank() }
 }
 
 /**

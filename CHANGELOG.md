@@ -3,6 +3,40 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.58: the sommelier looks places up, and checks them
+
+**Three closed restaurants in a row.** Asked “Where should I go for dinner tonight in Portland with
+good wine?”, the sommelier named three places that had been permanently closed, one of them for more
+than two years. Nothing in the app could catch that: the answer was the model's memory of a city it
+has never been to, no page was fetched, and nothing checked the names in the reply against anything.
+
+A question about somewhere to go is now researched the way a bottle question already is.
+
+- **The app does the looking.** A place question is recognised from its wording (a venue noun, or an
+  outing plus a word like *where* or *recommend*; a question about opening a bottle stays with the
+  cellar), and the town is taken out of the sentence. One keyless search finds names — business
+  pages, the bars' own sites and the list a directory prints in its own description — and each name
+  then gets its own quoted confirmation search.
+- **A closure is code, not prose.** Any page that says *permanently closed*, *closed for good*,
+  *closed its doors*, *no longer in business* or *closed in 2023* removes that place before the model
+  ever sees it. Hours are not closures: *closed Sundays* and *closed on Mondays* leave a place in.
+  A name that no result confirms is not a place and is dropped.
+- **The model only chooses.** It gets numbered entries — name, host, what the search said, what the
+  page said — and replies with which numbers and why. The reply is then written by the app from the
+  fetched record, so the name, the source and the address of a place are never the model's words. A
+  venue that is not in the evidence cannot appear on screen.
+- **Two Portlands.** “Portland” is at least two cities with their own wine scenes, and a live run
+  answered with Portland, Maine restaurants. When the phone is standing in the town named in the
+  question, its own state is appended ("Portland, Oregon"); a town the user is not in is left as
+  typed, because the app does not know which Lisbon was meant.
+- **Busy is not empty.** The search engine answers a burst with an HTTP 202 challenge page, which the
+  app used to read as "no results" — blaming the connection or the bottle for something the engine
+  did. That is now recognised and reported as *the search is busy, ask again in a minute*, in every
+  lookup that uses it. A place question asks five searches, so it meets that page.
+- **When there is nothing to say, it says nothing.** No confirmed places, no evidence of an open
+  door, or a single-word question about where: the answer asks for a town, or says the pages
+  confirmed nothing, instead of naming somewhere from memory.
+
 ### 1.2.57: the cellar can be put in an order, and every style has its chip
 
 **One order, and four styles with no way in.** The cellar was always read the same way — the bottles

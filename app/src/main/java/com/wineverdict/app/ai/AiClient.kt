@@ -4,8 +4,10 @@ import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.model.ChatMessage
 import com.wineverdict.app.model.Wine
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Call
 import okhttp3.Callback
 import java.io.IOException
@@ -93,6 +95,9 @@ class AiClient(
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     private val web = WebLookup()
+
+    /** Pages opened for a place question: enough to catch a closure, few enough for a table. */
+    private val PAGES_TO_OPEN = 4
 
     suspend fun complete(
         system: String,
@@ -255,6 +260,88 @@ class AiClient(
      * a real answer — the picture is a check on the record, not a requirement for having one.
      */
     suspend fun bottleImage(pageUrl: String): ByteArray? = web.pageImage(pageUrl)
+
+    /**
+     * Where to go tonight: the app looks, and the model may only choose between what it found.
+     *
+     * This is the answer to the failure that made the sommelier feel like a search box with a
+     * cellar attached: asked for dinner in Portland, it named three restaurants that had been closed
+     * for years. Nothing was wrong with the model's wine knowledge — it was answering from memory,
+     * and no code was checking the answer against anything. So the app fetches the pages first, drops
+     * every place they mark closed ([PlaceScout.closedReason]), and asks the model only which number
+     * to pick and why. The reply is then written by [PlaceScout.answer] from the fetched record, so a
+     * restaurant the model remembers cannot reach the screen.
+     *
+     * A search that cannot be reached throws: "the phone is offline" and "the pages named nothing"
+     * are different answers, and only the second one is worth wording as an empty result.
+     */
+    suspend fun scout(ask: PlaceScout.Ask, brief: String): PlaceScout.Report? =
+        withContext(Dispatchers.IO) {
+            val hits = mutableListOf<WebLookup.Hit>()
+            var failure: Exception? = null
+            for (query in PlaceScout.discoveryQueries(ask)) {
+                try {
+                    hits += web.search(query)
+                } catch (e: Exception) {
+                    if (failure == null) failure = e
+                }
+            }
+            if (hits.isEmpty()) {
+                failure?.let { throw it }
+                return@withContext null
+            }
+            // Discovery only produces names. Each one is searched for on its own, because that is
+            // where a closure shows up — a business page that says CLOSED, or the story about it
+            // shutting — and a name no page confirms is not a place.
+            val confirmed = mutableListOf<PlaceScout.Venue>()
+            var refused: Exception? = null
+            for (name in PlaceScout.candidates(hits, ask).take(PlaceScout.MAX_CANDIDATES)) {
+                val own = try {
+                    web.search(PlaceScout.confirmQuery(name, ask))
+                } catch (e: Exception) {
+                    if (refused == null) refused = e
+                    emptyList()
+                }
+                PlaceScout.confirmed(name, own, ask)?.let { confirmed += it }
+                // Politeness to a keyless endpoint that throttles: four searches in a burst is how
+                // a working lookup starts returning nothing for the rest of the minute.
+                delay(200)
+            }
+            if (confirmed.isEmpty() && refused != null) throw refused
+            var venues = PlaceScout.ranked(confirmed)
+            if (venues.isEmpty()) return@withContext null
+            // The snippets are the index; a few pages are what catch a closure the snippet omits
+            // and what says whether the place talks about wine at all. Bounded on purpose: this is
+            // a question asked at a table, not a crawl.
+            venues = venues.mapIndexed { index, venue ->
+                if (index >= PAGES_TO_OPEN || !PlaceScout.readable(venue.url)) {
+                    return@mapIndexed venue
+                }
+                val text = withTimeoutOrNull(8_000) {
+                    runCatching { web.pageText(venue.url, 1_600) }.getOrNull()
+                }.orEmpty()
+                if (text.isBlank()) return@mapIndexed venue
+                venue.copy(
+                    text = PlaceScout.pageDigest(text, venue.name),
+                    closed = PlaceScout.closedReason(text).ifBlank { venue.closed }
+                )
+            }
+            if (venues.none { it.closed.isBlank() }) {
+                return@withContext PlaceScout.Report(ask, venues, PlaceScout.Picks())
+            }
+            val answer = complete(
+                system = PlaceScout.prompt(brief),
+                turns = listOf(ChatMessage(role = "user", text = PlaceScout.evidence(ask, venues))),
+                job = AiJob.CHAT,
+                jsonMode = true,
+                // Choosing between ten numbered lines is not a reasoning problem; the reasoning in
+                // this feature was the app's, and it already happened.
+                thinking = Thinking.LOW,
+                temperature = 0.2,
+                maxTokens = 900
+            )
+            PlaceScout.Report(ask, venues, PlaceScout.parse(answer, venues))
+        }
 
     /**
      * A picture for a bottle the app already holds, from a page that names it.

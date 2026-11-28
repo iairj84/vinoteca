@@ -25,7 +25,13 @@ data class PlaceHit(
     val city: String = "",
     val street: String = "",
     val lat: Double = 0.0,
-    val lng: Double = 0.0
+    val lng: Double = 0.0,
+    /**
+     * The state or province, when the feature has one. Never shown in the field: its one job is to
+     * settle which "Portland" a question means, and four towns share almost every name a person
+     * types. Empty rather than guessed.
+     */
+    val region: String = ""
 ) {
     /** "Loyal Legion — Beaverton", or just the name when the town is unknown or already in it. */
     val label: String get() = placeLabel(name, city)
@@ -169,7 +175,8 @@ internal fun parsePlaces(body: String, businessesOnly: Boolean, limit: Int = 10)
                 .ifBlank { properties.text("locality") },
             street = street,
             lat = lat,
-            lng = lng
+            lng = lng,
+            region = properties.text("state")
         )
         if (found.size >= limit) break
     }
