@@ -3,6 +3,7 @@ package com.wineverdict.app.ui
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -678,9 +679,12 @@ private fun DayCell(
             )
             // One node for the whole day, and it replaces the clickable's own: declared outside it
             // so the sentence and the tap are announced together, instead of an unlabelled button
-            // wrapping a label a screen reader cannot reach. Chosen-ness is said in the sentence
-            // because Compose reports the `selected` property as "checked" on a plain view, and a
-            // calendar day is not a checkbox.
+            // wrapping a label a screen reader cannot reach. A focus target of its own, because a
+            // node built this way is otherwise not focusable and a keyboard or a switch walked
+            // past the whole grid. Chosen-ness is said in the sentence because Compose reports the
+            // `selected` property as "checked" on a plain view, and a calendar day is not a
+            // checkbox.
+            .focusable()
             .clearAndSetSemantics {
                 contentDescription = if (selected) "$words, selected" else words
                 this.onClick {
