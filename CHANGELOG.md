@@ -3,6 +3,26 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.64: a place question is about the place
+
+**Asked for a wine bar, the reply argued with the reader's taste and then offered a restaurant twenty
+minutes away.** Three mistakes, and all of them were the app's. The place prompt carried the whole
+taste brief, so the model justified a distant bistro with "your preference for West Coast producers"
+— the reader had asked where to go, not which bottle. The page gate required a wine word on a venue's
+page, which is a menu check, and the town gate required the literal word "Oregon", so a Tigard bar
+whose site says "Tigard, OR" was thrown away while a Beaverton page stuffed with SEO text sailed
+through: the two-letter state "OR" was matched as a substring, and "or" is in almost any sentence.
+And the reply itself was a record dump — hostname, `Page:`, `Why:`, a date footer.
+
+Grounding now asks for the thing that actually answers the question — `Place Name | Town | what
+reviewers say about it` — and the reply quotes that clause: *Reviewers say “…”*. The taste file is
+not sent with a place question at all, and the prompt forbids ranking a place by anyone's cellar. The
+wine-word and state-password checks are gone; the town still has to be named (on the page or in the
+map's address, with the state accepted as written or as its two-letter word), the page still has to
+name the place, and a permanent closure still drops it. A place with no site keeps its reviewers'
+words as its evidence. The reply is prose — *One place in Tigard, Oregon:* then a name, why it is
+worth going, and whose words the quote is — with no field labels, no hostname, and no footer. The word "open" is gone from every branch: the app has no hours, so it may not claim any.
+
 ### 1.2.63: the town's one wine bar is not "nowhere"
 
 **Asked for wine in Tigard, Oregon — where a wine bar sits downtown — the app said there was nowhere

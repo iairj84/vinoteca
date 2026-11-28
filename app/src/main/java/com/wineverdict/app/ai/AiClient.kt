@@ -288,9 +288,8 @@ class AiClient(
      */
     suspend fun scout(
         ask: PlaceScout.Ask,
-        brief: String,
         region: Region? = null
-    ): PlaceScout.Report = PlaceScout.research(ask, brief, sources(region))
+    ): PlaceScout.Report = PlaceScout.research(ask, sources(region))
 
     /**
      * The place answer as the chat shows it: research, or the honest "could not check" reply.
@@ -300,9 +299,8 @@ class AiClient(
      */
     suspend fun scoutReply(
         ask: PlaceScout.Ask,
-        brief: String,
         region: Region? = null
-    ): String = PlaceScout.researchOrSay(ask, brief, sources(region))
+    ): String = PlaceScout.researchOrSay(ask, sources(region))
 
     /**
      * The three sources the chat uses: the map, the page reader, and the provider.
@@ -425,13 +423,41 @@ class AiClient(
             if (proposals.isEmpty()) return@withContext emptyList()
             val venues = proposals
                 .filter { it.url.isNotBlank() }
-                .map { PlaceScout.Venue(name = it.name, url = it.url, title = it.name) }
+                .map { proposal ->
+                    PlaceScout.Venue(
+                        name = proposal.name,
+                        url = proposal.url,
+                        title = proposal.name,
+                        review = proposal.why,
+                        town = proposal.town
+                    )
+                }
                 .toMutableList()
             for (proposal in proposals.filter { it.url.isBlank() }.take(PlaceScout.MAX_CANDIDATES)) {
                 val hits = runCatching {
                     web.search(PlaceScout.confirmQuery(proposal.name, ask))
                 }.getOrNull().orEmpty()
-                PlaceScout.confirmed(proposal.name, hits, ask)?.let { venues += it }
+                val confirmed = PlaceScout.confirmed(proposal.name, hits, ask)
+                when {
+                    confirmed != null -> venues += confirmed.copy(
+                        review = proposal.why.ifBlank { confirmed.review },
+                        town = proposal.town.ifBlank { confirmed.town }
+                    )
+                    // Google's search answered this question with a name and a reason, and there is
+                    // no second search engine on the phone to confirm it. The reviewer clause is
+                    // the evidence — quoted, dated, and printed as the reviewers' words — because a
+                    // place question with "nowhere" as its answer is the failure this feature exists
+                    // to fix.
+                    proposal.why.isNotBlank() -> venues += PlaceScout.Venue(
+                        name = proposal.name,
+                        url = "",
+                        title = proposal.name,
+                        snippet = proposal.why,
+                        review = proposal.why,
+                        town = proposal.town,
+                        snippetOnly = true
+                    )
+                }
                 delay(150)
             }
             venues

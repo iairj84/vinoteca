@@ -13,8 +13,8 @@ android {
         applicationId = "com.wineverdict.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 78
-        versionName = "1.2.63"
+        versionCode = 79
+        versionName = "1.2.64"
         resourceConfigurations += listOf("en")
         // The place question's town is settled by the region the phone reports, so that reader is
         // exercised on a real Android runtime: `./gradlew :app:connectedDebugAndroidTest`.

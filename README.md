@@ -182,25 +182,29 @@ Gemini or Groq — with your own key.
   wine bar often has no site — so a name that arrives without a cited page is searched for on its
   own and has to be confirmed by that search before it goes any further. Without a Gemini key — or
   when grounding returns nothing — the map is the second opinion: OpenStreetMap entries inside the
-  town's own boundary (Nominatim, with Overpass as the third). A place is only offered to the
-  sommelier after its own page loaded, named the place, used a wine word, said nothing about being
-  closed, and agreed it is in the town asked about; when it has no site of its own, or its site
-  answers a phone with a script, the listing that named it is the evidence and the reply quotes it
-  under a *Listing:* line rather than *Page:*. A lapsed domain that now serves something else is not
-  evidence. A page that says
-  *permanently closed*, *closed for good* or *closed in 2023* removes the place (but *closed
-  Sundays* does not). The reply is written by the app from the fetched record — the name, the host
-  and what the page actually says, under a *Page:* line quoting the venue's own words — so a
-  restaurant the model remembers cannot reach the screen. A town with a twin is settled by the
-  phone's own region (a location fix reverse-geocoded by Photon or the platform geocoder, the saved
-  place called Home, or the locale country) and every reply says which town it used and why; when
-  the phone cannot settle it, the answer lists the candidates and asks instead of guessing. The
-  reader runs on the phone itself in an instrumented test (`:app:connectedDebugAndroidTest`). Other states' addresses are dropped. When nothing in the town survives those checks, the app asks Google for
-  the nearest town within a short drive that has somewhere, reads those pages to the same standard,
-  and answers with that town named — *Nothing I could confirm open in Tigard, Oregon. If you do not
-  mind a short drive, Beaverton, Oregon has:* — instead of "nowhere". When the pages confirm nothing
-  in either, every source is busy, or the town is unknown, the answer says so plainly rather than
-  falling back to a guess.
+  town's own boundary (Nominatim, with Overpass as the third). A place question is **not** judged by
+  the taste file: a wine bar is a wine bar whatever is in the cellar at home, so that question reads
+  the place and its reviews, never your bottles. Grounding asks for three fields per line — `Place
+  Name | Town | what reviewers say about it` — and the reviewer clause is what the reply quotes back.
+  A place is only offered to the sommelier after its own page loaded and named the place; a page that
+  says *permanently closed*, *closed for good* or *closed in 2023* removes it (but *closed Sundays*
+  does not), and a lapsed domain now serving something else is not evidence. The page does not have
+  to mention wine and does not have to spell out the state — those were a menu check and a password,
+  and both threw away real bars; the town has to be named, in the page or in the map's address, with
+  the state accepted as written or as its two-letter word. When a place has no site of its own, or
+  its site answers a phone with a script, the reviewers' words or the listing that named it are the
+  evidence, and the reply says whose words it is quoting. The reply is written by the app from the
+  fetched record — the name, what reviewers say, and what the page says, in sentences rather than
+  labelled fields — so a restaurant the model remembers cannot reach the screen. A town with a twin
+  is settled by the phone's own region (a location fix reverse-geocoded by Photon or the platform
+  geocoder, the saved place called Home, or the locale country) and every reply says which town it
+  used and why; when the phone cannot settle it, the answer lists the candidates and asks instead of
+  guessing. The reader runs on the phone itself in an instrumented test
+  (`:app:connectedDebugAndroidTest`). When the town has nothing, the app asks Google for the nearest
+  town within a short drive that has somewhere, holds it to the same standard, and answers with that
+  town named — *Tigard, Oregon does not seem to have anything I would send you to. If a short drive
+  is fine, Beaverton, Oregon has:* — instead of "nowhere". When nothing is confirmed in either, a
+  source is busy, or the town is unknown, the answer says so plainly rather than guessing.
 - **Ask can move bottles, and only what you confirm** — “add all my Cabernet Sauvignon to the Bar
   Fridge” comes back as a card, never as a done deal: the app matches the ask as a query against every
   bottle in the cellar (not the shortlist the model was shown), narrowed by grape, type, producer,

@@ -28,18 +28,18 @@ import java.util.concurrent.TimeUnit
  * a Gemini key, and Gemini's own [Google Search grounding] answers exactly this question: it
  * searches, reads, and hands back the pages it used.
  *
- * What comes back is used only as *discovery* — names, and the pages Google cited for them. The
- * research tail is untouched: each page is fetched, a closure on it drops the place, a page that
- * never says wine drops it, and a page that does not place it in the asked town drops it. So the
- * model cannot put a restaurant on the screen; it can only propose a place that then has to survive
- * being read.
+ * What comes back is names, towns and — the part that answers the question — a clause saying what
+ * reviewers make of each place. A cited page is fetched and read, and a closure on it drops the
+ * place. What is *not* checked is whether the place's list matches a cellar, or whether the page
+ * happens to print a state name: a wine bar is a wine bar, and a question about where to go is not a
+ * question about someone's bottles.
  *
  * Two things this deliberately does not do:
  *
  *  - it does not trust the model's prose as evidence. A name is read out of the answer only when the
- *    line is the shape the prompt asked for (`Name | Town`), and a name with no cited page is then
- *    searched for on its own and has to be confirmed by [PlaceScout.confirmed] before the research
- *    sees it. A model that answers in sentences is answering from memory, which is no answer.
+ *    line is the shape the prompt asked for (`Name | Town | why`), and a name with no cited page is
+ *    searched for on its own and confirmed by [PlaceScout.confirmed] when the phone has another
+ *    search engine. A model that answers in sentences is answering from memory, which is no answer.
  *  - it does not use the OpenAI-compatible endpoint the rest of the app talks to, because Google's
  *    search tools only exist on the native `generateContent` API. That is why this file speaks its
  *    own request shape.
@@ -71,7 +71,14 @@ class GeminiGrounding(
         val name: String,
         val town: String = "",
         /** The venue's own page. Blank for a name that still has to earn one. */
-        val url: String = ""
+        val url: String = "",
+        /**
+         * What reviewers say about it, in one clause, as Google's search surfaced it.
+         *
+         * This is the answer to "where should I go": not whether the list matches a cellar, but
+         * whether the place is any good and why. It is quoted verbatim, so it has to be a quote.
+         */
+        val why: String = ""
     )
 
     /**
@@ -127,11 +134,22 @@ class GeminiGrounding(
 
     /** Cited pages first; a name a citation already covered is not offered twice. */
     private fun merge(cited: List<Proposal>, named: List<Proposal>, place: String): List<Proposal> {
-        val seen = cited.map { PlaceScout.fold(it.name) }.toMutableSet()
         val all = cited.toMutableList()
         for (proposal in named) {
+            val key = PlaceScout.fold(proposal.name)
+            val at = all.indexOfFirst { PlaceScout.fold(it.name) == key }
+            if (at >= 0) {
+                // The cited page and the answer's line are the same place: keep the page and take
+                // the reviewer clause, which the citation does not carry.
+                if (all[at].why.isBlank() && proposal.why.isNotBlank()) {
+                    all[at] = all[at].copy(
+                        why = proposal.why,
+                        town = all[at].town.ifBlank { proposal.town }
+                    )
+                }
+                continue
+            }
             if (all.size >= MAX_VENUES) break
-            if (!seen.add(PlaceScout.fold(proposal.name))) continue
             all += if (proposal.town.isBlank()) proposal.copy(town = place) else proposal
         }
         return all
@@ -148,12 +166,16 @@ class GeminiGrounding(
     private fun venuesRequest(ask: PlaceScout.Ask, where: String): String {
         val prompt = buildString {
             append("Which ").append(wanted(ask)).append(" in ").append(where)
-            append(" are open tonight? Answer with a plain list, one place per line, in exactly ")
-            append("this shape and nothing else:\n\n")
-            append("Place Name | Town\n\n")
+            append(" are worth going to tonight? Answer with a plain list, one place per line, in ")
+            append("exactly this shape and nothing else:\n\n")
+            append("Place Name | Town | what reviewers say about it\n\n")
             append("- Use the name locals use, then the town it is in.\n")
             append("- Only real, currently operating places inside ").append(where).append(".\n")
-            append("- Include a wine bar even when it has no website of its own.\n")
+            append("- Include a place even when it has no website of its own.\n")
+            append("- The third part is one short clause saying why people rate it — the list, the ")
+            append("food, the room, the staff, the prices — in the terms the reviews use. Quote ")
+            append("what reviewers actually praise or grumble about; never invent praise.\n")
+            append("- Do not compare it with anyone's taste in bottles: this is about the place.\n")
             append("- No links, no numbering, no sentences, no round-ups or best-of lists.\n")
             append("- If there is nothing worth listing, answer with nothing at all.")
         }
@@ -259,30 +281,37 @@ class GeminiGrounding(
             answerText(response).lineSequence().mapNotNull { lineOf(it) }.toList()
         }.getOrDefault(emptyList())
 
-        /** One `Name | Town` line, or null when the line is not that shape. */
+        /** One `Name | Town | why` line, or null when the line is not that shape. */
         fun lineOf(raw: String): Proposal? {
             val line = raw.trim()
                 .replace(Regex("^[-*•\\s]*\\d{1,2}[.)]\\s*"), "")
                 .replace(Regex("^[-*•\\s]+"), "")
                 .trim()
-            if (line.length !in 3..140) return null
+            if (line.length !in 3..320) return null
             if (line.contains("http", ignoreCase = true)) return null
-            val pair = line.split('|').let { parts ->
-                when {
-                    parts.size >= 2 -> parts[0] to parts[1]
-                    else -> {
-                        val dashed = Regex("\\s+[—–-]\\s+").split(line, limit = 2)
-                        if (dashed.size == 2) dashed[0] to dashed[1] else return null
+            val parts = line.split('|').map { it.trim() }
+            val fields = when {
+                parts.size >= 3 -> Triple(parts[0], parts[1], parts[2])
+                parts.size == 2 -> Triple(parts[0], parts[1], "")
+                else -> {
+                    val dashed = Regex("\\s+[—–-]\\s+").split(line, limit = 3)
+                    when {
+                        dashed.size == 3 -> Triple(dashed[0], dashed[1], dashed[2])
+                        dashed.size == 2 -> Triple(dashed[0], dashed[1], "")
+                        else -> return null
                     }
                 }
             }
-            val name = clean(pair.first, 60)
+            val name = clean(fields.first, 60)
             if (name.length < 2) return null
             if (name.split(Regex("\\s+")).size > 8) return null
             if (NOT_A_LIST.containsMatchIn(name)) return null
             if (name.count { it.isLetter() } < 2) return null
-            val town = clean(pair.second, 50).removePrefix("in ").trim()
-            return Proposal(name = name, town = town)
+            val town = clean(fields.second, 50).removePrefix("in ").trim()
+            // The reviewer clause is what the reply quotes, so it is kept as it was written; only
+            // the surrounding quotes and a trailing full stop are taken off.
+            val why = clean(fields.third, 220).trimEnd('.', ' ')
+            return Proposal(name = name, town = town, why = why)
         }
 
         /** Trimmed, unquoted, single-spaced, and cut to [max] characters on a word boundary. */

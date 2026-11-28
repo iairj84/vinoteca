@@ -127,6 +127,27 @@ class GeminiGroundingTest {
     }
 
     @Test
+    fun theReviewersClauseRidesAlongWithTheName() {
+        // The answer to "where should I go" is the reason, not just the name: it is what the reply
+        // quotes back, and it has to survive parsing with its quotes and full stop off.
+        val proposal = GeminiGrounding.lineOf("Sip D'Vine | Tigard, Oregon | praised for its by-the-glass pours.")
+        assertEquals("Sip D'Vine", proposal?.name)
+        assertEquals("Tigard, Oregon", proposal?.town)
+        assertEquals("praised for its by-the-glass pours", proposal?.why)
+        // A line without the third field is still a candidate; it simply has nothing to quote.
+        assertEquals("", GeminiGrounding.lineOf("Sip D'Vine | Tigard")?.why)
+    }
+
+    @Test
+    fun thePromptAsksWhatReviewersSayAndNotWhetherTheListSuitsSomeone() = runBlocking {
+        val answer = """{"candidates":[{"content":{"parts":[{"text":"Sip D'Vine | Tigard, Oregon | a bottle shop with a bar in it"}]}}]}"""
+        val transport = Fake(answer)
+        GeminiGrounding("k", transport = transport).find(ask)
+        assertTrue(transport.lastBody.contains("what reviewers say about it"))
+        assertTrue(transport.lastBody.contains("never invent praise"))
+    }
+
+    @Test
     fun aGuideOrANumberedParagraphIsNotAPlace() {
         assertEquals("Sip D'Vine", GeminiGrounding.lineOf("- Sip D'Vine | Tigard")?.name)
         assertEquals("Sip D'Vine", GeminiGrounding.lineOf("Sip D'Vine — Tigard")?.name)

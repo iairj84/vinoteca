@@ -110,7 +110,7 @@ class DeviceRegionsTest {
         places.replaceAll(listOf(Place(name = "Home", lat = 45.5231, lng = -122.6765)))
         try {
             val region = DeviceRegions.of(context, finder(places))
-            val report = PlaceScout.research(portlandAsk(), "", ProductionSources(region))
+            val report = PlaceScout.research(portlandAsk(), ProductionSources(region))
             val reply = report.text()
             println("SETTLED '${report.ask.where}' basis='${report.ask.basis}' venues=${report.venues.size}")
             // One line: logcat keeps only the first line of a multi-line println.
@@ -146,7 +146,7 @@ class DeviceRegionsTest {
             println("RUNTIME(none) known=${region.known} words='${region.words}' source='${region.source}'")
             assertFalse("this runtime still reports a region", region.known)
 
-            val report = PlaceScout.research(portlandAsk(), "", ProductionSources(region))
+            val report = PlaceScout.research(portlandAsk(), ProductionSources(region))
             val reply = report.text()
             println("REPLY ${reply.replace("\n", " | ")}")
             assertTrue("it guessed a town: $reply", reply.contains("I found more than one Portland"))

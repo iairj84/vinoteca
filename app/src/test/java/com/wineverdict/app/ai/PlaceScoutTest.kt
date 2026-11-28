@@ -199,21 +199,95 @@ class PlaceScoutTest {
     }
 
     @Test
-    fun theAnswerUsesTheFetchedNamesAndCarriesTheDate() {
+    fun theAnswerReadsAsProseAndNamesOnlyTheFetchedPlaces() {
         val venues = listOf(
             venue("Loyal Legion", "loyallegion.com"),
             venue("Bar Vivant", closed = "permanently closed")
         )
         val ask = place("Where should I go for dinner in Portland with good wine?")!!
         val text = PlaceScout.answer(
-            PlaceScout.Picks(listOf(PlaceScout.Pick(1, "a hundred Oregon taps"))),
+            PlaceScout.Picks(listOf(PlaceScout.Pick(1, "a hundred Oregon taps and a long list by the glass"))),
             venues,
-            ask,
-            on = "2026-11-28"
+            ask
         )
-        assertTrue(text.contains("Loyal Legion (loyallegion.com)"))
-        assertTrue(text.contains("2026-11-28"))
-        assertFalse(text.contains("Bar Vivant"))
+        assertTrue(text, text.startsWith("One place in Portland:"))
+        assertTrue(text, text.contains("Loyal Legion — a hundred Oregon taps and a long list by the glass."))
+        assertFalse(text, text.contains("Bar Vivant"))
+        // The reply is speech, not a record: no field labels, no hostname, no boilerplate footer.
+        assertFalse(text, text.contains("Why:"))
+        assertFalse(text, text.contains("loyallegion.com"))
+        assertFalse(text, text.contains("Checked against pages fetched"))
+    }
+
+    @Test
+    fun reviewersWordsAreWhatTheReplyQuotes() = runBlocking {
+        val ask = place("where should I go tonight for wine and cocktails in Tigard, Oregon?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "",
+            title = "Sip D'Vine",
+            snippet = "praised for its by-the-glass pours and the staff's recommendations",
+            review = "praised for its by-the-glass pours and the staff's recommendations",
+            town = "Tigard, Oregon",
+            snippetOnly = true
+        )
+        val sources = object : PlaceScout.Sources {
+            override suspend fun discover(ask: PlaceScout.Ask, box: String) = listOf(venue)
+            override suspend fun page(url: String) = ""
+            override suspend fun pick(system: String, evidence: String): String {
+                assertTrue(evidence, evidence.contains("reviewers say: praised for its by-the-glass"))
+                return """{"picks":[{"line":1,"why":"a bottle shop with a bar in it"}]}"""
+            }
+        }
+        val text = PlaceScout.research(ask, sources).text()
+        assertTrue(text, text.contains("Reviewers say “praised for its by-the-glass pours"))
+        assertTrue(text, text.contains("Sip D'Vine"))
+    }
+
+    @Test
+    fun aPlaceQuestionNeverReadsTheCellar() {
+        // The complaint that set this: asked for a wine bar, the reply argued with the reader's
+        // taste in bottles. Where to go is about the place.
+        val ask = place("where should I go tonight for wine and cocktails in Tigard?")!!
+        val prompt = PlaceScout.prompt(ask)
+        assertTrue(prompt, prompt.contains("Do not refer to the reader's taste in bottles"))
+        assertFalse(prompt, prompt.contains("MY TASTE"))
+        assertFalse(prompt, prompt.contains("my taste file"))
+        assertTrue(prompt, prompt.contains("Reviewers say"))
+    }
+
+    @Test
+    fun theStateNameIsNotAPasswordOnThePage() {
+        // A downtown Tigard bar's own site says Tigard and prints "Tigard, OR"; requiring the word
+        // "Oregon" on the page is how it was thrown away.
+        val ask = place("Where should I go for wine in Tigard, Oregon tonight?")!!
+        val venue = PlaceScout.Venue(
+            name = "Sip D'Vine",
+            url = "https://www.sipdvine.example/",
+            address = "Tigard, OR",
+            text = "Sip D'Vine is a wine bar and bottle shop in downtown Tigard."
+        )
+        assertTrue(PlaceScout.inTown(venue, ask))
+        assertTrue(PlaceScout.inTown(venue.copy(text = "Sip D'Vine, downtown Tigard, OR."), ask))
+        // A place the evidence puts in another town is still another town.
+        assertFalse(
+            PlaceScout.inTown(
+                venue.copy(text = "Sip D'Vine is in Beaverton.", address = "Beaverton, OR"),
+                ask
+            )
+        )
+    }
+
+    @Test
+    fun aRestaurantWithNoWineWordOnItsPageIsStillAPlace() {
+        // The page check is identity, not a menu: a bistro that never says "wine" is still
+        // somewhere a person asked to go.
+        val venue = PlaceScout.Venue(
+            "Bethany's Table",
+            "https://bethanystable.example/",
+            text = "Bethany's Table is a European bistro in Beaverton, Oregon."
+        )
+        assertTrue(PlaceScout.pageBelongs(venue.text, venue))
     }
 
     @Test
@@ -225,8 +299,9 @@ class PlaceScoutTest {
             picks = null
         )
         val text = report.text(on = "2026-11-28")
-        assertTrue(text.contains("Coquine"))
-        assertTrue(text.contains("coquine.com"))
+        assertTrue(text, text.contains("Coquine"))
+        assertTrue(text, text.contains("A bar with a long wine list."))
+        assertTrue(text, text.contains("2026-11-28"))
     }
 
     @Test
@@ -256,13 +331,13 @@ class PlaceScoutTest {
                     """{"line":2,"why":"by the glass on Mississippi"}],"note":"both open late"}"""
             }
         }
-        val report = PlaceScout.research(ask, "I like restrained oak", sources)
+        val report = PlaceScout.research(ask, sources)
         assertEquals(listOf("Bar Diane", "Stem"), report.venues.map { it.name })
         val text = report.text(on = "2026-11-28")
-        assertTrue(text.contains("Bar Diane (bardiane.com)"))
-        assertTrue(text.contains("Stem (stem.example)"))
-        assertFalse(text.contains("Closed Room"))
-        assertFalse(text.contains("Maine Bar"))
+        assertTrue(text, text.contains("Bar Diane"))
+        assertTrue(text, text.contains("Stem"))
+        assertFalse(text, text.contains("Closed Room"))
+        assertFalse(text, text.contains("Maine Bar"))
     }
 
     @Test
@@ -276,9 +351,10 @@ class PlaceScoutTest {
             override suspend fun page(url: String) = ""
             override suspend fun pick(system: String, evidence: String) = error("the model must not be asked")
         }
-        val report = PlaceScout.research(ask, "", sources)
+        val report = PlaceScout.research(ask, sources)
         assertTrue(report.venues.isEmpty())
-        assertTrue(report.text().contains("could not confirm anywhere open with wine"))
+        assertTrue(report.text(), report.text().contains("could not stand behind a single place"))
+        assertFalse(report.text(), report.text().contains("open"))
     }
 
     @Test
@@ -303,12 +379,14 @@ class PlaceScoutTest {
             override suspend fun nearby(ask: PlaceScout.Ask) =
                 listOf(ask.copy(where = "Beaverton, Oregon", basis = ""))
         }
-        val report = PlaceScout.research(ask, "", sources)
+        val report = PlaceScout.research(ask, sources)
         assertEquals("Beaverton, Oregon", report.elsewhere)
         val text = report.text(on = "2026-11-28")
-        assertTrue(text, text.contains("Nothing I could confirm open in Tigard, Oregon"))
-        assertTrue(text, text.contains("If you do not mind a short drive, Beaverton, Oregon has:"))
-        assertTrue(text, text.contains("Bar Diane (bardiane.example)"))
+        assertTrue(text, text.contains("Tigard, Oregon does not seem to have anything I would send you to."))
+        assertTrue(text, text.contains("If a short drive is fine, Beaverton, Oregon has:"))
+        assertTrue(text, text.contains("Bar Diane"))
+        // The app has no hours, so it may not claim one.
+        assertFalse(text, text.contains("open"))
         assertFalse(text, text.contains("Naming the neighbourhood"))
     }
 
@@ -342,12 +420,12 @@ class PlaceScoutTest {
             override suspend fun pick(system: String, evidence: String) =
                 """{"picks":[{"line":1,"why":"a bottle shop with a bar in it"}]}"""
         }
-        val report = PlaceScout.research(ask, "", sources)
+        val report = PlaceScout.research(ask, sources)
         assertEquals(1, report.venues.size)
         assertTrue(report.venues.single().snippetOnly)
         val text = report.text(on = "2026-11-28")
-        assertTrue(text, text.contains("Listing: “"))
-        assertFalse(text, text.contains("Page: “"))
+        assertTrue(text, text.contains("Its listing says “"))
+        assertFalse(text, text.contains("Its own site says"))
     }
 
     @Test
@@ -367,7 +445,7 @@ class PlaceScoutTest {
             override suspend fun pick(system: String, evidence: String) =
                 """{"picks":[{"line":1,"why":"a bottle shop with a bar in it"}]}"""
         }
-        val report = PlaceScout.research(ask, "", sources)
+        val report = PlaceScout.research(ask, sources)
         assertEquals(1, report.venues.size)
         assertTrue(report.venues.single().snippetOnly)
     }
@@ -389,7 +467,7 @@ class PlaceScoutTest {
                 "Крипто-казино в 2026 году: лучшие crypto casinos без KYC. Топ Быстрые выплаты"
             override suspend fun pick(system: String, evidence: String) = error("nothing to rank")
         }
-        assertTrue(PlaceScout.research(ask, "", sources).venues.isEmpty())
+        assertTrue(PlaceScout.research(ask, sources).venues.isEmpty())
     }
 
     @Test
@@ -475,7 +553,7 @@ class PlaceScoutTest {
             override suspend fun pick(system: String, evidence: String) =
                 """{"picks":[{"line":1,"why":"by the glass"}]}"""
         }
-        val text = PlaceScout.research(ask, "", sources).text()
+        val text = PlaceScout.research(ask, sources).text()
         assertTrue(text.contains("in Beaverton, Oregon"))
         assertTrue(text.contains("your phone's region is Oregon"))
     }
@@ -575,7 +653,7 @@ class PlaceScoutTest {
             override suspend fun pick(system: String, evidence: String) =
                 """{"picks":[{"line":1,"why":"dinner and a glass"}]}"""
         }
-        val report = PlaceScout.research(ask, "", sources)
+        val report = PlaceScout.research(ask, sources)
         assertEquals("Portland, Oregon", askedWhere)
         assertTrue("the map box for the settled town", askedBox.isNotEmpty())
         assertTrue(report.text().contains("in Portland, Oregon"))
@@ -683,8 +761,8 @@ class PlaceScoutTest {
 
     @Test
     fun thePickPromptForbidsMemory() {
-        val prompt = PlaceScout.prompt("I like restrained oak")
-        assertTrue(prompt.contains("Never name a place that is not"))
-        assertTrue(prompt.contains("I like restrained oak"))
+        val prompt = PlaceScout.prompt(place("Any good wine bar in Portland?")!!)
+        assertTrue(prompt, prompt.contains("Never name a place that is not"))
+        assertTrue(prompt, prompt.contains("An entry marked CLOSED is not an option"))
     }
 }

@@ -124,7 +124,7 @@ class LivePlaceResearchTest {
 
         OsmPlaces.resetRequests()
         val started = System.currentTimeMillis()
-        val report = PlaceScout.research(ask, "I like dry Riesling and restrained oak", sources(osRegion(), key!!))
+        val report = PlaceScout.research(ask, sources(osRegion(), key!!))
         val reply = report.text()
         val elapsed = System.currentTimeMillis() - started
 
@@ -187,7 +187,7 @@ class LivePlaceResearchTest {
             source = "your location"
         )
         OsmPlaces.resetRequests()
-        val report = PlaceScout.research(ask, "", sources(region, key!!))
+        val report = PlaceScout.research(ask, sources(region, key!!))
         val reply = report.text()
         say("\nREPLY A USER WOULD READ\n$reply")
         say("CALLS  ${OsmPlaces.requests} map requests, $pages page fetches")
@@ -215,7 +215,7 @@ class LivePlaceResearchTest {
             say("ENDPOINTS  ${OsmPlaces.overpass}")
 
             val started = System.currentTimeMillis()
-            val reply = PlaceScout.researchOrSay(ask, "", sources(osRegion(), key!!))
+            val reply = PlaceScout.researchOrSay(ask, sources(osRegion(), key!!))
             val elapsed = System.currentTimeMillis() - started
             say("\nREPLY A USER WOULD READ\n$reply")
             say("\nCALLS  ${OsmPlaces.requests} map requests, $pages page fetches, ${elapsed} ms " +
@@ -233,7 +233,7 @@ class LivePlaceResearchTest {
         reportFile = "live-place-3b-restored.txt"
         rule("CASE 3b — the same question again, live hosts restored")
         OsmPlaces.resetRequests()
-        val report = PlaceScout.research(ask, "", sources(osRegion(), key!!))
+        val report = PlaceScout.research(ask, sources(osRegion(), key!!))
         val reply = report.text()
         say("\nREPLY A USER WOULD READ\n$reply")
         say("CALLS  ${OsmPlaces.requests} map requests, $pages page fetches")

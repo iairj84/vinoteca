@@ -155,11 +155,9 @@ fun ChatScreen() {
                             // belongs in the conversation, not in the red error card, and it must
                             // never turn into a place named from memory. The branch is inside the
                             // production call so the live run exercises the same text.
-                            val reply = AppGraph.ai.scoutReply(
-                                ask,
-                                AppGraph.taste.brief(),
-                                region
-                            )
+                            // No taste file: where to go tonight is a question about the place,
+                            // and a wine bar is not better or worse for what is in the cellar.
+                            val reply = AppGraph.ai.scoutReply(ask, region)
                             AppGraph.chat.append(ChatMessage(role = "assistant", text = reply))
                             return@launch
                         }
