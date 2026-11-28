@@ -3,6 +3,27 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.53: a grid a screen reader can walk, and a list for the next shop
+
+**The calendar's days said the right thing but could not be reached.** Each day carried its
+sentence — the date, what was written on it, *today*, *selected* — and TalkBack read it when a
+finger landed on it, but the day was not a focus stop of its own: keyboard and switch traversal
+stopped at the year arrows and left thirty days unread.
+
+- **Every day is a focus stop.** The grid is walked in date order, and each day announces what it
+  is and what it holds: *Friday 27 November 2026, 1 entry, today*, and *…, selected* once it is the
+  day being shown. Opening a day says so again with *selected*.
+
+**A bottle could be loved, finished or never opened, and there was no way to say "buy this again".**
+A wine list had *Save this one*; the cellar itself had nothing for the next shop.
+
+- **To buy.** A bottle's page carries a **To buy** chip that names its own state, and a **To buy**
+  filter third in the cellar's row is what to take shopping. A flagged bottle says **To buy** on its
+  row, so it is recognisable in *All* as well as in the one view that asks for it.
+- **No verdict needed.** The flag is separate from the four verdicts: a bottle at none left and one
+  never opened can both be wanted again, and a cellar written before the flag loads with nothing
+  flagged.
+
 ### 1.2.52: a calendar you can hear, at any text size
 
 **The calendar was a grid of bare numbers to a screen reader.** Every day announced itself as "27",

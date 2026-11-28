@@ -66,7 +66,10 @@ Gemini or Groq — with your own key.
   **Saved wine menus** card above the search opens a wine list you kept. A **Drink up** filter,
   second in the row, is the bottles at their peak or past the window on their record — stock only,
   so a wine with none left is not a decision, and **Ready now** is left out because a bottle you may
-  open is not one you must. Past peak sorts above at peak.
+  open is not one you must. Past peak sorts above at peak. A **To buy** filter, third in the row, is
+  the bottles flagged for the next shop: a bottle's page carries a **To buy** chip that names its own
+  state, and a flagged bottle says **To buy** on its row. The flag is its own — no verdict is needed
+  to want a bottle again, and it travels in the backup with everything else.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
