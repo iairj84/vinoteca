@@ -72,6 +72,7 @@ import com.wineverdict.app.ai.BottleCandidate
 import com.wineverdict.app.data.Backup
 import com.wineverdict.app.data.BackupNudge
 import com.wineverdict.app.data.DetailsBackfill
+import com.wineverdict.app.data.DrinkUp
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.Search
 import com.wineverdict.app.data.UpdateOffer
@@ -89,6 +90,9 @@ import java.io.File
 
 private enum class CellarFilter(val label: String) {
     ALL("All"),
+    // Second, so the one view that asks for a decision is on screen without dragging the chip strip
+    // sideways: the chips past Sparkling were the only ones a thumb never reached.
+    DRINK_UP("Drink up"),
     RED("Red"),
     WHITE("White"),
     SPARKLING("Sparkling"),
@@ -106,7 +110,9 @@ fun CellarScreen(
     onOpenWine: (String) -> Unit,
     onAddWine: () -> Unit,
     onScan: () -> Unit,
-    onOpenLists: () -> Unit
+    onOpenLists: () -> Unit,
+    openDrinkUp: Boolean = false,
+    onDrinkUpShown: () -> Unit = {}
 ) {
     val data by AppGraph.cellar.data.collectAsStateWithLifecycle()
     val savedLists by AppGraph.lists.lists.collectAsStateWithLifecycle()
@@ -128,6 +134,14 @@ fun CellarScreen(
     // string is what a saved screen state can carry; the enum is read back from it.
     var filterLabel by rememberSaveable { mutableStateOf(CellarFilter.ALL.label) }
     val filter = CellarFilter.entries.firstOrNull { it.label == filterLabel } ?: CellarFilter.ALL
+    // The weekly nudge opens the cellar on the bottles it was about, rather than leaving the user to
+    // hunt for the filter for the thing the notification just named.
+    LaunchedEffect(openDrinkUp) {
+        if (openDrinkUp) {
+            filterLabel = CellarFilter.DRINK_UP.label
+            onDrinkUpShown()
+        }
+    }
     // The list's quick action. The id, not the bottle: the sheet reads the record as it is, so the
     // count it shows is the count after the tap that opened it.
     var drankId by remember { mutableStateOf<String?>(null) }
@@ -381,13 +395,22 @@ fun CellarScreen(
             if (visible.isEmpty()) {
                 item {
                     EmptyState(
-                        title = if (data.wines.isEmpty()) "Your cellar is empty" else "Nothing matches",
-                        body = if (data.wines.isEmpty()) {
-                            "Tap + and name the bottle, scan its label, or type it in by hand. " +
-                                "Everything you record stays on this phone."
-                        } else {
-                            "No bottle in the cellar matches those words. To add one you do not " +
-                                "own yet, tap + — everything you record stays on this phone."
+                        title = when {
+                            data.wines.isEmpty() -> "Your cellar is empty"
+                            filter == CellarFilter.DRINK_UP -> "Nothing wants drinking up"
+                            else -> "Nothing matches"
+                        },
+                        body = when {
+                            data.wines.isEmpty() ->
+                                "Tap + and name the bottle, scan its label, or type it in by hand. " +
+                                    "Everything you record stays on this phone."
+                            filter == CellarFilter.DRINK_UP ->
+                                "No bottle with stock is at its peak or past its window. A bottle " +
+                                    "with no window on record cannot say either way — Settings → " +
+                                    "Fill in the details is what puts one there."
+                            else ->
+                                "No bottle in the cellar matches those words. To add one you do not " +
+                                    "own yet, tap + — everything you record stays on this phone."
                         }
                     )
                 }
@@ -800,6 +823,7 @@ private fun matches(wine: Wine, query: String, filter: CellarFilter, data: Cella
                 com.wineverdict.app.model.DrinkStatus.READY,
                 com.wineverdict.app.model.DrinkStatus.PEAK
             )
+        CellarFilter.DRINK_UP -> wine.quantity > 0 && wine.drinkStatus() in DrinkUp.DUE
         CellarFilter.LOVED -> Verdict.liked(wine)
         CellarFilter.EMPTY -> wine.quantity <= 0
     }

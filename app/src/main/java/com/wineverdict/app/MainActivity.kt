@@ -61,17 +61,23 @@ class MainActivity : ComponentActivity() {
      */
     private val askedForList = mutableStateOf<String?>(null)
 
+    /** Whether the weekly nudge opened the app, which means the cellar opens on Drink up. */
+    private val askedForDrinkUp = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Before anything else: an error during start-up is exactly the kind nobody can reproduce.
         CrashLog.install(applicationContext)
         AppGraph.init(applicationContext)
         askedForList.value = intent?.getStringExtra(Reminders.EXTRA_LIST)
+        askedForDrinkUp.value = intent?.getBooleanExtra(Reminders.EXTRA_DRINK_UP, false) == true
         setContent {
             WineVerdictTheme {
                 AppRoot(
                     askedForList = askedForList.value,
-                    onListOpened = { askedForList.value = null }
+                    onListOpened = { askedForList.value = null },
+                    openDrinkUp = askedForDrinkUp.value,
+                    onDrinkUpShown = { askedForDrinkUp.value = false }
                 )
             }
         }
@@ -81,6 +87,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         askedForList.value = intent.getStringExtra(Reminders.EXTRA_LIST)
+        askedForDrinkUp.value = intent.getBooleanExtra(Reminders.EXTRA_DRINK_UP, false)
     }
 }
 
@@ -97,7 +104,12 @@ private val tabs = listOf(
 )
 
 @Composable
-private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
+private fun AppRoot(
+    askedForList: String?,
+    onListOpened: () -> Unit,
+    openDrinkUp: Boolean,
+    onDrinkUpShown: () -> Unit
+) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -179,7 +191,9 @@ private fun AppRoot(askedForList: String?, onListOpened: () -> Unit) {
                             restoreState = true
                         }
                     },
-                    onOpenLists = { navController.navigate("lists") }
+                    onOpenLists = { navController.navigate("lists") },
+                    openDrinkUp = openDrinkUp,
+                    onDrinkUpShown = onDrinkUpShown
                 )
             }
             composable("journal") {

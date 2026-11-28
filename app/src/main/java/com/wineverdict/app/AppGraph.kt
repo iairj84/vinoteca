@@ -19,6 +19,7 @@ import com.wineverdict.app.data.SettingsStore
 import com.wineverdict.app.data.TasteStore
 import com.wineverdict.app.data.TasteText
 import com.wineverdict.app.data.Updater
+import com.wineverdict.app.data.WeeklyDigest
 import com.wineverdict.app.model.Verdict
 import com.wineverdict.app.model.Wine
 import com.wineverdict.app.util.ImageUtils
@@ -143,6 +144,9 @@ object AppGraph {
             drop = { id -> cellar.clearPhoto(id) }
         )
         updater = Updater(app)
+        // A phone that opted into the weekly nudge keeps its Monday after an upgrade or a restore:
+        // the schedule is UPDATE, so opening the app does not push this week's nudge back a week.
+        if (settings.weeklyDigest) runCatching { WeeklyDigest.schedule(app) }
         // One small GET for the whole start-up, and never in the way: a failed check is the same
         // as no check, because a phone without a network still has a cellar to open.
         scope.launch {

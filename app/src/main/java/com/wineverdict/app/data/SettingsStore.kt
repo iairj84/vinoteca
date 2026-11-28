@@ -159,6 +159,14 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(KEY_DISMISSED_UPDATE, "").orEmpty()
         set(value) = prefs.edit().putString(KEY_DISMISSED_UPDATE, value.trim()).apply()
 
+    /**
+     * Whether the phone posts one nudge a week about bottles at their peak or past it. Off until it
+     * is turned on in Settings: the app has no business starting a notification habit for anybody.
+     */
+    var weeklyDigest: Boolean
+        get() = prefs.getBoolean(KEY_WEEKLY_DIGEST, false)
+        set(value) = prefs.edit().putBoolean(KEY_WEEKLY_DIGEST, value).apply()
+
     var currency: String
         get() = prefs.getString(KEY_CURRENCY, "").orEmpty().ifBlank { DEFAULT_CURRENCY }
         set(value) = prefs.edit()
@@ -190,6 +198,7 @@ class SettingsStore(context: Context) {
         private const val KEY_LAST_BACKUP = "backup.last"
         private const val KEY_BACKUP_DISMISSED = "backup.dismissed"
         private const val KEY_DISMISSED_UPDATE = "update.dismissed"
+        private const val KEY_WEEKLY_DIGEST = "digest.weekly"
 
         private const val LEGACY_API_KEY = "groq_api_key"
         private const val LEGACY_VISION_MODEL = "vision_model"

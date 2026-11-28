@@ -21,17 +21,19 @@ import com.wineverdict.app.R
 import java.util.concurrent.TimeUnit
 
 /**
- * The one reminder the app sends.
+ * The two reminders the app sends, and no others.
  *
- * A wine list is photographed at a table, and the verdict on what was poured is worth most while
+ * **A wine list.** Photographed at a table, and the verdict on what was poured is worth most while
  * the evening is still in reach — an hour later, not a week later when the bottle is a name in a
- * photo. The reminder is scheduled when the list is read and says nothing about the wines: it is a
- * nudge to open the app, not a second copy of the answer.
+ * photo. Scheduled when the list is read, and it says nothing about the wines: a nudge to open the
+ * app, not a second copy of the answer.
  *
- * WorkManager rather than an alarm: the reminder has to outlive the screen closing and the process
- * being killed, and a one-hour delay is the shape a one-time work request already has. Nothing is
- * ever posted unless a list was actually scanned, so an install that never photographs a menu gets
- * no notification at all.
+ * **The weekly drink-up.** Opted into in Settings, off until then, and silent on a week when no
+ * bottle is at its peak or past it. It carries the names, because that is the whole message.
+ *
+ * WorkManager rather than an alarm for both: they have to outlive the screen closing and the process
+ * being killed. Nothing is ever posted unless a list was scanned or a digest has something to say,
+ * so an install that photographs no menu and never opts in gets no notification at all.
  */
 object Reminders {
 
@@ -40,6 +42,14 @@ object Reminders {
 
     private const val WORK = "list-review"
     private const val NOTIFICATION_ID = 1201
+
+    /** The weekly drink-up digest: its own channel, so it can be turned off on its own. */
+    const val DIGEST_CHANNEL = "drink-up"
+
+    private const val DIGEST_ID = 1202
+
+    /** The intent extra that opens the cellar on the bottles the digest named. */
+    const val EXTRA_DRINK_UP = "com.wineverdict.app.extra.DRINK_UP"
 
     /** The intent extra that turns the tap into that evening's list rather than the cellar. */
     const val EXTRA_LIST = "com.wineverdict.app.extra.LIST"
@@ -170,6 +180,47 @@ object Reminders {
             .setContentIntent(open)
             .build()
         manager.notify(NOTIFICATION_ID, notification)
+    }
+
+    /**
+     * Posts the weekly digest, or nothing at all.
+     *
+     * The permission is checked again here because the worker can run a week after it was granted
+     * and revoked since, and a week with nothing to drink up never reaches this call at all.
+     */
+    fun postDrinkUp(context: Context, digest: DrinkUpDigest) {
+        if (!canNotify(context)) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                DIGEST_CHANNEL,
+                "Weekly drink-up",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "One nudge a week when a bottle in the cellar is at its peak or " +
+                    "past its window."
+            }
+        )
+        val open = PendingIntent.getActivity(
+            context,
+            1,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(EXTRA_DRINK_UP, true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(context, DIGEST_CHANNEL)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(digest.title)
+            .setContentText(digest.body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(digest.body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        manager.notify(DIGEST_ID, notification)
     }
 }
 

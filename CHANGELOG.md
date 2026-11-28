@@ -3,6 +3,28 @@
 Newest first. Wine Verdict 1.0.0 restarted the version line when the app was renamed from
 Vinoteca, so every 1.0.x entry is newer than the 1.7.x entries below it.
 
+### 1.2.49: the bottles that want drinking
+
+**The cellar knew a bottle was past its window and never said so.** Every row carried a badge and
+**Ready now** counted the drinkable ones, but with two hundred bottles in the list the three that
+were at their peak this month and the two that had gone over were just further down a scroll. A
+window is only worth recording if something reads it.
+
+- **A Drink up filter, second in the row.** It holds the bottles at their peak or past the window on
+their record, past peak first — stock only, because a wine with none left is not a decision, and
+**Ready now** is left out because a bottle you may open is not one you must. An empty result says so
+and points at the one thing that puts a bottle here: a drinking window on the record.
+- **An opt-in weekly nudge.** Settings → Weekly nudge posts one notification a week, on Monday
+morning, naming up to three of those bottles and saying how many are past it and how many are at
+their peak — for example *2 bottles to drink up: 2016 Barolo Riserva · 2019 Chianti — one past its
+window, one at its peak.* A tap opens the cellar on the Drink up view. It is off until the switch is
+turned on, it asks for the notification permission at the moment it is turned on, and it posts
+nothing at all on a week when no bottle wants drinking, because a nudge that says nothing is the
+kind people switch off.
+- **The schedule is Monday, not whenever.** The first one lands on the next Monday at nine in the
+phone's time zone and every seven days after that, and opening the app does not push it back — so
+the reminder keeps a shape the week can be planned around.
+
 ### 1.2.48: a night that can be corrected
 
 **A night in the cellar book could not be changed.** The date was picked days later and turned out

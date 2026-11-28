@@ -1,5 +1,6 @@
 package com.wineverdict.app.ui
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -65,7 +66,10 @@ import com.wineverdict.app.data.BackupFile
 import com.wineverdict.app.data.CellarRepository
 import com.wineverdict.app.data.CrashLog
 import com.wineverdict.app.data.DetailsBackfill
+import com.wineverdict.app.data.DrinkUp
 import com.wineverdict.app.data.PhotoBackfill
+import com.wineverdict.app.data.Reminders
+import com.wineverdict.app.data.WeeklyDigest
 import com.wineverdict.app.data.ImportPreview
 import com.wineverdict.app.data.InsightStore
 import com.wineverdict.app.data.SettingsStore
@@ -76,6 +80,8 @@ import com.wineverdict.app.model.StorageLocation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -95,6 +101,7 @@ fun SettingsScreen(
 
     var currency by remember { mutableStateOf(AppGraph.settings.currency) }
     var showValue by remember { mutableStateOf(AppGraph.settings.showCellarValue) }
+    var weekly by remember { mutableStateOf(AppGraph.settings.weeklyDigest) }
     var primaryProvider by remember { mutableStateOf(AppGraph.settings.primaryProvider) }
     var drafts by remember {
         mutableStateOf(AiProvider.entries.associateWith { draftOf(AppGraph.settings, it) })
@@ -115,6 +122,26 @@ fun SettingsScreen(
     var lastBackupAt by remember { mutableStateOf(AppGraph.settings.lastBackupAt) }
     var restoreCandidate by remember { mutableStateOf<BackupFile?>(null) }
     var importPreview by remember { mutableStateOf<ImportPreview?>(null) }
+    // The switch cannot be on without the permission, so enabling asks for it and a refusal leaves
+    // the switch off rather than booking a week of work that would post nothing.
+    val askToNotify = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            weekly = true
+            AppGraph.settings.weeklyDigest = true
+            WeeklyDigest.schedule(context)
+        } else {
+            weekly = false
+            AppGraph.settings.weeklyDigest = false
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    "Notifications are off for this app, so the nudge cannot arrive. The switch " +
+                        "stays off until they are allowed in Android's settings."
+                )
+            }
+        }
+    }
 
     // The start-up check has already asked GitHub, so opening Settings does not ask twice.
     var update by remember {
@@ -437,6 +464,62 @@ fun SettingsScreen(
                         }
                     )
                 }
+            }
+
+            SectionCard("Weekly nudge") {
+                val due = remember(data.wines) { DrinkUp.bottles(data.wines).size }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "A Monday reminder to drink up",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            "Once a week the phone reads the cellar and posts one notification if " +
+                                "a bottle is at its peak or past its window — with the names on it, " +
+                                "and a tap that opens them. Nothing leaves the phone, nothing is " +
+                                "posted on a week with nothing to drink up, and it is off until " +
+                                "this switch is turned on.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = weekly,
+                        onCheckedChange = { on ->
+                            when {
+                                !on -> {
+                                    weekly = false
+                                    AppGraph.settings.weeklyDigest = false
+                                    WeeklyDigest.cancel(context)
+                                }
+                                !Reminders.canNotify(context) ->
+                                    askToNotify.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                else -> {
+                                    weekly = true
+                                    AppGraph.settings.weeklyDigest = true
+                                    WeeklyDigest.schedule(context)
+                                }
+                            }
+                        }
+                    )
+                }
+                Text(
+                    if (weekly) {
+                        val next = WeeklyDigest.nextAfter(ZonedDateTime.now())
+                            .format(DateTimeFormatter.ofPattern("EEEE d MMMM, HH:mm", Locale.getDefault()))
+                        "Next nudge: $next — " +
+                            (if (due == 1) "1 bottle at its peak or past it." else "$due bottles at their peak or past it.")
+                    } else {
+                        "Off. The cellar's Drink up filter shows the same bottles whenever you ask " +
+                            "for them."
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
 
             SectionCard("Fill in the details") {

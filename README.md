@@ -63,7 +63,10 @@ Gemini or Groq — with your own key.
   the bottle — a verdict or a note given in the same breath stays.
   A **No bottles** filter shows every wine on record with none left — the wines kept off a list and
   the bottles you finished — instead of leaving them at the bottom of the list, and a
-  **Saved wine menus** card above the search opens a wine list you kept.
+  **Saved wine menus** card above the search opens a wine list you kept. A **Drink up** filter,
+  second in the row, is the bottles at their peak or past the window on their record — stock only,
+  so a wine with none left is not a decision, and **Ready now** is left out because a bottle you may
+  open is not one you must. Past peak sorts above at peak.
 - **Notes** — reference notes from the model, plus your own dated tasting notes and one of four
   verdicts: **Not for me**, **Fine**, **Good** or **Loved**.
 - **A wine you don't own** — every pick off a wine list carries **Save this one**, and every list
@@ -97,12 +100,14 @@ Gemini or Groq — with your own key.
   three bottles run at a time, and anything the pages did not print stays empty rather than
   estimated. A lookup that does not answer is not written off: it is asked again next time, and
   **Look again** re-asks the bottles whose pages had nothing to say.
-- **One reminder** — an hour after a wine list is read, a single notification asks how the wines
-  were and **reopens that list**, not the app's front door. A second list replaces the first nudge,
-  the permission is asked for when the list is read rather than at first launch, and nothing else is
-  ever posted. Recording the evening settles it: the first wine you order or judge on that list
-  cancels the nudge (and any notification already in the tray), because a reminder to say how a wine
-  was is noise once you have said.
+- **Two reminders, and both say why** — an hour after a wine list is read, a single notification
+  asks how the wines were and **reopens that list**, not the app's front door. A second list replaces
+  the first nudge, the permission is asked for when the list is read rather than at first launch.
+  Recording the evening settles it: the first wine you order or judge on that list cancels the nudge
+  (and any notification already in the tray), because a reminder to say how a wine was is noise once
+  you have said. **Settings → Weekly nudge** adds one more, and only if you turn it on: a Monday
+  morning line naming the bottles at their peak or past their window, skipped entirely on a week with
+  none, and a tap that opens the cellar on its **Drink up** filter. Nothing else is ever posted.
 - **The cellar book** — every bottle that leaves the cellar is written down: **Drank one** with the
   verdict you gave at the time, and the minus button as a count adjustment with no verdict
   attributed to you. The **Journal** tab opens it — the nights newest first, each bottle with its
